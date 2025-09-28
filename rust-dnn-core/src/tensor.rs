@@ -55,6 +55,18 @@ impl Tensor {
         Ok(Self::new(storage, shape, stride, 0))
     }
 
+    pub fn arange(len: usize) -> Self {
+        let mut data = Vec::new();
+        for i in 0..len {
+            data.push(i as f32);
+        }
+        let shape = vec![data.len()];
+        let stride = Self::compute_stride(&shape);
+        let cpu_storage = CpuStorage::new(data);
+        let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
+        Self::new(storage, shape, stride, 0)
+    }
+
     fn compute_len(shape: &[usize]) -> usize {
         let mut len = 1;
         for dim in shape {
@@ -63,7 +75,7 @@ impl Tensor {
         len
     }
 
-    fn compute_stride(shape: &Vec<usize>) -> Vec<usize> {
+    fn compute_stride(shape: &[usize]) -> Vec<usize> {
         let mut strides = Vec::new();
         for i in 0..shape.len() {
             let mut stride = 1;
@@ -76,7 +88,15 @@ impl Tensor {
     }
 
     pub fn to_vec(&self) -> Vec<f32> {
-        self.storage.borrow().to_vec()
+        let mut vec = Vec::with_capacity(self.len);
+        let Storage::CpuStorage(input_cpu_storage) = &*self.storage.borrow();
+        let input_data = input_cpu_storage.data();
+
+        for i in 0..self.len {
+            let offset = Self::compute_offset(self.storage_offset, &self.shape, &self.stride, i);
+            vec.push(input_data[offset]);
+        }
+        vec
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -89,6 +109,10 @@ impl Tensor {
 
     pub fn ndim(&self) -> usize {
         self.shape.len()
+    }
+
+    pub fn storage_offset(&self) -> usize {
+        self.storage_offset
     }
 
     pub fn add(&self, other: &Tensor) -> Result<Self, Error> {
@@ -111,28 +135,22 @@ impl Tensor {
     }
 
     pub fn broadcast_to(&self, shape: Vec<usize>) -> Result<Self, Error> {
-        let mut shape2 = Vec::new();
+        let mut input_shape = Vec::new();
         if self.shape.len() < shape.len() {
-            for _ in 0..(self.shape.len() - shape.len()) {
-                shape2.push(1);
+            for _ in 0..(shape.len() - self.shape.len()) {
+                input_shape.push(1);
             }
         }
         for dim in &self.shape {
-            shape2.push(*dim);
+            input_shape.push(*dim);
         }
-        let input = if self.is_contiguous() {
-            self.clone()
-        } else {
-            self.contiguous()?
-        };
-        let input = input.reshape(shape2.clone())?;
-
-        let stride = Self::compute_broadcast_stride(&input.shape, &input.stride, &shape2)?;
+        let input = self.reshape(input_shape.clone())?;
+        let stride = Self::compute_broadcast_stride(&input.shape, &input.stride, &shape)?;
         let output = Tensor::new(
-            Rc::clone(&self.storage),
-            shape2,
+            Rc::clone(&input.storage),
+            shape,
             stride,
-            self.storage_offset,
+            input.storage_offset,
         );
         Ok(output)
     }
@@ -188,6 +206,10 @@ impl Tensor {
     }
 
     pub fn contiguous(&self) -> Result<Self, Error> {
+        if self.is_contiguous() {
+            return Ok(self.clone());
+        }
+
         let mut output_data = Vec::with_capacity(self.len);
         let Storage::CpuStorage(input_cpu_storage) = &*self.storage.borrow();
         let input_data = input_cpu_storage.data();
@@ -251,7 +273,8 @@ impl Tensor {
         let output_storage = Rc::new(RefCell::new(Storage::CpuStorage(CpuStorage::new(
             output_data,
         ))));
-        let output = Tensor::new(output_storage, self.shape.clone(), self.stride.clone(), 0);
+        let stride = Self::compute_stride(&broadcasted_shape);
+        let output = Tensor::new(output_storage, broadcasted_shape, stride, 0);
         Result::Ok(output)
     }
 
