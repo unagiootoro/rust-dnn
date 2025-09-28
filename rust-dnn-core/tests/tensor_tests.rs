@@ -27,6 +27,20 @@ fn test_reshape2() {
 }
 
 #[test]
+fn test_permuted_axes() {
+    let x = tensor![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+    let y = x.permuted_axes(&[1, 0]).unwrap();
+    assert_tensor(&y, &tensor![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
+}
+
+#[test]
+fn test_reversed_axes() {
+    let x = tensor![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+    let y = x.reversed_axes().unwrap();
+    assert_tensor(&y, &tensor![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
+}
+
+#[test]
 fn test_broadcast_to() {
     let x = tensor![1.0, 2.0, 3.0];
     let y = x.broadcast_to(vec![2, 3]).unwrap();

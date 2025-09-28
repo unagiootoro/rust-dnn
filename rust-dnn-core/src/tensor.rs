@@ -134,6 +134,38 @@ impl Tensor {
         Result::Ok(output)
     }
 
+    pub fn permuted_axes(&self, axes: &[usize]) -> Result<Self, Error> {
+        if self.ndim() != axes.len() {
+            let msg = format!(
+                "Mismatch dims(self.ndim() = {}, axes.len() = {})",
+                self.ndim(),
+                axes.len()
+            );
+            return Err(Error::ArgumentsError { msg });
+        }
+        let mut new_shape = Vec::new();
+        let mut new_stride = Vec::new();
+        for axis in axes {
+            new_shape.push(self.shape[*axis]);
+            new_stride.push(self.stride[*axis]);
+        }
+        let output = Tensor::new(
+            self.storage.clone(),
+            new_shape,
+            new_stride,
+            self.storage_offset,
+        );
+        Result::Ok(output)
+    }
+
+    pub fn reversed_axes(&self) -> Result<Self, Error> {
+        let mut axes = Vec::new();
+        for axis in (0..self.shape.len()).rev() {
+            axes.push(axis);
+        }
+        self.permuted_axes(&axes)
+    }
+
     pub fn broadcast_to(&self, shape: Vec<usize>) -> Result<Self, Error> {
         let mut input_shape = Vec::new();
         if self.shape.len() < shape.len() {
