@@ -1,6 +1,10 @@
-use std::{cell::RefCell, ops::Deref, rc::Rc};
+use std::{
+    cell::RefCell,
+    ops::{self, Deref},
+    rc::Rc,
+};
 
-use crate::{cpu_storage::CpuStorage, error::Error, storage::Storage};
+use crate::{cpu_storage::CpuStorage, error::Error, error::Result, storage::Storage};
 
 pub struct TensorState {
     storage: Rc<RefCell<Storage>>,
@@ -39,7 +43,7 @@ impl Tensor {
         Self(Rc::new(state))
     }
 
-    pub fn from_vec(data: Vec<f32>, shape: Vec<usize>) -> Result<Self, Error> {
+    pub fn from_vec(data: Vec<f32>, shape: Vec<usize>) -> Result<Self> {
         let len = Self::compute_len(&shape);
         if data.len() != len {
             let msg = format!(
@@ -115,11 +119,11 @@ impl Tensor {
         self.storage_offset
     }
 
-    pub fn add(&self, other: &Tensor) -> Result<Self, Error> {
-        self.map_arg2(other, |a, b| a + b)
+    fn add_impl(&self, rhs: &Tensor) -> Result<Self> {
+        self.map_arg2(rhs, |a, b| a + b)
     }
 
-    pub fn reshape(&self, shape: Vec<usize>) -> Result<Self, Error> {
+    pub fn reshape(&self, shape: Vec<usize>) -> Result<Self> {
         let new_shape_len = Self::compute_len(&shape);
         if self.len != new_shape_len {
             let msg = format!(
@@ -134,7 +138,7 @@ impl Tensor {
         Result::Ok(output)
     }
 
-    pub fn permuted_axes(&self, axes: &[usize]) -> Result<Self, Error> {
+    pub fn permuted_axes(&self, axes: &[usize]) -> Result<Self> {
         if self.ndim() != axes.len() {
             let msg = format!(
                 "Mismatch dims(self.ndim() = {}, axes.len() = {})",
@@ -158,7 +162,7 @@ impl Tensor {
         Result::Ok(output)
     }
 
-    pub fn reversed_axes(&self) -> Result<Self, Error> {
+    pub fn reversed_axes(&self) -> Result<Self> {
         let mut axes = Vec::new();
         for axis in (0..self.shape.len()).rev() {
             axes.push(axis);
@@ -166,7 +170,7 @@ impl Tensor {
         self.permuted_axes(&axes)
     }
 
-    pub fn broadcast_to(&self, shape: Vec<usize>) -> Result<Self, Error> {
+    pub fn broadcast_to(&self, shape: Vec<usize>) -> Result<Self> {
         let mut input_shape = Vec::new();
         if self.shape.len() < shape.len() {
             for _ in 0..(shape.len() - self.shape.len()) {
@@ -191,7 +195,7 @@ impl Tensor {
         original_shape: &Vec<usize>,
         original_strides: &Vec<usize>,
         target_shape: &Vec<usize>,
-    ) -> Result<Vec<usize>, Error> {
+    ) -> Result<Vec<usize>> {
         if target_shape.len() < original_shape.len() {
             return Err(Error::ArgumentsError {
                 msg: format!("Invalid broadcast shape({:?})", target_shape),
@@ -237,7 +241,7 @@ impl Tensor {
         true
     }
 
-    pub fn contiguous(&self) -> Result<Self, Error> {
+    pub fn contiguous(&self) -> Result<Self> {
         if self.is_contiguous() {
             return Ok(self.clone());
         }
@@ -280,7 +284,7 @@ impl Tensor {
         base_offset + offset
     }
 
-    fn map_arg2<F>(&self, other: &Tensor, f: F) -> Result<Tensor, Error>
+    fn map_arg2<F>(&self, other: &Tensor, f: F) -> Result<Tensor>
     where
         F: Fn(f32, f32) -> f32 + Sync,
     {
@@ -310,7 +314,7 @@ impl Tensor {
         Result::Ok(output)
     }
 
-    fn broadcast_shape(a: &[usize], b: &[usize]) -> Result<Vec<usize>, Error> {
+    fn broadcast_shape(a: &[usize], b: &[usize]) -> Result<Vec<usize>> {
         let mut c = Vec::new();
         let ndim = if a.len() < b.len() { b.len() } else { a.len() };
         for i in 0..ndim {
@@ -361,4 +365,20 @@ macro_rules! tensor {
         let shape = vec![data.len()];
         tensor::Tensor::from_vec(data, shape).unwrap()
     }};
+}
+
+impl ops::Add<Tensor> for Tensor {
+    type Output = Result<Tensor>;
+
+    fn add(self, rhs: Tensor) -> Result<Tensor> {
+        self.add_impl(&rhs)
+    }
+}
+
+impl ops::Add<Tensor> for Result<Tensor> {
+    type Output = Result<Tensor>;
+
+    fn add(self, rhs: Tensor) -> Result<Tensor> {
+        self?.add_impl(&rhs)
+    }
 }
