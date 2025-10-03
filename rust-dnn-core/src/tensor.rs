@@ -37,7 +37,7 @@ impl<T: Num> Tensor<T> {
         let state = TensorState::<T> {
             storage,
             layout,
-            dtype: T::dtype(),
+            dtype,
             _marker: PhantomData,
         };
         Self(Rc::new(state))
