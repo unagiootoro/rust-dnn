@@ -7,7 +7,7 @@ pub enum Storage {
 impl Storage {
     pub fn to_vec(&self) -> Vec<f32> {
         match self {
-            Storage::CpuStorage(storage) => storage.to_vec(),
+            Storage::CpuStorage(storage) => storage.as_slice::<f32>().to_vec(),
         }
     }
 }

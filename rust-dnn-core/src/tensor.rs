@@ -6,14 +6,17 @@ use std::{
 
 use crate::{
     cpu_storage::CpuStorage,
+    dtype::DType,
     error::{Error, Result},
     layout::Layout,
+    num::Num,
     storage::Storage,
 };
 
 pub struct TensorState {
     storage: Rc<RefCell<Storage>>,
     layout: Layout,
+    dtype: DType,
 }
 
 #[derive(Clone)]
@@ -28,12 +31,16 @@ impl Deref for Tensor {
 }
 
 impl Tensor {
-    pub fn new(storage: Rc<RefCell<Storage>>, layout: Layout) -> Self {
-        let state = TensorState { storage, layout };
+    pub fn new(storage: Rc<RefCell<Storage>>, layout: Layout, dtype: DType) -> Self {
+        let state = TensorState {
+            storage,
+            layout,
+            dtype,
+        };
         Self(Rc::new(state))
     }
 
-    pub fn from_vec(data: Vec<f32>, shape: Vec<usize>) -> Result<Self> {
+    pub fn from_vec<T: Num>(data: Vec<T>, shape: Vec<usize>) -> Result<Self> {
         let len = Self::compute_len(&shape);
         if data.len() != len {
             let msg = format!(
@@ -43,11 +50,11 @@ impl Tensor {
             );
             return Err(Error::ArgumentsError { msg });
         }
-        let cpu_storage = CpuStorage::new(data);
+        let cpu_storage = CpuStorage::from_vec(data);
         let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, 0);
-        Ok(Self::new(storage, layout))
+        Ok(Self::new(storage, layout, T::dtype()))
     }
 
     pub fn arange(len: usize) -> Self {
@@ -57,10 +64,10 @@ impl Tensor {
         }
         let shape = vec![data.len()];
         let stride = Self::compute_stride(&shape);
-        let cpu_storage = CpuStorage::new(data);
+        let cpu_storage = CpuStorage::from_vec(data);
         let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
         let layout = Layout::new(shape, stride, 0);
-        Self::new(storage, layout)
+        Self::new(storage, layout, DType::F32)
     }
 
     fn compute_len(shape: &[usize]) -> usize {
@@ -83,10 +90,10 @@ impl Tensor {
         strides
     }
 
-    pub fn to_vec(&self) -> Vec<f32> {
+    pub fn to_vec<T: Num>(&self) -> Vec<T> {
         let mut vec = Vec::with_capacity(self.len());
         let Storage::CpuStorage(input_cpu_storage) = &*self.storage.borrow();
-        let input_data = input_cpu_storage.data();
+        let input_data = input_cpu_storage.as_slice();
 
         for i in 0..self.len() {
             let offset = Self::compute_offset(&self.layout, i);
@@ -122,21 +129,31 @@ impl Tensor {
         let lhs_storage = &*lhs.storage.borrow();
         let rhs_storage = &*rhs.storage.borrow();
 
-        let output_storage = Self::op_add(lhs_storage, rhs_storage, &lhs.layout, &rhs.layout)?;
+        let output_storage = match (self.dtype, rhs.dtype) {
+            (DType::F32, DType::F32) => {
+                Self::op_add::<f32>(lhs_storage, rhs_storage, &lhs.layout, &rhs.layout)
+            }
+            (DType::U32, DType::U32) => {
+                Self::op_add::<u32>(lhs_storage, rhs_storage, &lhs.layout, &rhs.layout)
+            }
+            _ => Err(Error::ArgumentsError {
+                msg: "Invalid dtype".to_string(),
+            }),
+        }?;
 
         let stride = Self::compute_stride(&broadcasted_shape);
         let layout = Layout::new(broadcasted_shape, stride, 0);
-        let output = Tensor::new(Rc::new(RefCell::new(output_storage)), layout);
+        let output = Tensor::new(Rc::new(RefCell::new(output_storage)), layout, self.dtype);
         Result::Ok(output)
     }
 
-    fn op_add(
+    fn op_add<T: Num>(
         lhs_storage: &Storage,
         rhs_storage: &Storage,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage> {
-        Self::map_arg2(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
+        Self::map_arg2::<T, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
             a + b
         })
     }
@@ -156,7 +173,7 @@ impl Tensor {
         let input = self.contiguous()?;
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, input.storage_offset());
-        let output = Tensor::new(input.storage.clone(), layout);
+        let output = Tensor::new(input.storage.clone(), layout, self.dtype);
         Result::Ok(output)
     }
 
@@ -176,7 +193,7 @@ impl Tensor {
             new_stride.push(self.stride()[*axis]);
         }
         let layout = Layout::new(new_shape, new_stride, self.storage_offset());
-        let output = Tensor::new(self.storage.clone(), layout);
+        let output = Tensor::new(self.storage.clone(), layout, self.dtype);
         Result::Ok(output)
     }
 
@@ -201,7 +218,7 @@ impl Tensor {
         let input = self.reshape(input_shape.clone())?;
         let stride = Self::compute_broadcast_stride(input.shape(), input.stride(), &shape)?;
         let layout = Layout::new(shape, stride, input.storage_offset());
-        let output = Tensor::new(Rc::clone(&input.storage), layout);
+        let output = Tensor::new(Rc::clone(&input.storage), layout, self.dtype);
         Ok(output)
     }
 
@@ -256,20 +273,27 @@ impl Tensor {
     }
 
     pub fn contiguous(&self) -> Result<Self> {
+        match self.dtype {
+            DType::F32 => self.contiguous_impl::<f32>(),
+            DType::U32 => self.contiguous_impl::<u32>(),
+        }
+    }
+
+    fn contiguous_impl<T: Num>(&self) -> Result<Self> {
         if self.is_contiguous() {
             return Ok(self.clone());
         }
 
         let mut output_data = Vec::with_capacity(self.len());
         let Storage::CpuStorage(input_cpu_storage) = &*self.storage.borrow();
-        let input_data = input_cpu_storage.data();
+        let input_data = input_cpu_storage.as_slice::<T>();
 
         for i in 0..self.len() {
             let offset = Self::compute_offset(&self.layout, i);
             output_data.push(input_data[offset]);
         }
 
-        let output_storage = Rc::new(RefCell::new(Storage::CpuStorage(CpuStorage::new(
+        let output_storage = Rc::new(RefCell::new(Storage::CpuStorage(CpuStorage::from_vec(
             output_data,
         ))));
         let layout = Layout::new(
@@ -277,7 +301,7 @@ impl Tensor {
             Self::compute_stride(&self.shape()),
             0,
         );
-        let output = Tensor::new(output_storage, layout);
+        let output = Tensor::new(output_storage, layout, self.dtype);
         Ok(output)
     }
 
@@ -293,7 +317,7 @@ impl Tensor {
         layout.storage_offset() + offset
     }
 
-    fn map_arg2<F>(
+    fn map_arg2<T: Num, F>(
         lhs_storage: &Storage,
         rhs_storage: &Storage,
         lhs_layout: &Layout,
@@ -301,15 +325,15 @@ impl Tensor {
         f: F,
     ) -> Result<Storage>
     where
-        F: Fn(f32, f32) -> f32 + Sync,
+        F: Fn(T, T) -> T + Sync,
     {
         let Storage::CpuStorage(a_cpu_storage) = lhs_storage;
         let Storage::CpuStorage(b_cpu_storage) = rhs_storage;
 
-        let a_data = a_cpu_storage.data();
-        let b_data = b_cpu_storage.data();
+        let a_data = a_cpu_storage.as_slice::<T>();
+        let b_data = b_cpu_storage.as_slice::<T>();
 
-        let output_data: Vec<f32> = (0..lhs_layout.len())
+        let output_data: Vec<T> = (0..lhs_layout.len())
             .into_iter()
             .map(|i| {
                 let a_index = Self::compute_offset(&lhs_layout, i);
@@ -317,7 +341,7 @@ impl Tensor {
                 f(a_data[a_index], b_data[b_index])
             })
             .collect();
-        let output_storage = Storage::CpuStorage(CpuStorage::new(output_data));
+        let output_storage = Storage::CpuStorage(CpuStorage::from_vec(output_data));
         Result::Ok(output_storage)
     }
 
@@ -363,7 +387,7 @@ macro_rules! tensor {
         };
         let data = arrays
             .into_iter()
-            .flat_map(|a| a.to_vec())
+            .flat_map(|a| a.to_vec::<f32>())
             .collect::<Vec<_>>();
         tensor::Tensor::from_vec(data, shape).unwrap()
     }};
