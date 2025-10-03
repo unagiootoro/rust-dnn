@@ -4,14 +4,16 @@ use std::{
     rc::Rc,
 };
 
-use crate::{cpu_storage::CpuStorage, error::Error, error::Result, storage::Storage};
+use crate::{
+    cpu_storage::CpuStorage,
+    error::{Error, Result},
+    layout::Layout,
+    storage::Storage,
+};
 
 pub struct TensorState {
     storage: Rc<RefCell<Storage>>,
-    shape: Vec<usize>,
-    len: usize,
-    stride: Vec<usize>,
-    storage_offset: usize,
+    layout: Layout,
 }
 
 #[derive(Clone)]
@@ -26,20 +28,8 @@ impl Deref for Tensor {
 }
 
 impl Tensor {
-    pub fn new(
-        storage: Rc<RefCell<Storage>>,
-        shape: Vec<usize>,
-        stride: Vec<usize>,
-        storage_offset: usize,
-    ) -> Self {
-        let len = Self::compute_len(&shape);
-        let state = TensorState {
-            storage,
-            shape,
-            len,
-            stride,
-            storage_offset,
-        };
+    pub fn new(storage: Rc<RefCell<Storage>>, layout: Layout) -> Self {
+        let state = TensorState { storage, layout };
         Self(Rc::new(state))
     }
 
@@ -56,7 +46,8 @@ impl Tensor {
         let cpu_storage = CpuStorage::new(data);
         let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
         let stride = Self::compute_stride(&shape);
-        Ok(Self::new(storage, shape, stride, 0))
+        let layout = Layout::new(shape, stride, 0);
+        Ok(Self::new(storage, layout))
     }
 
     pub fn arange(len: usize) -> Self {
@@ -68,7 +59,8 @@ impl Tensor {
         let stride = Self::compute_stride(&shape);
         let cpu_storage = CpuStorage::new(data);
         let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
-        Self::new(storage, shape, stride, 0)
+        let layout = Layout::new(shape, stride, 0);
+        Self::new(storage, layout)
     }
 
     fn compute_len(shape: &[usize]) -> usize {
@@ -92,49 +84,79 @@ impl Tensor {
     }
 
     pub fn to_vec(&self) -> Vec<f32> {
-        let mut vec = Vec::with_capacity(self.len);
+        let mut vec = Vec::with_capacity(self.len());
         let Storage::CpuStorage(input_cpu_storage) = &*self.storage.borrow();
         let input_data = input_cpu_storage.data();
 
-        for i in 0..self.len {
-            let offset = Self::compute_offset(self.storage_offset, &self.shape, &self.stride, i);
+        for i in 0..self.len() {
+            let offset = Self::compute_offset(&self.layout, i);
             vec.push(input_data[offset]);
         }
         vec
     }
 
     pub fn shape(&self) -> &[usize] {
-        &self.shape
+        &self.layout.shape()
+    }
+
+    pub fn stride(&self) -> &[usize] {
+        &self.layout.stride()
     }
 
     pub fn len(&self) -> usize {
-        self.len
+        self.layout.len()
     }
 
     pub fn ndim(&self) -> usize {
-        self.shape.len()
+        self.layout.ndim()
     }
 
     pub fn storage_offset(&self) -> usize {
-        self.storage_offset
+        self.layout.storage_offset()
     }
 
     fn add_impl(&self, rhs: &Tensor) -> Result<Self> {
-        self.map_arg2(rhs, |a, b| a + b)
+        let broadcasted_shape = Self::broadcast_shape(self.shape(), rhs.shape())?;
+        let lhs = self.broadcast_to(broadcasted_shape.clone())?;
+        let rhs = rhs.broadcast_to(broadcasted_shape.clone())?;
+        let lhs_storage = &*lhs.storage.borrow();
+        let rhs_storage = &*rhs.storage.borrow();
+
+        let output_storage = Self::op_add(lhs_storage, rhs_storage, &lhs.layout, &rhs.layout)?;
+
+        let stride = Self::compute_stride(&broadcasted_shape);
+        let layout = Layout::new(broadcasted_shape, stride, 0);
+        let output = Tensor::new(Rc::new(RefCell::new(output_storage)), layout);
+        Result::Ok(output)
+    }
+
+    fn op_add(
+        lhs_storage: &Storage,
+        rhs_storage: &Storage,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage> {
+        Self::map_arg2(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
+            a + b
+        })
     }
 
     pub fn reshape(&self, shape: Vec<usize>) -> Result<Self> {
         let new_shape_len = Self::compute_len(&shape);
-        if self.len != new_shape_len {
+        if self.len() != new_shape_len {
             let msg = format!(
                 "Length mismatch (from shape = {:?}, from shape len = {}, to shape = {:?}, to shape len = {})",
-                self.shape, self.len, shape, new_shape_len
+                self.shape(),
+                self.len(),
+                shape,
+                new_shape_len
             );
             return Err(Error::ArgumentsError { msg });
         }
         let input = self.contiguous()?;
         let stride = Self::compute_stride(&shape);
-        let output = Tensor::new(input.storage.clone(), shape, stride, input.storage_offset);
+        let layout = Layout::new(shape, stride, input.storage_offset());
+        let output = Tensor::new(input.storage.clone(), layout);
         Result::Ok(output)
     }
 
@@ -150,21 +172,17 @@ impl Tensor {
         let mut new_shape = Vec::new();
         let mut new_stride = Vec::new();
         for axis in axes {
-            new_shape.push(self.shape[*axis]);
-            new_stride.push(self.stride[*axis]);
+            new_shape.push(self.shape()[*axis]);
+            new_stride.push(self.stride()[*axis]);
         }
-        let output = Tensor::new(
-            self.storage.clone(),
-            new_shape,
-            new_stride,
-            self.storage_offset,
-        );
+        let layout = Layout::new(new_shape, new_stride, self.storage_offset());
+        let output = Tensor::new(self.storage.clone(), layout);
         Result::Ok(output)
     }
 
     pub fn reversed_axes(&self) -> Result<Self> {
         let mut axes = Vec::new();
-        for axis in (0..self.shape.len()).rev() {
+        for axis in (0..self.ndim()).rev() {
             axes.push(axis);
         }
         self.permuted_axes(&axes)
@@ -172,29 +190,25 @@ impl Tensor {
 
     pub fn broadcast_to(&self, shape: Vec<usize>) -> Result<Self> {
         let mut input_shape = Vec::new();
-        if self.shape.len() < shape.len() {
-            for _ in 0..(shape.len() - self.shape.len()) {
+        if self.ndim() < shape.len() {
+            for _ in 0..(shape.len() - self.ndim()) {
                 input_shape.push(1);
             }
         }
-        for dim in &self.shape {
+        for dim in self.shape() {
             input_shape.push(*dim);
         }
         let input = self.reshape(input_shape.clone())?;
-        let stride = Self::compute_broadcast_stride(&input.shape, &input.stride, &shape)?;
-        let output = Tensor::new(
-            Rc::clone(&input.storage),
-            shape,
-            stride,
-            input.storage_offset,
-        );
+        let stride = Self::compute_broadcast_stride(input.shape(), input.stride(), &shape)?;
+        let layout = Layout::new(shape, stride, input.storage_offset());
+        let output = Tensor::new(Rc::clone(&input.storage), layout);
         Ok(output)
     }
 
     fn compute_broadcast_stride(
-        original_shape: &Vec<usize>,
-        original_strides: &Vec<usize>,
-        target_shape: &Vec<usize>,
+        original_shape: &[usize],
+        original_strides: &[usize],
+        target_shape: &[usize],
     ) -> Result<Vec<usize>> {
         if target_shape.len() < original_shape.len() {
             return Err(Error::ArgumentsError {
@@ -232,7 +246,7 @@ impl Tensor {
 
     pub fn is_contiguous(&self) -> bool {
         let mut expected_stride = 1;
-        for (&dim, &stride) in self.shape.iter().rev().zip(self.stride.iter().rev()) {
+        for (&dim, &stride) in self.shape().iter().rev().zip(self.stride().iter().rev()) {
             if stride != expected_stride {
                 return false;
             }
@@ -246,72 +260,65 @@ impl Tensor {
             return Ok(self.clone());
         }
 
-        let mut output_data = Vec::with_capacity(self.len);
+        let mut output_data = Vec::with_capacity(self.len());
         let Storage::CpuStorage(input_cpu_storage) = &*self.storage.borrow();
         let input_data = input_cpu_storage.data();
 
-        for i in 0..self.len {
-            let offset = Self::compute_offset(self.storage_offset, &self.shape, &self.stride, i);
+        for i in 0..self.len() {
+            let offset = Self::compute_offset(&self.layout, i);
             output_data.push(input_data[offset]);
         }
 
         let output_storage = Rc::new(RefCell::new(Storage::CpuStorage(CpuStorage::new(
             output_data,
         ))));
-        let output = Tensor::new(
-            output_storage,
-            self.shape.clone(),
-            Self::compute_stride(&self.shape),
+        let layout = Layout::new(
+            self.shape().to_vec(),
+            Self::compute_stride(&self.shape()),
             0,
         );
+        let output = Tensor::new(output_storage, layout);
         Ok(output)
     }
 
-    fn compute_offset(
-        base_offset: usize,
-        shape: &[usize],
-        stride: &[usize],
-        mut linear_index: usize,
-    ) -> usize {
+    fn compute_offset(layout: &Layout, mut linear_index: usize) -> usize {
         let mut offset = 0;
-        for i in (0..shape.len()).rev() {
-            if stride[i] > 0 {
-                let idx = linear_index % shape[i];
-                offset += idx * stride[i];
+        for i in (0..layout.ndim()).rev() {
+            if layout.stride()[i] > 0 {
+                let idx = linear_index % layout.shape()[i];
+                offset += idx * layout.stride()[i];
             }
-            linear_index /= shape[i];
+            linear_index /= layout.shape()[i];
         }
-        base_offset + offset
+        layout.storage_offset() + offset
     }
 
-    fn map_arg2<F>(&self, other: &Tensor, f: F) -> Result<Tensor>
+    fn map_arg2<F>(
+        lhs_storage: &Storage,
+        rhs_storage: &Storage,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+        f: F,
+    ) -> Result<Storage>
     where
         F: Fn(f32, f32) -> f32 + Sync,
     {
-        let broadcasted_shape = Self::broadcast_shape(self.shape(), other.shape())?;
-        let a = self.broadcast_to(broadcasted_shape.clone())?;
-        let b = other.broadcast_to(broadcasted_shape.clone())?;
-        let Storage::CpuStorage(a_cpu_storage) = &*self.storage.borrow();
-        let Storage::CpuStorage(b_cpu_storage) = &*other.storage.borrow();
+        let Storage::CpuStorage(a_cpu_storage) = lhs_storage;
+        let Storage::CpuStorage(b_cpu_storage) = rhs_storage;
 
         let a_data = a_cpu_storage.data();
         let b_data = b_cpu_storage.data();
 
-        let len = Self::compute_len(&broadcasted_shape);
-        let output_data: Vec<f32> = (0..len)
+        let output_data: Vec<f32> = (0..lhs_layout.len())
             .into_iter()
             .map(|i| {
-                let a_index = Self::compute_offset(a.storage_offset, &a.shape, &a.stride, i);
-                let b_index = Self::compute_offset(b.storage_offset, &b.shape, &b.stride, i);
+                let a_index = Self::compute_offset(&lhs_layout, i);
+                let b_index = Self::compute_offset(&rhs_layout, i);
                 f(a_data[a_index], b_data[b_index])
             })
             .collect();
-        let output_storage = Rc::new(RefCell::new(Storage::CpuStorage(CpuStorage::new(
-            output_data,
-        ))));
-        let stride = Self::compute_stride(&broadcasted_shape);
-        let output = Tensor::new(output_storage, broadcasted_shape, stride, 0);
-        Result::Ok(output)
+        let output_storage = Storage::CpuStorage(CpuStorage::new(output_data));
+        Result::Ok(output_storage)
     }
 
     fn broadcast_shape(a: &[usize], b: &[usize]) -> Result<Vec<usize>> {
