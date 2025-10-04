@@ -9,6 +9,6 @@ fn test_backprop() -> Result<()> {
     let y = x.reshape(vec![6])?;
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
-    assert_tensor(gx, &tensor![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]);
+    assert_tensor(gx, &tensor![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
     Ok(())
 }

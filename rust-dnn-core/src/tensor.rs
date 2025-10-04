@@ -83,9 +83,17 @@ impl<T: Num> Tensor<T> {
     }
 
     pub fn zeros(shape: Vec<usize>) -> Self {
+        Self::fill(shape, T::zero())
+    }
+
+    pub fn ones(shape: Vec<usize>) -> Self {
+        Self::fill(shape, T::one())
+    }
+
+    pub fn fill(shape: Vec<usize>, value: T) -> Self {
         let mut data = Vec::new();
         for _ in 0..Self::compute_len(&shape) {
-            data.push(T::zero());
+            data.push(value);
         }
         let stride = Self::compute_stride(&shape);
         let cpu_storage = CpuStorage::from_vec(data);
@@ -177,7 +185,7 @@ impl<T: Num> Tensor<T> {
         )
     }
 
-    pub fn detatch(self) -> Self {
+    pub fn detach(self) -> Self {
         if !self.is_requires_grad() && self.op.is_none() {
             self
         } else {
@@ -481,21 +489,15 @@ impl<T: Num> Tensor<T> {
 }
 
 impl<T: Float> Tensor<T> {
-    pub fn backward(&self) -> Result<Gradients<T>> {
-        let mut grads = Gradients::new();
-        if !self.is_requires_grad {
-            return Ok(grads);
-        }
-
-        let gy = Tensor::zeros(self.shape().to_vec());
-        grads.insert(self, gy.clone());
+    pub fn sorted_nodes(&self) -> Vec<Tensor<T>> {
+        let mut nodes: Vec<(usize, Tensor<T>)> = Vec::new();
 
         let mut seen_set = HashSet::new();
-        let mut op_tensors = Vec::new();
-        op_tensors.push(self.clone());
+        let mut work_nodes = Vec::<(usize, Tensor<T>)>::new();
+        Self::add_work_node(0, self.clone(), &mut work_nodes, &mut seen_set);
 
-        while op_tensors.len() > 0 {
-            let op_tensor = op_tensors.pop().unwrap();
+        while work_nodes.len() > 0 {
+            let (depth, op_tensor) = work_nodes.pop().unwrap();
             if !op_tensor.is_requires_grad {
                 continue;
             }
@@ -503,28 +505,60 @@ impl<T: Float> Tensor<T> {
                 continue;
             };
 
-            let gy = grads.get(&op_tensor).unwrap();
+            nodes.push((depth, op_tensor));
+
+            match op {
+                Op::Reshape(x) => {
+                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
+                }
+            }
+        }
+
+        nodes.sort_by(|a, b| a.0.cmp(&b.0));
+        nodes.into_iter().map(|a| a.1).collect()
+    }
+
+    fn add_work_node(
+        depth: usize,
+        node: Tensor<T>,
+        work_nodes: &mut Vec<(usize, Tensor<T>)>,
+        seen_set: &mut HashSet<usize>,
+    ) {
+        if !seen_set.contains(&node.id()) {
+            seen_set.insert(node.id());
+            work_nodes.push((depth, node.clone()));
+        }
+    }
+
+    pub fn backward(&self) -> Result<Gradients<T>> {
+        let mut grads = Gradients::new();
+        if !self.is_requires_grad {
+            return Ok(grads);
+        }
+
+        let gy = Tensor::ones(self.shape().to_vec());
+        grads.insert(self, gy.clone());
+
+        let nodes = self.sorted_nodes();
+
+        for node in nodes {
+            if !node.is_requires_grad {
+                continue;
+            }
+            let Some(op) = node.op.clone() else {
+                continue;
+            };
+
+            let gy = grads.get(&node).unwrap();
             match op {
                 Op::Reshape(x) => {
                     let gx = Self::reshape_grad(gy, x.shape().to_vec())?;
-                    Self::add_op_tensors(x.clone(), &mut op_tensors, &mut seen_set);
                     grads.add(&x, gx)?;
                 }
             }
         }
 
         Ok(grads)
-    }
-
-    fn add_op_tensors(
-        tensor: Tensor<T>,
-        op_tensors: &mut Vec<Tensor<T>>,
-        seen_set: &mut HashSet<usize>,
-    ) {
-        if !seen_set.contains(&tensor.id()) {
-            seen_set.insert(tensor.id());
-            op_tensors.push(tensor.clone());
-        }
     }
 
     fn reshape_grad(gy: &Tensor<T>, shape: Vec<usize>) -> Result<Tensor<T>> {
