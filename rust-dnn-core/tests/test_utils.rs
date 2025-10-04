@@ -1,16 +1,16 @@
-use rust_dnn_core::tensor::Tensor;
+use rust_dnn_core::{num::Num, tensor::Tensor};
 
-pub fn assert_tensor(actual: &Tensor, expected: &Tensor) {
-    assert_tensor_with_eps(actual, expected, 1e-4)
+pub fn assert_tensor<T: Num>(actual: &Tensor<T>, expected: &Tensor<T>) {
+    assert_tensor_with_eps::<T>(actual, expected, 1e-4)
 }
 
-pub fn assert_tensor_with_eps(actual: &Tensor, expected: &Tensor, eps: f32) {
+pub fn assert_tensor_with_eps<T: Num>(actual: &Tensor<T>, expected: &Tensor<T>, eps: f32) {
     assert_eq!(actual.shape(), expected.shape());
     assert_eq!(actual.len(), expected.len());
     let actual_data = actual.to_vec();
     let expected_data = expected.to_vec();
     for i in 0..expected_data.len() {
-        let diff = (actual_data[i] - expected_data[i]).abs();
+        let diff = ((actual_data[i] - expected_data[i]).as_f32()).abs();
         // NOTE: NaN対策にdiff >= epsではなく!(diff < eps)で比較している。
         if !(diff < eps) {
             println!("actual_data = {:?}", actual_data);
