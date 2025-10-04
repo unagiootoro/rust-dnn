@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::HashSet,
     marker::PhantomData,
     ops::{self, Deref, Range},
     rc::Rc,
@@ -9,15 +10,25 @@ use crate::{
     cpu_storage::CpuStorage,
     dtype::DType,
     error::{Error, Result},
+    float::Float,
+    gradients::Gradients,
     layout::Layout,
     num::Num,
+    op::Op,
     storage::Storage,
 };
 
+thread_local! {
+    pub static TENSOR_ID_COUNTER: RefCell<usize> = RefCell::new(0);
+}
+
 pub struct TensorState<T: Num> {
+    id: usize,
     storage: Rc<RefCell<Storage>>,
     layout: Layout,
     dtype: DType,
+    is_requires_grad: bool,
+    op: Option<Op<T>>,
     _marker: PhantomData<T>,
 }
 
@@ -33,11 +44,22 @@ impl<T: Num> Deref for Tensor<T> {
 }
 
 impl<T: Num> Tensor<T> {
-    pub fn new(storage: Rc<RefCell<Storage>>, layout: Layout, dtype: DType) -> Self {
+    pub fn new(
+        storage: Rc<RefCell<Storage>>,
+        layout: Layout,
+        dtype: DType,
+        requires_grad: bool,
+        op: Option<Op<T>>,
+    ) -> Self {
+        let id = TENSOR_ID_COUNTER.with(|counter| *counter.borrow());
+        TENSOR_ID_COUNTER.with(|counter| *counter.borrow_mut() = id + 1);
         let state = TensorState::<T> {
+            id,
             storage,
             layout,
             dtype,
+            is_requires_grad: requires_grad,
+            op,
             _marker: PhantomData,
         };
         Self(Rc::new(state))
@@ -57,7 +79,19 @@ impl<T: Num> Tensor<T> {
         let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, 0);
-        Ok(Self::new(storage, layout, T::dtype()))
+        Ok(Self::new(storage, layout, T::dtype(), false, None))
+    }
+
+    pub fn zeros(shape: Vec<usize>) -> Self {
+        let mut data = Vec::new();
+        for _ in 0..Self::compute_len(&shape) {
+            data.push(T::zero());
+        }
+        let stride = Self::compute_stride(&shape);
+        let cpu_storage = CpuStorage::from_vec(data);
+        let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
+        let layout = Layout::new(shape, stride, 0);
+        Self::new(storage, layout, T::dtype(), false, None)
     }
 
     pub fn arange(range: Range<isize>) -> Self {
@@ -70,7 +104,7 @@ impl<T: Num> Tensor<T> {
         let cpu_storage = CpuStorage::from_vec(data);
         let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
         let layout = Layout::new(shape, stride, 0);
-        Self::new(storage, layout, T::dtype())
+        Self::new(storage, layout, T::dtype(), false, None)
     }
 
     fn compute_len(shape: &[usize]) -> usize {
@@ -105,6 +139,10 @@ impl<T: Num> Tensor<T> {
         vec
     }
 
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
     pub fn shape(&self) -> &[usize] {
         &self.layout.shape()
     }
@@ -123,6 +161,34 @@ impl<T: Num> Tensor<T> {
 
     pub fn storage_offset(&self) -> usize {
         self.layout.storage_offset()
+    }
+
+    pub fn is_requires_grad(&self) -> bool {
+        self.is_requires_grad
+    }
+
+    pub fn requires_grad(self) -> Self {
+        Self::new(
+            self.storage.clone(),
+            self.layout.clone(),
+            self.dtype,
+            true,
+            self.op.clone(),
+        )
+    }
+
+    pub fn detatch(self) -> Self {
+        if !self.is_requires_grad() && self.op.is_none() {
+            self
+        } else {
+            Self::new(
+                self.storage.clone(),
+                self.layout.clone(),
+                self.dtype,
+                false,
+                None,
+            )
+        }
     }
 
     fn add_impl(&self, rhs: &Tensor<T>) -> Result<Self> {
@@ -146,7 +212,13 @@ impl<T: Num> Tensor<T> {
 
         let stride = Self::compute_stride(&broadcasted_shape);
         let layout = Layout::new(broadcasted_shape, stride, 0);
-        let output = Tensor::new(Rc::new(RefCell::new(output_storage)), layout, self.dtype);
+        let output = Tensor::new(
+            Rc::new(RefCell::new(output_storage)),
+            layout,
+            self.dtype,
+            self.is_requires_grad || rhs.is_requires_grad,
+            None,
+        );
         Result::Ok(output)
     }
 
@@ -176,7 +248,18 @@ impl<T: Num> Tensor<T> {
         let input = self.contiguous()?;
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, input.storage_offset());
-        let output = Tensor::new(input.storage.clone(), layout, self.dtype);
+        let op = if self.is_requires_grad {
+            Some(Op::Reshape(self.clone()))
+        } else {
+            None
+        };
+        let output = Tensor::new(
+            input.storage.clone(),
+            layout,
+            self.dtype,
+            self.is_requires_grad,
+            op,
+        );
         Result::Ok(output)
     }
 
@@ -196,7 +279,13 @@ impl<T: Num> Tensor<T> {
             new_stride.push(self.stride()[*axis]);
         }
         let layout = Layout::new(new_shape, new_stride, self.storage_offset());
-        let output = Tensor::new(self.storage.clone(), layout, self.dtype);
+        let output = Tensor::new(
+            self.storage.clone(),
+            layout,
+            self.dtype,
+            self.is_requires_grad,
+            None,
+        );
         Result::Ok(output)
     }
 
@@ -221,7 +310,13 @@ impl<T: Num> Tensor<T> {
         let input = self.reshape(input_shape.clone())?;
         let stride = Self::compute_broadcast_stride(input.shape(), input.stride(), &shape)?;
         let layout = Layout::new(shape, stride, input.storage_offset());
-        let output = Tensor::new(Rc::clone(&input.storage), layout, self.dtype);
+        let output = Tensor::new(
+            Rc::clone(&input.storage),
+            layout,
+            self.dtype,
+            self.is_requires_grad,
+            None,
+        );
         Ok(output)
     }
 
@@ -304,7 +399,13 @@ impl<T: Num> Tensor<T> {
             Self::compute_stride(&self.shape()),
             0,
         );
-        let output = Tensor::new(output_storage, layout, self.dtype);
+        let output = Tensor::new(
+            output_storage,
+            layout,
+            self.dtype,
+            self.is_requires_grad,
+            None,
+        );
         Ok(output)
     }
 
@@ -376,6 +477,58 @@ impl<T: Num> Tensor<T> {
             }
         }
         Ok(c)
+    }
+}
+
+impl<T: Float> Tensor<T> {
+    pub fn backward(&self) -> Result<Gradients<T>> {
+        let mut grads = Gradients::new();
+        if !self.is_requires_grad {
+            return Ok(grads);
+        }
+
+        let gy = Tensor::zeros(self.shape().to_vec());
+        grads.insert(self, gy.clone());
+
+        let mut seen_set = HashSet::new();
+        let mut op_tensors = Vec::new();
+        op_tensors.push(self.clone());
+
+        while op_tensors.len() > 0 {
+            let op_tensor = op_tensors.pop().unwrap();
+            if !op_tensor.is_requires_grad {
+                continue;
+            }
+            let Some(op) = op_tensor.op.clone() else {
+                continue;
+            };
+
+            let gy = grads.get(&op_tensor).unwrap();
+            match op {
+                Op::Reshape(x) => {
+                    let gx = Self::reshape_grad(gy, x.shape().to_vec())?;
+                    Self::add_op_tensors(x.clone(), &mut op_tensors, &mut seen_set);
+                    grads.add(&x, gx)?;
+                }
+            }
+        }
+
+        Ok(grads)
+    }
+
+    fn add_op_tensors(
+        tensor: Tensor<T>,
+        op_tensors: &mut Vec<Tensor<T>>,
+        seen_set: &mut HashSet<usize>,
+    ) {
+        if !seen_set.contains(&tensor.id()) {
+            seen_set.insert(tensor.id());
+            op_tensors.push(tensor.clone());
+        }
+    }
+
+    fn reshape_grad(gy: &Tensor<T>, shape: Vec<usize>) -> Result<Tensor<T>> {
+        gy.reshape(shape)
     }
 }
 
