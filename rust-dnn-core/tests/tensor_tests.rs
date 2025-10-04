@@ -4,6 +4,13 @@ use rust_dnn_core::{error::Result, tensor};
 use crate::test_utils::assert_tensor;
 
 #[test]
+fn test_arange() -> Result<()> {
+    let x = tensor::Tensor::<f32>::arange(-1..2);
+    assert_tensor(&x, &tensor![-1.0, 0.0, 1.0]);
+    Ok(())
+}
+
+#[test]
 fn test_add() -> Result<()> {
     let x1 = tensor![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
     let x2 = tensor![[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]];

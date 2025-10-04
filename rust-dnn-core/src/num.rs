@@ -28,6 +28,7 @@ pub trait Num:
 {
     fn as_usize(self) -> usize;
     fn as_f32(self) -> f32;
+    fn from_isize(value: isize) -> Self;
     fn zero() -> Self;
     fn one() -> Self;
     fn dtype() -> DType;
@@ -40,6 +41,10 @@ impl Num for u32 {
 
     fn as_f32(self) -> f32 {
         self as f32
+    }
+
+    fn from_isize(value: isize) -> Self {
+        value as Self
     }
 
     fn zero() -> Self {
@@ -62,6 +67,10 @@ impl Num for f32 {
 
     fn as_f32(self) -> f32 {
         self
+    }
+
+    fn from_isize(value: isize) -> Self {
+        value as Self
     }
 
     fn zero() -> Self {

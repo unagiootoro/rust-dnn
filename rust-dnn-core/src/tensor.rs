@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     marker::PhantomData,
-    ops::{self, Deref},
+    ops::{self, Deref, Range},
     rc::Rc,
 };
 
@@ -60,17 +60,17 @@ impl<T: Num> Tensor<T> {
         Ok(Self::new(storage, layout, T::dtype()))
     }
 
-    pub fn arange(len: usize) -> Self {
+    pub fn arange(range: Range<isize>) -> Self {
         let mut data = Vec::new();
-        for i in 0..len {
-            data.push(i as f32);
+        for i in range {
+            data.push(T::from_isize(i));
         }
         let shape = vec![data.len()];
         let stride = Self::compute_stride(&shape);
         let cpu_storage = CpuStorage::from_vec(data);
         let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
         let layout = Layout::new(shape, stride, 0);
-        Self::new(storage, layout, DType::F32)
+        Self::new(storage, layout, T::dtype())
     }
 
     fn compute_len(shape: &[usize]) -> usize {
