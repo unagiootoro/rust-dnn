@@ -1,3 +1,4 @@
+#[derive(Debug, Clone)]
 pub struct Layout {
     shape: Vec<usize>,
     len: usize,
