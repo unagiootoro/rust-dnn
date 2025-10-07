@@ -1,10 +1,10 @@
-use rust_dnn_core::{num::Num, tensor::Tensor};
+use rust_dnn_core::{backend::Backend, num::Num, tensor::Tensor};
 
-pub fn assert_tensor<T: Num>(actual: &Tensor<T>, expected: &Tensor<T>) {
-    assert_tensor_with_eps::<T>(actual, expected, 1e-4)
+pub fn assert_tensor<B: Backend, T: Num>(actual: &Tensor<B, T>, expected: &Tensor<B, T>) {
+    assert_tensor_with_eps::<B, T>(actual, expected, 1e-4)
 }
 
-pub fn assert_tensor_with_eps<T: Num>(actual: &Tensor<T>, expected: &Tensor<T>, eps: f32) {
+pub fn assert_tensor_with_eps<B: Backend, T: Num>(actual: &Tensor<B, T>, expected: &Tensor<B, T>, eps: f32) {
     assert_eq!(actual.shape(), expected.shape());
     assert_eq!(actual.len(), expected.len());
     let actual_data = actual.to_vec();

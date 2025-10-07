@@ -1,11 +1,12 @@
 mod test_utils;
-use rust_dnn_core::{error::Result, tensor};
+use rust_dnn_core::{device::Device, error::Result, tensor};
 
 use crate::test_utils::assert_tensor;
 
 #[test]
 fn test_arange() -> Result<()> {
-    let x = tensor::Tensor::<f32>::arange(-1..2);
+    let device = Device::get_cpu_device();
+    let x = tensor::Tensor::arange(-1..2, device);
     assert_tensor(&x, &tensor![-1.0, 0.0, 1.0]);
     Ok(())
 }
