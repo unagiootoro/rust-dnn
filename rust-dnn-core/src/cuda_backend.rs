@@ -10,7 +10,7 @@ use rust_dnn_cuda_kernel::clayout::{CLayout, MAX_NDIM};
 use rust_dnn_cuda_kernel::cuda::check_cuda_error;
 use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
 use rust_dnn_cuda_kernel::math::{
-    cuda_pow_double, cuda_pow_float, cuda_sum_axis_double, cuda_sum_axis_float,
+    cuda_ln_double, cuda_ln_float, cuda_pow_double, cuda_pow_float, cuda_sum_axis_double, cuda_sum_axis_float
 };
 
 use crate::backend::Backend;
@@ -155,39 +155,17 @@ impl Backend for CudaBackend {
         cuda_op1_func_call(storage, layout, cuda_neg)
     }
 
-    fn op_pow_scalar<T: Float>(
-        storage: &Storage<T>,
-        layout: &Layout,
-        rhs: T,
+    fn op_pow<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        let input_data = storage.get_cuda_storage()?;
-        let output_data = unsafe {
-            let output_data = GPUBuffer::<T>::new(layout.len());
-            match T::dtype() {
-                DType::F32 => {
-                    cuda_pow_float(
-                        input_data.ptr() as *const f32,
-                        layout.storage_offset(),
-                        output_data.ptr() as *mut f32,
-                        rhs.as_f32(),
-                        layout.len() as i32,
-                    );
-                }
-                DType::F64 => {
-                    cuda_pow_double(
-                        input_data.ptr() as *const f64,
-                        layout.storage_offset(),
-                        output_data.ptr() as *mut f64,
-                        rhs.as_f64(),
-                        layout.len() as i32,
-                    );
-                }
-                _ => panic!(),
-            }
-            check_cuda_error();
-            output_data
-        };
-        Ok(Storage::CudaStorage(output_data))
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_pow)
+    }
+
+    fn op_ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        cuda_op1_func_call(storage, layout, cuda_ln)
     }
 }
 
@@ -205,8 +183,6 @@ macro_rules! define_cuda_op1_func {
         }
     };
 }
-
-define_cuda_op1_func!(cuda_neg, cuda_neg_float, cuda_neg_double);
 
 #[macro_export]
 macro_rules! define_cuda_op2_func {
@@ -251,10 +227,49 @@ macro_rules! define_cuda_op2_func {
     };
 }
 
+#[macro_export]
+macro_rules! define_cuda_float_op2_func {
+    ($fn_name: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
+        unsafe fn $fn_name<T: Float>(
+            a: *const T,
+            a_layout: CLayout,
+            b: *const T,
+            b_layout: CLayout,
+            c: *mut T,
+            len: i32,
+        ) {
+            unsafe {
+                match T::dtype() {
+                    DType::U32 => panic!(),
+                    DType::F32 => $fn_name_f32(
+                        a as *const f32,
+                        a_layout,
+                        b as *const f32,
+                        b_layout,
+                        c as *mut f32,
+                        len,
+                    ),
+                    DType::F64 => $fn_name_f64(
+                        a as *const f64,
+                        a_layout,
+                        b as *const f64,
+                        b_layout,
+                        c as *mut f64,
+                        len,
+                    ),
+                }
+            }
+        }
+    };
+}
+
+define_cuda_op1_func!(cuda_neg, cuda_neg_float, cuda_neg_double);
 define_cuda_op2_func!(cuda_add, cuda_add_uint32_t, cuda_add_float, cuda_add_double);
 define_cuda_op2_func!(cuda_sub, cuda_sub_uint32_t, cuda_sub_float, cuda_sub_double);
 define_cuda_op2_func!(cuda_mul, cuda_mul_uint32_t, cuda_mul_float, cuda_mul_double);
 define_cuda_op2_func!(cuda_div, cuda_div_uint32_t, cuda_div_float, cuda_div_double);
+define_cuda_float_op2_func!(cuda_pow, cuda_pow_float, cuda_pow_double);
+define_cuda_op1_func!(cuda_ln, cuda_ln_float, cuda_ln_double);
 
 pub(crate) fn cuda_op1_func_call<T: Num>(
     storage: &Storage<T>,

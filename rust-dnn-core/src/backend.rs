@@ -35,6 +35,11 @@ pub trait Backend: Clone + Copy {
         rhs_layout: &Layout,
     ) -> Result<Storage<T>>;
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
-    fn op_pow_scalar<T: Float>(storage: &Storage<T>, layout: &Layout, rhs: T)
-    -> Result<Storage<T>>;
+    fn op_pow<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>>;
+    fn op_ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
 }

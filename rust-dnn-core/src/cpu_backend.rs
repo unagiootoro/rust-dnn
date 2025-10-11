@@ -102,12 +102,19 @@ impl Backend for CpuBackend {
         map_arg1::<T, _>(storage, layout, |a| -a)
     }
 
-    fn op_pow_scalar<T: Float>(
-        storage: &Storage<T>,
-        layout: &Layout,
-        rhs: T,
+    fn op_pow<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        map_arg2_scalar::<T, _>(storage, layout, rhs, |a, b| a.powf(b))
+        map_arg2::<T, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
+            a.powf(b)
+        })
+    }
+
+    fn op_ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        map_arg1::<T, _>(storage, layout, |a| a.ln())
     }
 }
 

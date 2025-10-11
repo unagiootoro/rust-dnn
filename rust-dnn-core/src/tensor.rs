@@ -367,31 +367,6 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Result::Ok(output)
     }
 
-    fn op2_scalar_impl<F1, F2>(&self, rhs: T, f1: F1, f2: F2) -> Result<Self>
-    where
-        F1: for<'a> Fn(&'a Storage<T>, &'a Layout, T) -> Result<Storage<T>>,
-        F2: Fn(Tensor<B, T>, T) -> Op<B, T>,
-    {
-        let input_storage = &*self.storage.borrow();
-
-        let output_storage = f1(input_storage, &self.layout, rhs)?;
-
-        let op = if self.is_requires_grad {
-            Some(f2(self.clone(), rhs))
-        } else {
-            None
-        };
-        let output = Tensor::new(
-            Rc::new(RefCell::new(output_storage)),
-            self.layout.clone(),
-            self.device.clone(),
-            self.dtype,
-            self.is_requires_grad,
-            op,
-        );
-        Result::Ok(output)
-    }
-
     pub fn reshape(&self, shape: Vec<usize>) -> Result<Self> {
         let new_shape_len = Self::compute_len(&shape);
         if self.len() != new_shape_len {
@@ -772,12 +747,30 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         B::op_neg::<T>(storage, layout)
     }
 
-    pub fn pow_scalar(&self, rhs: T) -> Result<Self> {
-        self.op2_scalar_impl(rhs, Self::op_pow_scalar, |t1, t2| Op::PowScalar(t1, t2))
+    pub fn pow(&self, rhs: &Self) -> Result<Self> {
+        self.op2_impl(rhs, Self::op_pow, |t1, t2| Op::Pow(t1, t2))
     }
 
-    fn op_pow_scalar(storage: &Storage<T>, layout: &Layout, rhs: T) -> Result<Storage<T>> {
-        B::op_pow_scalar::<T>(storage, layout, rhs)
+    pub fn pow_scalar(&self, rhs: T) -> Result<Self> {
+        let scalar = Tensor::from_scalar(rhs, self.device);
+        self.pow(&scalar)
+    }
+
+    pub fn ln(&self) -> Result<Self> {
+        self.op1_impl(Self::op_ln, |t| Op::Ln(t))
+    }
+
+    fn op_ln(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        B::op_ln::<T>(storage, layout)
+    }
+
+    fn op_pow(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        B::op_pow::<T>(lhs_storage, rhs_storage, lhs_layout, rhs_layout)
     }
 }
 
@@ -835,7 +828,11 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 Op::Neg(x) => {
                     Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
                 }
-                Op::PowScalar(x, _) => {
+                Op::Pow(x1, x2) => {
+                    Self::add_work_node(depth + 1, x1.clone(), &mut work_nodes, &mut seen_set);
+                    Self::add_work_node(depth + 1, x2.clone(), &mut work_nodes, &mut seen_set);
+                }
+                Op::Ln(x) => {
                     Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
                 }
             }
@@ -922,8 +919,13 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                     let gx = Self::neg_grad(gy)?;
                     grads.add(&x, gx)?;
                 }
-                Op::PowScalar(x, rhs) => {
-                    let gx = Self::pow_scalar_grad(gy, &x, rhs)?;
+                Op::Pow(x1, x2) => {
+                    let (gx1, gx2) = Self::pow_grad(gy, &x1, &x2)?;
+                    grads.add(&x1, gx1)?;
+                    grads.add(&x2, gx2)?;
+                }
+                Op::Ln(x) => {
+                    let gx = Self::ln_grad(gy, &x)?;
                     grads.add(&x, gx)?;
                 }
             }
@@ -1027,13 +1029,23 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         Ok((gx1, gx2))
     }
 
+    fn pow_grad(
+        gy: &Tensor<B, T>,
+        x1: &Tensor<B, T>,
+        x2: &Tensor<B, T>,
+    ) -> Result<(Tensor<B, T>, Tensor<B, T>)> {
+        let one = Tensor::ones(vec![1], gy.device);
+        let gx1 = (x2 * x1.pow(&((x2 - one)?))? * gy)?.sum_to(x1.shape())?;
+        let gx2 = (gy * x1.ln()?)?.sum_to(x2.shape())?;
+        Ok((gx1, gx2))
+    }
+
     fn neg_grad(gy: &Tensor<B, T>) -> Result<Tensor<B, T>> {
         -gy
     }
 
-    fn pow_scalar_grad(gy: &Tensor<B, T>, x: &Tensor<B, T>, rhs: T) -> Result<Tensor<B, T>> {
-        let rhs_tensor = Tensor::from_scalar(rhs, x.device.clone());
-        rhs_tensor * x.pow_scalar(rhs - T::from_f32(1.0))? * gy
+    fn ln_grad(gy: &Tensor<B, T>, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+        gy / x
     }
 }
 

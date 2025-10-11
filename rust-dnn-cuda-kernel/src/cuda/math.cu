@@ -1,15 +1,20 @@
 #include "utils.cuh"
 #include "macro.cuh"
 #include "float.h"
+#include "macro.cuh"
 
 DEFINE_OP1_KERNEL(exp_kernel, expf)
-DEFINE_OP1_KERNEL(log_kernel, logf)
+
+DEFINE_OP1_KERNEL2(cuda_ln_kernel, float, log)
+DEFINE_OP1_KERNEL2(cuda_ln_kernel, double, log)
+
 DEFINE_OP1_KERNEL(sqrt_kernel, sqrtf)
-DEFINE_OP1_ARG1_KERNEL(cuda_pow_kernel, float, powf, rhs)
-DEFINE_OP1_ARG1_KERNEL(cuda_pow_kernel, double, powf, rhs)
 DEFINE_OP1_KERNEL(sin_kernel, sin)
 DEFINE_OP1_KERNEL(cos_kernel, cos)
 DEFINE_OP1_KERNEL(tanh_kernel, tanh)
+
+DEFINE_OP2_KERNEL3(cuda_pow_kernel, float, powf)
+DEFINE_OP2_KERNEL3(cuda_pow_kernel, double, powf)
 
 __global__ void sum_kernel(
     float* a, size_t a_base_offset,
@@ -172,19 +177,8 @@ extern "C" void cuda_exp(
     );
 }
 
-extern "C" void cuda_log(
-    float* a, size_t a_base_offset,
-    float* b,
-    int len
-) {
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    log_kernel<<<blocks, threads>>>(
-        a, a_base_offset,
-        b,
-        len
-    );
-}
+DEFINE_EXTERN_OP1_KERNEL(cuda_ln, float)
+DEFINE_EXTERN_OP1_KERNEL(cuda_ln, double)
 
 extern "C" void cuda_sqrt(
     float* a, size_t a_base_offset,
@@ -200,37 +194,8 @@ extern "C" void cuda_sqrt(
     );
 }
 
-extern "C" void cuda_pow_float(
-    float* a, size_t a_base_offset,
-    float* b,
-    float rhs,
-    int len
-) {
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    cuda_pow_kernel_float<<<blocks, threads>>>(
-        a, a_base_offset,
-        b,
-        rhs,
-        len
-    );
-}
-
-extern "C" void cuda_pow_double(
-    double* a, size_t a_base_offset,
-    double* b,
-    double rhs,
-    int len
-) {
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    cuda_pow_kernel_double<<<blocks, threads>>>(
-        a, a_base_offset,
-        b,
-        rhs,
-        len
-    );
-}
+DEFINE_EXTERN_OP2_KERNEL(cuda_pow, float)
+DEFINE_EXTERN_OP2_KERNEL(cuda_pow, double)
 
 extern "C" void cuda_sin(
     float* a, size_t a_base_offset,

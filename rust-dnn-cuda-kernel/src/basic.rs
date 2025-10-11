@@ -61,6 +61,31 @@ macro_rules! define_extern_op2_func {
     };
 }
 
+#[macro_export]
+macro_rules! define_extern_float_op2_func {
+    ($f32_fn_name: ident, $f64_fn_name: ident) => {
+        #[rustfmt::skip]
+        unsafe extern "C" {
+            pub fn $f32_fn_name(
+                a: *const f32, a_layout: CLayout,
+                b: *const f32, b_layout: CLayout,
+                c: *mut c_float,
+                len: i32
+            );
+        }
+
+        #[rustfmt::skip]
+        unsafe extern "C" {
+            pub fn $f64_fn_name(
+                a: *const f64, a_layout: CLayout,
+                b: *const f64, b_layout: CLayout,
+                c: *mut c_double,
+                len: i32
+            );
+        }
+    };
+}
+
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn copy(

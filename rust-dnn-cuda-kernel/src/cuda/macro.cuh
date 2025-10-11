@@ -27,19 +27,6 @@ __global__ void func_name##_##type( \
     } \
 }
 
-#define DEFINE_OP1_ARG1_KERNEL(func_name, type, op, arg1) \
-__global__ void func_name##_##type( \
-    type* a, size_t a_base_offset, \
-    type* b, \
-    type arg1, \
-    int len \
-) { \
-    int idx = blockIdx.x * blockDim.x + threadIdx.x; \
-    if (idx < len) { \
-        b[idx] = op(a[a_base_offset + idx], arg1); \
-    } \
-}
-
 #define DEFINE_OP2_KERNEL(func_name, op) \
 __global__ void func_name( \
     float* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim, \
@@ -67,6 +54,21 @@ __global__ void func_name##_##type( \
         size_t a_idx = compute_offset2(&a_layout, idx); \
         size_t b_idx = compute_offset2(&b_layout, idx); \
         c[idx] = a[a_idx] op b[b_idx]; \
+    } \
+}
+
+#define DEFINE_OP2_KERNEL3(func_name, type, op) \
+__global__ void func_name##_##type( \
+    type* a, Layout a_layout, \
+    type* b, Layout b_layout, \
+    type* c, \
+    int len \
+) { \
+    int idx = blockIdx.x * blockDim.x + threadIdx.x; \
+    if (idx < len) { \
+        size_t a_idx = compute_offset2(&a_layout, idx); \
+        size_t b_idx = compute_offset2(&b_layout, idx); \
+        c[idx] = op(a[a_idx], b[b_idx]); \
     } \
 }
 

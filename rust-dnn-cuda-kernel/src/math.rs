@@ -1,7 +1,7 @@
 use libc::{c_double, size_t};
 use std::ffi::c_float;
 
-use crate::clayout::CLayout;
+use crate::{clayout::CLayout, define_extern_float_op2_func, define_extern_op1_func};
 
 #[rustfmt::skip]
 unsafe extern "C" {
@@ -61,14 +61,7 @@ unsafe extern "C" {
     );
 }
 
-#[rustfmt::skip]
-unsafe extern "C" {
-    pub fn cuda_log(
-        a: *const c_float, a_base_offset: size_t,
-        b: *mut c_float,
-        len: i32
-    );
-}
+define_extern_op1_func!(cuda_ln_float, cuda_ln_double);
 
 #[rustfmt::skip]
 unsafe extern "C" {
@@ -79,25 +72,7 @@ unsafe extern "C" {
     );
 }
 
-#[rustfmt::skip]
-unsafe extern "C" {
-    pub fn cuda_pow_float(
-        a: *const c_float, a_base_offset: size_t,
-        b: *mut c_float,
-        rhs: f32,
-        len: i32
-    );
-}
-
-#[rustfmt::skip]
-unsafe extern "C" {
-    pub fn cuda_pow_double(
-        a: *const c_double, a_base_offset: size_t,
-        b: *mut c_double,
-        rhs: f64,
-        len: i32
-    );
-}
+define_extern_float_op2_func!(cuda_pow_float, cuda_pow_double);
 
 #[rustfmt::skip]
 unsafe extern "C" {

@@ -12,5 +12,6 @@ pub enum Op<B: Backend, T: Num> {
     Mul(Tensor<B, T>, Tensor<B, T>),
     Div(Tensor<B, T>, Tensor<B, T>),
     Neg(Tensor<B, T>),
-    PowScalar(Tensor<B, T>, T),
+    Pow(Tensor<B, T>, Tensor<B, T>),
+    Ln(Tensor<B, T>),
 }

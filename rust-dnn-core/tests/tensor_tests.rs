@@ -216,6 +216,61 @@ define_test!(
     test_broadcast_op2_cuda
 );
 
+fn test_broadcast_op2_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![-1.0].to_device(device)?.requires_grad();
+    let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]]
+        .to_device(device)?
+        .requires_grad();
+    let x3 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+        .to_device(device)?
+        .requires_grad();
+    let y = ((&x1 + &x2) * x3)?;
+    assert_tensor(&y, &ten![[4.0, 10.0, 18.0], [28.0, 40.0, 54.0]]);
+    let grads = y.backward()?;
+    let gx1 = grads.get(&x1).unwrap();
+    assert_tensor(gx1, &ten![21.0]);
+    let gx2 = grads.get(&x2).unwrap();
+    assert_tensor(gx2, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    Ok(())
+}
+
+define_test!(
+    test_broadcast_op2_backward,
+    test_broadcast_op2_backward_cpu,
+    test_broadcast_op2_backward_cuda
+);
+
+fn test_pow<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
+    let x2 = ten![3.0].to_device(device)?;
+    let y = x1.pow(&x2)?;
+    assert_tensor(&y, &ten![[0.0, -8.0, -64.0], [1.0, 8.0, 27.0]]);
+    Ok(())
+}
+
+define_test!(test_pow, test_pow_cpu, test_pow_cuda);
+
+fn test_pow_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+        .to_device(device)?
+        .requires_grad();
+    let x2 = ten![3.0].to_device(device)?.requires_grad();
+    let y = x1.pow(&x2)?;
+    assert_tensor(&y, &ten![[1.0, 8.0, 27.0], [64.0, 125.0, 216.0]]);
+    let grads = y.backward()?;
+    let gx1 = grads.get(&x1).unwrap();
+    assert_tensor(&gx1, &ten![[3.0, 12.0, 27.0], [48.0, 75.0, 108.0]]);
+    let gx2 = grads.get(&x2).unwrap();
+    assert_tensor(&gx2, &ten![6.5792512120101]);
+    Ok(())
+}
+
+define_test!(
+    test_pow_backward,
+    test_pow_backward_cpu,
+    test_pow_backward_cuda
+);
+
 fn test_pow_scalar<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
     let y = x.pow_scalar(3.0)?;
@@ -241,6 +296,31 @@ define_test!(
     test_pow_scalar_backward,
     test_pow_scalar_backward_cpu,
     test_pow_scalar_backward_cuda
+);
+
+fn test_ln<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![4.0].to_device(device)?;
+    let y = x.ln()?;
+    assert_tensor(&y, &ten![1.3862944]);
+    Ok(())
+}
+
+define_test!(test_ln, test_ln_cpu, test_ln_cuda);
+
+fn test_ln_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![4.0].to_device(device)?.requires_grad();
+    let y = (x.ln()? * ten![2.0].to_device(device)?)?;
+    assert_tensor(&y, &ten![2.772588722239781]);
+    let grads = y.backward()?;
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![0.5]);
+    Ok(())
+}
+
+define_test!(
+    test_ln_backward,
+    test_ln_backward_cpu,
+    test_ln_backward_cuda
 );
 
 fn test_reshape<B: Backend>(device: Device<B>) -> Result<()> {
