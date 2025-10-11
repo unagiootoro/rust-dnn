@@ -2,11 +2,25 @@
 #include "macro.cuh"
 #include "common.cuh"
 
-DEFINE_OP1_KERNEL(neg_kernel, -)
-DEFINE_OP2_KERNEL(add_kernel, +)
-DEFINE_OP2_KERNEL(sub_kernel, -)
-DEFINE_OP2_KERNEL(mul_kernel, *)
-DEFINE_OP2_KERNEL(div_kernel, /)
+DEFINE_OP1_KERNEL2(cuda_neg_kernel, float, -)
+DEFINE_OP1_KERNEL2(cuda_neg_kernel, double, -)
+
+DEFINE_OP2_KERNEL2(cuda_add_kernel, uint32_t, +)
+DEFINE_OP2_KERNEL2(cuda_add_kernel, float, +)
+DEFINE_OP2_KERNEL2(cuda_add_kernel, double, +)
+
+DEFINE_OP2_KERNEL2(cuda_sub_kernel, uint32_t, -)
+DEFINE_OP2_KERNEL2(cuda_sub_kernel, float, -)
+DEFINE_OP2_KERNEL2(cuda_sub_kernel, double, -)
+
+DEFINE_OP2_KERNEL2(cuda_mul_kernel, uint32_t, *)
+DEFINE_OP2_KERNEL2(cuda_mul_kernel, float, *)
+DEFINE_OP2_KERNEL2(cuda_mul_kernel, double, *)
+
+DEFINE_OP2_KERNEL2(cuda_div_kernel, uint32_t, /)
+DEFINE_OP2_KERNEL2(cuda_div_kernel, float, /)
+DEFINE_OP2_KERNEL2(cuda_div_kernel, double, /)
+
 DEFINE_OP2_ASSIGN_KERNEL(copy_kernel, =)
 DEFINE_OP2_ASSIGN_KERNEL(add_assign_kernel, +=)
 DEFINE_CMP_OP2_KERNEL(lte_kernel, <=)
@@ -56,9 +70,21 @@ __global__ void cmp_max_kernel(
 }
 
 
-__global__ void contiguous_kernel(
+__global__ void cuda_contiguous_kernel_float(
     float* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
     float* b,
+    int len
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < len) {
+        size_t a_idx = compute_offset(a_base_offset, &a_shape.data[0], &a_strides.data[0], a_ndim, idx);
+        b[idx] = a[a_idx];
+    }
+}
+
+__global__ void cuda_contiguous_kernel_double(
+    double* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
+    double* b,
     int len
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -167,40 +193,12 @@ extern "C" void copy(
     );
 }
 
-extern "C" void neg(
-    float* a, size_t a_base_offset,
-    float* b,
-    int len
-) {
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    neg_kernel<<<blocks, threads>>>(
-        a, a_base_offset,
-        b,
-        len
-    );
-}
+DEFINE_EXTERN_OP1_KERNEL(cuda_neg, float)
+DEFINE_EXTERN_OP1_KERNEL(cuda_neg, double)
 
-extern "C" void add(
-    float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    float* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
-    float* c,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-    NDimArray b_shape_array(b_shape, b_ndim);
-    NDimArray b_strides_array(b_strides, b_ndim);
-
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    add_kernel<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
-        c,
-        len
-    );
-}
+DEFINE_EXTERN_OP2_KERNEL(cuda_add, uint32_t)
+DEFINE_EXTERN_OP2_KERNEL(cuda_add, float)
+DEFINE_EXTERN_OP2_KERNEL(cuda_add, double)
 
 extern "C" void add_assign(
     float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
@@ -221,68 +219,17 @@ extern "C" void add_assign(
     );
 }
 
-extern "C" void sub(
-    float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    float* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
-    float* c,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-    NDimArray b_shape_array(b_shape, b_ndim);
-    NDimArray b_strides_array(b_strides, b_ndim);
+DEFINE_EXTERN_OP2_KERNEL(cuda_sub, uint32_t)
+DEFINE_EXTERN_OP2_KERNEL(cuda_sub, float)
+DEFINE_EXTERN_OP2_KERNEL(cuda_sub, double)
 
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    sub_kernel<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
-        c,
-        len
-    );
-}
+DEFINE_EXTERN_OP2_KERNEL(cuda_mul, uint32_t)
+DEFINE_EXTERN_OP2_KERNEL(cuda_mul, float)
+DEFINE_EXTERN_OP2_KERNEL(cuda_mul, double)
 
-extern "C" void mul(
-    float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    float* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
-    float* c,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-    NDimArray b_shape_array(b_shape, b_ndim);
-    NDimArray b_strides_array(b_strides, b_ndim);
-
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    mul_kernel<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
-        c,
-        len
-    );
-}
-
-extern "C" void cuda_div(
-    float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    float* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
-    float* c,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-    NDimArray b_shape_array(b_shape, b_ndim);
-    NDimArray b_strides_array(b_strides, b_ndim);
-
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    div_kernel<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
-        c,
-        len
-    );
-}
+DEFINE_EXTERN_OP2_KERNEL(cuda_div, uint32_t)
+DEFINE_EXTERN_OP2_KERNEL(cuda_div, float)
+DEFINE_EXTERN_OP2_KERNEL(cuda_div, double)
 
 extern "C" void matmul(
     float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
@@ -389,7 +336,7 @@ extern "C" void cuda_cmp_max(
     );
 }
 
-extern "C" void contiguous(
+extern "C" void cuda_contiguous_float(
     float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
     float* b,
     int len
@@ -399,7 +346,24 @@ extern "C" void contiguous(
 
     int threads = 256;
     int blocks = (len + threads - 1) / threads;
-    contiguous_kernel<<<blocks, threads>>>(
+    cuda_contiguous_kernel_float<<<blocks, threads>>>(
+        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
+        b,
+        len
+    );
+}
+
+extern "C" void cuda_contiguous_double(
+    double* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
+    double* b,
+    int len
+) {
+    NDimArray a_shape_array(a_shape, a_ndim);
+    NDimArray a_strides_array(a_strides, a_ndim);
+
+    int threads = 256;
+    int blocks = (len + threads - 1) / threads;
+    cuda_contiguous_kernel_double<<<blocks, threads>>>(
         a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
         b,
         len

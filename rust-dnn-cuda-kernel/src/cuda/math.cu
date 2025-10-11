@@ -5,7 +5,8 @@
 DEFINE_OP1_KERNEL(exp_kernel, expf)
 DEFINE_OP1_KERNEL(log_kernel, logf)
 DEFINE_OP1_KERNEL(sqrt_kernel, sqrtf)
-DEFINE_OP1_ARG1_KERNEL(pow_kernel, powf, float, rhs)
+DEFINE_OP1_ARG1_KERNEL(cuda_pow_kernel, float, powf, rhs)
+DEFINE_OP1_ARG1_KERNEL(cuda_pow_kernel, double, powf, rhs)
 DEFINE_OP1_KERNEL(sin_kernel, sin)
 DEFINE_OP1_KERNEL(cos_kernel, cos)
 DEFINE_OP1_KERNEL(tanh_kernel, tanh)
@@ -22,7 +23,7 @@ __global__ void sum_kernel(
     *b = sum;
 }
 
-__global__ void sum_axis_kernel(
+__global__ void cuda_sum_axis_kernel_float(
     float* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
     float* b, size_t b_base_offset, NDimArray b_shape, NDimArray b_strides, size_t b_ndim,
     size_t axis,
@@ -33,6 +34,25 @@ __global__ void sum_axis_kernel(
         size_t dim = a_shape.data[axis];
 
         float sum = 0;
+        for (size_t i = 0; i < dim; i++) {
+            size_t a_idx = compute_offset_by_axis_index(a_base_offset, &b_shape.data[0], &a_strides.data[0], b_ndim, idx, axis, i);
+            sum += a[a_idx];
+        }
+        b[idx] = sum;
+    }
+}
+
+__global__ void cuda_sum_axis_kernel_double(
+    double* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
+    double* b, size_t b_base_offset, NDimArray b_shape, NDimArray b_strides, size_t b_ndim,
+    size_t axis,
+    int len
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < len) {
+        size_t dim = a_shape.data[axis];
+
+        double sum = 0;
         for (size_t i = 0; i < dim; i++) {
             size_t a_idx = compute_offset_by_axis_index(a_base_offset, &b_shape.data[0], &a_strides.data[0], b_ndim, idx, axis, i);
             sum += a[a_idx];
@@ -99,7 +119,7 @@ extern "C" void cuda_sum(
     );
 }
 
-extern "C" void cuda_sum_axis(
+extern "C" void cuda_sum_axis_float(
     float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
     float* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
     size_t axis,
@@ -112,7 +132,28 @@ extern "C" void cuda_sum_axis(
 
     int threads = 256;
     int blocks = (len + threads - 1) / threads;
-    sum_axis_kernel<<<blocks, threads>>>(
+    cuda_sum_axis_kernel_float<<<blocks, threads>>>(
+        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
+        b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
+        axis,
+        len
+    );
+}
+
+extern "C" void cuda_sum_axis_double(
+    double* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
+    double* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
+    size_t axis,
+    int len
+) {
+    NDimArray a_shape_array(a_shape, a_ndim);
+    NDimArray a_strides_array(a_strides, a_ndim);
+    NDimArray b_shape_array(b_shape, b_ndim);
+    NDimArray b_strides_array(b_strides, b_ndim);
+
+    int threads = 256;
+    int blocks = (len + threads - 1) / threads;
+    cuda_sum_axis_kernel_double<<<blocks, threads>>>(
         a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
         b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
         axis,
@@ -202,7 +243,7 @@ extern "C" void cuda_sqrt(
     );
 }
 
-extern "C" void cuda_pow(
+extern "C" void cuda_pow_float(
     float* a, size_t a_base_offset,
     float* b,
     float rhs,
@@ -210,7 +251,23 @@ extern "C" void cuda_pow(
 ) {
     int threads = 256;
     int blocks = (len + threads - 1) / threads;
-    pow_kernel<<<blocks, threads>>>(
+    cuda_pow_kernel_float<<<blocks, threads>>>(
+        a, a_base_offset,
+        b,
+        rhs,
+        len
+    );
+}
+
+extern "C" void cuda_pow_double(
+    double* a, size_t a_base_offset,
+    double* b,
+    double rhs,
+    int len
+) {
+    int threads = 256;
+    int blocks = (len + threads - 1) / threads;
+    cuda_pow_kernel_double<<<blocks, threads>>>(
         a, a_base_offset,
         b,
         rhs,

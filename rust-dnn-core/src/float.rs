@@ -46,3 +46,37 @@ impl Float for f32 {
         self.tanh()
     }
 }
+
+impl Float for f64 {
+    fn from_f32(n: f32) -> Self {
+        n as Self
+    }
+
+    fn powf(self, rhs: Self) -> Self {
+        self.powf(rhs)
+    }
+
+    fn exp(self) -> Self {
+        self.exp()
+    }
+
+    fn ln(self) -> Self {
+        self.ln()
+    }
+
+    fn sqrt(self) -> Self {
+        self.sqrt()
+    }
+
+    fn sin(self) -> Self {
+        self.sin()
+    }
+
+    fn cos(self) -> Self {
+        self.cos()
+    }
+
+    fn tanh(self) -> Self {
+        self.tanh()
+    }
+}
