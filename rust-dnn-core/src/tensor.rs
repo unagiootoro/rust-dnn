@@ -724,8 +724,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     #[cfg(not(feature = "cuda"))]
-    pub fn to_device<B2: Backend>(&self, _device: Device<B2>) -> Tensor<B2, T> {
-        return unsafe { self.detach().reinterpret_cast_backend::<B2>() };
+    pub fn to_device<B2: Backend>(&self, _device: Device<B2>) -> Result<Tensor<B2, T>> {
+        return unsafe { Ok(self.detach().reinterpret_cast_backend::<B2>()) };
     }
 
     pub unsafe fn reinterpret_cast_backend<B2: Backend>(self) -> Tensor<B2, T> {
