@@ -1,0 +1,17 @@
+[package]
+name = "rust-dnn-cuda-kernel"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+libc = { version = "0.2" }
+
+[features]
+default = ["enable_cuda"]
+enable_blas = []
+enable_cuda = []
+enable_cudnn = []
+
+[build-dependencies]
+cc = "1.0"

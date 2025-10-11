@@ -1,5 +1,4 @@
 use crate::backend::Backend;
-use crate::cpu_storage::CpuStorage;
 use crate::error::Result;
 use crate::float::Float;
 use crate::num::Num;
@@ -9,47 +8,31 @@ use crate::{layout::Layout, storage::Storage};
 pub struct CpuBackend;
 
 impl Backend for CpuBackend {
-    fn storage_to_vec<T: Num>(storage: &Storage, layout: &Layout) -> Vec<T> {
-        let mut vec = Vec::with_capacity(layout.len());
-        let Storage::CpuStorage(input_cpu_storage) = storage;
-        let input_data = input_cpu_storage.as_slice();
-
-        for i in 0..layout.len() {
-            let offset = compute_offset(layout, i);
-            vec.push(input_data[offset]);
-        }
-        vec
-    }
-
-    fn contiguous<T: Num>(storage: &Storage, layout: &Layout) -> Result<Storage> {
+    fn contiguous<T: Num>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         let mut output_data = Vec::with_capacity(layout.len());
-        let Storage::CpuStorage(input_cpu_storage) = storage;
-        let input_data = input_cpu_storage.as_slice::<T>();
-
+        let input_data = storage.get_cpu_storage()?;
         for i in 0..layout.len() {
             let offset = compute_offset(&layout, i);
             output_data.push(input_data[offset]);
         }
 
-        let output_storage = Storage::CpuStorage(CpuStorage::from_vec(output_data));
+        let output_storage = Storage::CpuStorage(output_data);
         Ok(output_storage)
     }
 
     fn sum_axis<T: Num>(
-        input_storage: &Storage,
+        input_storage: &Storage<T>,
         input_layout: &Layout,
         output_layout: &Layout,
         axis: usize,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         let mut output_data = Vec::new();
         let output_data_len = output_layout.len();
         for _ in 0..output_data_len {
             output_data.push(T::zero());
         }
 
-        let Storage::CpuStorage(cpu_storage) = input_storage;
-
-        let input_data = cpu_storage.as_slice::<T>();
+        let input_data = input_storage.get_cpu_storage()?;
 
         for i in 0..output_data.len() {
             let mut sum = T::zero();
@@ -67,71 +50,72 @@ impl Backend for CpuBackend {
             output_data[i] += sum;
         }
 
-        let output_storage = Storage::CpuStorage(CpuStorage::from_vec(output_data));
+        let output_storage = Storage::CpuStorage(output_data);
         Ok(output_storage)
     }
 
     fn op_add<T: Num>(
-        lhs_storage: &Storage,
-        rhs_storage: &Storage,
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         map_arg2::<T, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
             a + b
         })
     }
 
     fn op_sub<T: Num>(
-        lhs_storage: &Storage,
-        rhs_storage: &Storage,
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         map_arg2::<T, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
             a - b
         })
     }
 
     fn op_mul<T: Num>(
-        lhs_storage: &Storage,
-        rhs_storage: &Storage,
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         map_arg2::<T, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
             a * b
         })
     }
 
     fn op_div<T: Num>(
-        lhs_storage: &Storage,
-        rhs_storage: &Storage,
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         map_arg2::<T, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
             a / b
         })
     }
 
-    fn op_neg<T: Float>(storage: &Storage, layout: &Layout) -> Result<Storage> {
+    fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         map_arg1::<T, _>(storage, layout, |a| -a)
     }
 
-    fn op_pow_scalar<T: Float>(storage: &Storage, layout: &Layout, rhs: T) -> Result<Storage> {
+    fn op_pow_scalar<T: Float>(
+        storage: &Storage<T>,
+        layout: &Layout,
+        rhs: T,
+    ) -> Result<Storage<T>> {
         map_arg2_scalar::<T, _>(storage, layout, rhs, |a, b| a.powf(b))
     }
 }
 
-fn map_arg1<T: Num, F>(storage: &Storage, layout: &Layout, f: F) -> Result<Storage>
+fn map_arg1<T: Num, F>(storage: &Storage<T>, layout: &Layout, f: F) -> Result<Storage<T>>
 where
     F: Fn(T) -> T + Sync,
 {
-    let Storage::CpuStorage(cpu_storage) = storage;
-
-    let input_data = cpu_storage.as_slice::<T>();
-
+    let input_data = storage.get_cpu_storage()?;
     let output_data: Vec<T> = (0..layout.len())
         .into_iter()
         .map(|i| {
@@ -139,26 +123,22 @@ where
             f(input_data[input_index])
         })
         .collect();
-    let output_storage = Storage::CpuStorage(CpuStorage::from_vec(output_data));
+    let output_storage = Storage::CpuStorage(output_data);
     Result::Ok(output_storage)
 }
 
 fn map_arg2<T: Num, F>(
-    lhs_storage: &Storage,
-    rhs_storage: &Storage,
+    lhs_storage: &Storage<T>,
+    rhs_storage: &Storage<T>,
     lhs_layout: &Layout,
     rhs_layout: &Layout,
     f: F,
-) -> Result<Storage>
+) -> Result<Storage<T>>
 where
     F: Fn(T, T) -> T + Sync,
 {
-    let Storage::CpuStorage(a_cpu_storage) = lhs_storage;
-    let Storage::CpuStorage(b_cpu_storage) = rhs_storage;
-
-    let a_data = a_cpu_storage.as_slice::<T>();
-    let b_data = b_cpu_storage.as_slice::<T>();
-
+    let a_data = lhs_storage.get_cpu_storage()?;
+    let b_data = rhs_storage.get_cpu_storage()?;
     let output_data: Vec<T> = (0..lhs_layout.len())
         .into_iter()
         .map(|i| {
@@ -167,18 +147,20 @@ where
             f(a_data[a_index], b_data[b_index])
         })
         .collect();
-    let output_storage = Storage::CpuStorage(CpuStorage::from_vec(output_data));
+    let output_storage = Storage::CpuStorage(output_data);
     Result::Ok(output_storage)
 }
 
-fn map_arg2_scalar<T: Num, F>(storage: &Storage, layout: &Layout, rhs: T, f: F) -> Result<Storage>
+fn map_arg2_scalar<T: Num, F>(
+    storage: &Storage<T>,
+    layout: &Layout,
+    rhs: T,
+    f: F,
+) -> Result<Storage<T>>
 where
     F: Fn(T, T) -> T + Sync,
 {
-    let Storage::CpuStorage(cpu_storage) = storage;
-
-    let input_data = cpu_storage.as_slice::<T>();
-
+    let input_data = storage.get_cpu_storage()?;
     let output_data: Vec<T> = (0..layout.len())
         .into_iter()
         .map(|i| {
@@ -186,7 +168,7 @@ where
             f(input_data[input_index], rhs)
         })
         .collect();
-    let output_storage = Storage::CpuStorage(CpuStorage::from_vec(output_data));
+    let output_storage = Storage::CpuStorage(output_data);
     Result::Ok(output_storage)
 }
 

@@ -1,6 +1,7 @@
 pub mod backend;
 pub mod cpu_backend;
-pub mod cpu_storage;
+#[cfg(feature = "cuda")]
+pub mod cuda_backend;
 pub mod device;
 pub mod dtype;
 pub mod error;

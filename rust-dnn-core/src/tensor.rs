@@ -6,10 +6,12 @@ use std::{
     rc::Rc,
 };
 
+#[cfg(feature = "cuda")]
+use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
+
 use crate::{
     backend::Backend,
-    cpu_storage::CpuStorage,
-    device::Device,
+    device::{Device, DeviceInfo},
     dtype::DType,
     error::{Error, Result},
     float::Float,
@@ -26,7 +28,7 @@ thread_local! {
 
 pub struct TensorState<B: Backend, T: Num> {
     id: usize,
-    storage: Rc<RefCell<Storage>>,
+    storage: Rc<RefCell<Storage<T>>>,
     layout: Layout,
     device: Device<B>,
     dtype: DType,
@@ -48,7 +50,7 @@ impl<B: Backend, T: Num> Deref for Tensor<B, T> {
 
 impl<B: Backend, T: Num> Tensor<B, T> {
     pub fn new(
-        storage: Rc<RefCell<Storage>>,
+        storage: Rc<RefCell<Storage<T>>>,
         layout: Layout,
         device: Device<B>,
         dtype: DType,
@@ -80,20 +82,41 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             );
             return Err(Error::ArgumentsError { msg });
         }
-        let cpu_storage = CpuStorage::from_vec(data);
-        let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, 0);
-        Ok(Self::new(storage, layout, device, T::dtype(), false, None))
+        Ok(Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        ))
     }
 
     pub fn from_scalar(value: T, device: Device<B>) -> Self {
         let shape = vec![1];
-        let cpu_storage = CpuStorage::from_vec(vec![value]);
-        let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
+        let data = vec![value];
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, 0);
-        Self::new(storage, layout, device, T::dtype(), false, None)
+        Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        )
     }
 
     pub fn zeros(shape: Vec<usize>, device: Device<B>) -> Self {
@@ -110,10 +133,20 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             data.push(value);
         }
         let stride = Self::compute_stride(&shape);
-        let cpu_storage = CpuStorage::from_vec(data);
-        let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
         let layout = Layout::new(shape, stride, 0);
-        Self::new(storage, layout, device, T::dtype(), false, None)
+        Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        )
     }
 
     pub fn arange(range: Range<isize>, device: Device<B>) -> Self {
@@ -123,10 +156,20 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         }
         let shape = vec![data.len()];
         let stride = Self::compute_stride(&shape);
-        let cpu_storage = CpuStorage::from_vec(data);
-        let storage = Rc::new(RefCell::new(Storage::CpuStorage(cpu_storage)));
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
         let layout = Layout::new(shape, stride, 0);
-        Self::new(storage, layout, device, T::dtype(), false, None)
+        Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        )
     }
 
     fn compute_len(shape: &[usize]) -> usize {
@@ -149,16 +192,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         strides
     }
 
-    pub fn to_vec(&self) -> Vec<T> {
-        let mut vec = Vec::with_capacity(self.len());
-        let Storage::CpuStorage(input_cpu_storage) = &*self.storage.borrow();
-        let input_data = input_cpu_storage.as_slice();
-
-        for i in 0..self.len() {
-            let offset = Self::compute_offset(&self.layout, i);
-            vec.push(input_data[offset]);
-        }
-        vec
+    pub fn to_vec(&self) -> Result<Vec<T>> {
+        let x = self.contiguous()?;
+        let storage = &*x.storage.borrow();
+        Ok(storage.to_vec_range(x.layout.storage_offset()..x.layout.len()))
     }
 
     pub fn id(&self) -> usize {
@@ -232,44 +269,44 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     fn op_add(
-        lhs_storage: &Storage,
-        rhs_storage: &Storage,
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         B::op_add::<T>(lhs_storage, rhs_storage, lhs_layout, rhs_layout)
     }
 
     fn op_sub(
-        lhs_storage: &Storage,
-        rhs_storage: &Storage,
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         B::op_sub::<T>(lhs_storage, rhs_storage, lhs_layout, rhs_layout)
     }
 
     fn op_mul(
-        lhs_storage: &Storage,
-        rhs_storage: &Storage,
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         B::op_mul::<T>(lhs_storage, rhs_storage, lhs_layout, rhs_layout)
     }
 
     fn op_div(
-        lhs_storage: &Storage,
-        rhs_storage: &Storage,
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         B::op_div::<T>(lhs_storage, rhs_storage, lhs_layout, rhs_layout)
     }
 
     fn op1_impl<F1, F2>(&self, f1: F1, f2: F2) -> Result<Self>
     where
-        F1: for<'a> Fn(&'a Storage, &'a Layout) -> Result<Storage>,
+        F1: for<'a> Fn(&'a Storage<T>, &'a Layout) -> Result<Storage<T>>,
         F2: Fn(Tensor<B, T>) -> Op<B, T>,
     {
         let input_storage = &*self.storage.borrow();
@@ -294,7 +331,12 @@ impl<B: Backend, T: Num> Tensor<B, T> {
 
     fn op2_impl<F1, F2>(&self, rhs: &Tensor<B, T>, f1: F1, f2: F2) -> Result<Self>
     where
-        F1: for<'a> Fn(&'a Storage, &'a Storage, &'a Layout, &'a Layout) -> Result<Storage>,
+        F1: for<'a> Fn(
+            &'a Storage<T>,
+            &'a Storage<T>,
+            &'a Layout,
+            &'a Layout,
+        ) -> Result<Storage<T>>,
         F2: Fn(Tensor<B, T>, Tensor<B, T>) -> Op<B, T>,
     {
         let is_requires_grad = self.is_requires_grad() || rhs.is_requires_grad();
@@ -327,7 +369,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
 
     fn op2_scalar_impl<F1, F2>(&self, rhs: T, f1: F1, f2: F2) -> Result<Self>
     where
-        F1: for<'a> Fn(&'a Storage, &'a Layout, T) -> Result<Storage>,
+        F1: for<'a> Fn(&'a Storage<T>, &'a Layout, T) -> Result<Storage<T>>,
         F2: Fn(Tensor<B, T>, T) -> Op<B, T>,
     {
         let input_storage = &*self.storage.borrow();
@@ -494,11 +536,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn op_sum_axis(
-        input_storage: &Storage,
+        input_storage: &Storage<T>,
         input_layout: &Layout,
         output_layout: &Layout,
         axis: usize,
-    ) -> Result<Storage> {
+    ) -> Result<Storage<T>> {
         B::sum_axis::<T>(input_storage, input_layout, output_layout, axis)
     }
 
@@ -510,7 +552,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         f2: F2,
     ) -> Result<Self>
     where
-        F1: for<'a> Fn(&'a Storage, &'a Layout, &'a Layout, usize) -> Result<Storage>,
+        F1: for<'a> Fn(&'a Storage<T>, &'a Layout, &'a Layout, usize) -> Result<Storage<T>>,
         F2: Fn(Tensor<B, T>, usize, bool) -> Op<B, T>,
     {
         let mut output_shape = Vec::new();
@@ -644,16 +686,50 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Ok(output)
     }
 
-    fn compute_offset(layout: &Layout, mut linear_index: usize) -> usize {
-        let mut offset = 0;
-        for i in (0..layout.ndim()).rev() {
-            if layout.stride()[i] > 0 {
-                let idx = linear_index % layout.shape()[i];
-                offset += idx * layout.stride()[i];
-            }
-            linear_index /= layout.shape()[i];
+    #[cfg(feature = "cuda")]
+    pub fn to_device<B2: Backend>(&self, device: Device<B2>) -> Result<Tensor<B2, T>> {
+        if self.device.info() == device.info() {
+            return unsafe { Ok(self.detach().reinterpret_cast_backend::<B2>()) };
+        } else if *self.device.info() == DeviceInfo::Cpu && *device.info() == DeviceInfo::Cuda {
+            let storage = self.storage.borrow();
+            let cpu_storage = storage.get_cpu_storage()?;
+            let gpu_buffer = GPUBuffer::from_vec(cpu_storage);
+            let output_storage = Storage::CudaStorage(gpu_buffer);
+            let output = Tensor::new(
+                Rc::new(RefCell::new(output_storage)),
+                self.layout.clone(),
+                device,
+                self.dtype,
+                self.is_requires_grad,
+                None,
+            );
+            return Ok(output);
+        } else if *self.device.info() == DeviceInfo::Cuda && *device.info() == DeviceInfo::Cpu {
+            let storage = self.storage.borrow();
+            let cuda_storage = storage.get_cuda_storage()?;
+            let output_storage = Storage::CpuStorage(cuda_storage.to_vec());
+            let output = Tensor::new(
+                Rc::new(RefCell::new(output_storage)),
+                self.layout.clone(),
+                device,
+                self.dtype,
+                self.is_requires_grad,
+                None,
+            );
+            return Ok(output);
         }
-        layout.storage_offset() + offset
+        Err(Error::ArgumentsError {
+            msg: format!("Invalid device(device = {:?}", device.info()).to_string(),
+        })
+    }
+
+    #[cfg(not(feature = "cuda"))]
+    pub fn to_device<B2: Backend>(&self, _device: Device<B2>) -> Tensor<B2, T> {
+        return unsafe { self.detach().reinterpret_cast_backend::<B2>() };
+    }
+
+    pub unsafe fn reinterpret_cast_backend<B2: Backend>(self) -> Tensor<B2, T> {
+        unsafe { std::mem::transmute::<Self, Tensor<B2, T>>(self) }
     }
 
     fn broadcast_shape(a: &[usize], b: &[usize]) -> Result<Vec<usize>> {
@@ -692,7 +768,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op1_impl(Self::op_neg, |t| Op::Neg(t))
     }
 
-    fn op_neg(storage: &Storage, layout: &Layout) -> Result<Storage> {
+    fn op_neg(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         B::op_neg::<T>(storage, layout)
     }
 
@@ -700,7 +776,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op2_scalar_impl(rhs, Self::op_pow_scalar, |t1, t2| Op::PowScalar(t1, t2))
     }
 
-    fn op_pow_scalar(storage: &Storage, layout: &Layout, rhs: T) -> Result<Storage> {
+    fn op_pow_scalar(storage: &Storage<T>, layout: &Layout, rhs: T) -> Result<Storage<T>> {
         B::op_pow_scalar::<T>(storage, layout, rhs)
     }
 }
@@ -962,9 +1038,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 }
 
 #[macro_export]
-macro_rules! tensor {
+macro_rules! ten {
     ( $( [ $($inner:tt)* ] ),+ $(,)? ) => {{
-        let arrays = vec![$( tensor![ $($inner)* ] ),+];
+        let arrays = vec![$( ten![ $($inner)* ] ),+];
         let shape = {
             let mut s = arrays[0].shape().to_vec();
             s.insert(0, arrays.len());
@@ -972,7 +1048,7 @@ macro_rules! tensor {
         };
         let data = arrays
             .into_iter()
-            .flat_map(|a| a.to_vec())
+            .flat_map(|a| a.to_vec().unwrap())
             .collect::<Vec<_>>();
         tensor::Tensor::from_vec(data, shape, Device::get_cpu_device()).unwrap()
     }};

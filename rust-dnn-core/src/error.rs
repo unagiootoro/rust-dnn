@@ -3,4 +3,5 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     ArgumentsError { msg: String },
+    DeviceError { msg: String },
 }
