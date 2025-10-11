@@ -57,15 +57,15 @@ __global__ void func_name( \
 
 #define DEFINE_OP2_KERNEL2(func_name, type, op) \
 __global__ void func_name##_##type( \
-    type* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim, \
-    type* b, size_t b_base_offset, NDimArray b_shape, NDimArray b_strides, size_t b_ndim, \
+    type* a, Layout a_layout, \
+    type* b, Layout b_layout, \
     type* c, \
     int len \
 ) { \
     int idx = blockIdx.x * blockDim.x + threadIdx.x; \
     if (idx < len) { \
-        size_t a_idx = compute_offset(a_base_offset, &a_shape.data[0], &a_strides.data[0], a_ndim, idx); \
-        size_t b_idx = compute_offset(b_base_offset, &b_shape.data[0], &b_strides.data[0], b_ndim, idx); \
+        size_t a_idx = compute_offset2(&a_layout, idx); \
+        size_t b_idx = compute_offset2(&b_layout, idx); \
         c[idx] = a[a_idx] op b[b_idx]; \
     } \
 }
@@ -120,21 +120,16 @@ extern "C" void func_name##_##type( \
 
 #define DEFINE_EXTERN_OP2_KERNEL(func_name, type) \
 extern "C" void func_name##_##type( \
-    type* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim, \
-    type* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim, \
+    type* a, Layout a_layout, \
+    type* b, Layout b_layout, \
     type* c, \
     int len \
 ) { \
-    NDimArray a_shape_array(a_shape, a_ndim); \
-    NDimArray a_strides_array(a_strides, a_ndim); \
-    NDimArray b_shape_array(b_shape, b_ndim); \
-    NDimArray b_strides_array(b_strides, b_ndim); \
- \
     int threads = 256; \
     int blocks = (len + threads - 1) / threads; \
     func_name##_kernel_##type<<<blocks, threads>>>( \
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim, \
-        b, b_base_offset, b_shape_array, b_strides_array, b_ndim, \
+        a, a_layout, \
+        b, b_layout, \
         c, \
         len \
     ); \

@@ -12,6 +12,18 @@ __device__ size_t compute_offset(size_t base_offset, size_t* shape, size_t* stri
     return base_offset + offset;
 }
 
+__device__ size_t compute_offset2(Layout* layout, size_t linear_index) {
+    size_t offset = 0;
+    for (int i = layout->ndim - 1; i >= 0; i--) {
+        if (layout->stride[i] > 0) {
+            size_t idx = linear_index % layout->shape[i];
+            offset += idx * layout->stride[i];
+        }
+        linear_index /= layout->shape[i];
+    }
+    return layout->storage_offset + offset;
+}
+
 __device__ size_t compute_offset_by_indices_dim2(size_t base_offset, size_t* strides, size_t i, size_t j) {
     size_t offset = 0;
     if (strides[0] > 0) {

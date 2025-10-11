@@ -23,38 +23,20 @@ __global__ void sum_kernel(
     *b = sum;
 }
 
-__global__ void cuda_sum_axis_kernel_float(
-    float* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
-    float* b, size_t b_base_offset, NDimArray b_shape, NDimArray b_strides, size_t b_ndim,
+template <typename T>
+__device__ void cuda_sum_axis_kernel(
+    T* a, Layout a_layout,
+    T* b, Layout b_layout,
     size_t axis,
     int len
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < len) {
-        size_t dim = a_shape.data[axis];
+        size_t dim = a_layout.shape[axis];
 
-        float sum = 0;
+        T sum = 0;
         for (size_t i = 0; i < dim; i++) {
-            size_t a_idx = compute_offset_by_axis_index(a_base_offset, &b_shape.data[0], &a_strides.data[0], b_ndim, idx, axis, i);
-            sum += a[a_idx];
-        }
-        b[idx] = sum;
-    }
-}
-
-__global__ void cuda_sum_axis_kernel_double(
-    double* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
-    double* b, size_t b_base_offset, NDimArray b_shape, NDimArray b_strides, size_t b_ndim,
-    size_t axis,
-    int len
-) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < len) {
-        size_t dim = a_shape.data[axis];
-
-        double sum = 0;
-        for (size_t i = 0; i < dim; i++) {
-            size_t a_idx = compute_offset_by_axis_index(a_base_offset, &b_shape.data[0], &a_strides.data[0], b_ndim, idx, axis, i);
+            size_t a_idx = compute_offset_by_axis_index(a_layout.storage_offset, &b_layout.shape[0], &a_layout.stride[0], b_layout.ndim, idx, axis, i);
             sum += a[a_idx];
         }
         b[idx] = sum;
@@ -119,47 +101,22 @@ extern "C" void cuda_sum(
     );
 }
 
-extern "C" void cuda_sum_axis_float(
-    float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    float* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
-    size_t axis,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-    NDimArray b_shape_array(b_shape, b_ndim);
-    NDimArray b_strides_array(b_strides, b_ndim);
-
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    cuda_sum_axis_kernel_float<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
-        axis,
-        len
-    );
+#define DEFINE_CUDA_SUM_AXIS(type) \
+__global__ void cuda_sum_axis_kernel_##type( \
+    type* a, Layout a_layout, type* b, Layout b_layout, size_t axis, int len \
+) { \
+    cuda_sum_axis_kernel<type>(a, a_layout, b, b_layout, axis, len); \
+} \
+extern "C" void cuda_sum_axis_##type( \
+    type* a, Layout a_layout, type* b, Layout b_layout, size_t axis, int len \
+) { \
+    int threads = 256; \
+    int blocks = (len + threads - 1) / threads; \
+    cuda_sum_axis_kernel_##type<<<blocks, threads>>>(a, a_layout, b, b_layout, axis, len ); \
 }
 
-extern "C" void cuda_sum_axis_double(
-    double* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    double* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
-    size_t axis,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-    NDimArray b_shape_array(b_shape, b_ndim);
-    NDimArray b_strides_array(b_strides, b_ndim);
-
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    cuda_sum_axis_kernel_double<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
-        axis,
-        len
-    );
-}
+DEFINE_CUDA_SUM_AXIS(float);
+DEFINE_CUDA_SUM_AXIS(double);
 
 extern "C" void cuda_max_axis(
     float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,

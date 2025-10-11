@@ -1,4 +1,5 @@
 pub mod basic;
+pub mod clayout;
 pub mod cublas;
 pub mod cuda;
 #[cfg(feature = "enable_cudnn")]

@@ -1,6 +1,8 @@
 use libc::{c_double, size_t};
 use std::ffi::c_float;
 
+use crate::clayout::CLayout;
+
 #[macro_export]
 macro_rules! define_extern_op1_func {
     ($f32_fn_name: ident, $f64_fn_name: ident) => {
@@ -30,8 +32,8 @@ macro_rules! define_extern_op2_func {
         #[rustfmt::skip]
         unsafe extern "C" {
             pub fn $u32_fn_name(
-                a: *const u32, a_base_offset: size_t, a_shape: *const size_t, a_strides: *const size_t, a_ndim: size_t,
-                b: *const u32, b_base_offset: size_t, b_shape: *const size_t, b_strides: *const size_t, b_ndim: size_t,
+                a: *const u32, a_layout: CLayout,
+                b: *const u32, b_layout: CLayout,
                 c: *mut u32,
                 len: i32
             );
@@ -40,8 +42,8 @@ macro_rules! define_extern_op2_func {
         #[rustfmt::skip]
         unsafe extern "C" {
             pub fn $f32_fn_name(
-                a: *const c_float, a_base_offset: size_t, a_shape: *const size_t, a_strides: *const size_t, a_ndim: size_t,
-                b: *const c_float, b_base_offset: size_t, b_shape: *const size_t, b_strides: *const size_t, b_ndim: size_t,
+                a: *const f32, a_layout: CLayout,
+                b: *const f32, b_layout: CLayout,
                 c: *mut c_float,
                 len: i32
             );
@@ -50,8 +52,8 @@ macro_rules! define_extern_op2_func {
         #[rustfmt::skip]
         unsafe extern "C" {
             pub fn $f64_fn_name(
-                a: *const c_double, a_base_offset: size_t, a_shape: *const size_t, a_strides: *const size_t, a_ndim: size_t,
-                b: *const c_double, b_base_offset: size_t, b_shape: *const size_t, b_strides: *const size_t, b_ndim: size_t,
+                a: *const f64, a_layout: CLayout,
+                b: *const f64, b_layout: CLayout,
                 c: *mut c_double,
                 len: i32
             );

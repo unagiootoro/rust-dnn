@@ -1,6 +1,8 @@
 use libc::{c_double, size_t};
 use std::ffi::c_float;
 
+use crate::clayout::CLayout;
+
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn cuda_sum(
@@ -13,8 +15,8 @@ unsafe extern "C" {
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn cuda_sum_axis_float(
-        a: *const c_float, a_base_offset: size_t, a_shape: *const size_t, a_strides: *const size_t, a_ndim: size_t,
-        b: *mut c_float, b_base_offset: size_t, b_shape: *const size_t, b_strides: *const size_t, b_ndim: size_t,
+        a: *const c_float, a_layout: CLayout,
+        b: *mut c_float, b_layout: CLayout,
         axis: size_t,
         len: i32
     );
@@ -23,8 +25,8 @@ unsafe extern "C" {
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn cuda_sum_axis_double(
-        a: *const c_double, a_base_offset: size_t, a_shape: *const size_t, a_strides: *const size_t, a_ndim: size_t,
-        b: *mut c_double, b_base_offset: size_t, b_shape: *const size_t, b_strides: *const size_t, b_ndim: size_t,
+        a: *const c_double, a_layout: CLayout,
+        b: *mut c_double, b_layout: CLayout,
         axis: size_t,
         len: i32
     );

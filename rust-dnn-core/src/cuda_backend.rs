@@ -6,70 +6,25 @@ use rust_dnn_cuda_kernel::basic::{
     cuda_mul_float, cuda_mul_uint32_t, cuda_neg_double, cuda_neg_float, cuda_sub_double,
     cuda_sub_float, cuda_sub_uint32_t,
 };
+use rust_dnn_cuda_kernel::clayout::{CLayout, MAX_NDIM};
 use rust_dnn_cuda_kernel::cuda::check_cuda_error;
 use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
 use rust_dnn_cuda_kernel::math::{
-    cuda_pow_double, cuda_pow_float, cuda_sum_axis_double, cuda_sum_axis_float
+    cuda_pow_double, cuda_pow_float, cuda_sum_axis_double, cuda_sum_axis_float,
 };
 
 use crate::backend::Backend;
 use crate::dtype::DType;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::float::Float;
 use crate::num::Num;
 use crate::{layout::Layout, storage::Storage};
-use libc::{c_double, size_t};
+use libc::size_t;
 
-pub(crate) type CudaOp1FuncF32 =
-    unsafe extern "C" fn(a: *const c_float, a_base_offset: size_t, b: *mut c_float, len: i32);
+pub(crate) type CudaOp1Func<T> = unsafe fn(a: *const T, a_base_offset: size_t, b: *mut T, len: i32);
 
-pub(crate) type CudaOp1FuncF64 =
-    unsafe extern "C" fn(a: *const c_double, a_base_offset: size_t, b: *mut c_double, len: i32);
-
-pub(crate) type CudaU32Op2Func = unsafe extern "C" fn(
-    a: *const u32,
-    a_base_offset: size_t,
-    a_shape: *const size_t,
-    a_strides: *const size_t,
-    a_ndim: size_t,
-    b: *const u32,
-    b_base_offset: size_t,
-    b_shape: *const size_t,
-    b_strides: *const size_t,
-    b_ndim: size_t,
-    c: *mut u32,
-    len: i32,
-);
-
-pub(crate) type CudaF32Op2Func = unsafe extern "C" fn(
-    a: *const c_float,
-    a_base_offset: size_t,
-    a_shape: *const size_t,
-    a_strides: *const size_t,
-    a_ndim: size_t,
-    b: *const c_float,
-    b_base_offset: size_t,
-    b_shape: *const size_t,
-    b_strides: *const size_t,
-    b_ndim: size_t,
-    c: *mut c_float,
-    len: i32,
-);
-
-pub(crate) type CudaF64Op2Func = unsafe extern "C" fn(
-    a: *const c_double,
-    a_base_offset: size_t,
-    a_shape: *const size_t,
-    a_strides: *const size_t,
-    a_ndim: size_t,
-    b: *const c_double,
-    b_base_offset: size_t,
-    b_shape: *const size_t,
-    b_strides: *const size_t,
-    b_ndim: size_t,
-    c: *mut c_double,
-    len: i32,
-);
+pub(crate) type CudaOp2Func<T> =
+    unsafe fn(a: *const T, a_layout: CLayout, b: *const T, b_layout: CLayout, c: *mut T, len: i32);
 
 pub(crate) type CudaOp2AssignFunc = unsafe extern "C" fn(
     a: *const c_float,
@@ -129,19 +84,15 @@ impl Backend for CudaBackend {
         let input_data = input_storage.get_cuda_storage()?;
         let output_data = unsafe {
             let output_data = GPUBuffer::<T>::new(output_layout.len());
+            let input_clayout = layout_to_clayout(input_layout)?;
+            let output_clayout = layout_to_clayout(output_layout)?;
             match T::dtype() {
                 DType::F32 => {
                     cuda_sum_axis_float(
                         input_data.ptr() as *const f32,
-                        input_layout.storage_offset(),
-                        input_layout.shape().as_ptr() as *const size_t,
-                        input_layout.stride().as_ptr() as *const size_t,
-                        input_layout.ndim(),
+                        input_clayout,
                         output_data.ptr() as *mut f32,
-                        output_layout.storage_offset(),
-                        output_layout.shape().as_ptr() as *const size_t,
-                        output_layout.stride().as_ptr() as *const size_t,
-                        output_layout.ndim(),
+                        output_clayout,
                         axis,
                         output_layout.len() as i32,
                     );
@@ -149,15 +100,9 @@ impl Backend for CudaBackend {
                 DType::F64 => {
                     cuda_sum_axis_double(
                         input_data.ptr() as *const f64,
-                        input_layout.storage_offset(),
-                        input_layout.shape().as_ptr() as *const size_t,
-                        input_layout.stride().as_ptr() as *const size_t,
-                        input_layout.ndim(),
+                        input_clayout,
                         output_data.ptr() as *mut f64,
-                        output_layout.storage_offset(),
-                        output_layout.shape().as_ptr() as *const size_t,
-                        output_layout.stride().as_ptr() as *const size_t,
-                        output_layout.ndim(),
+                        output_clayout,
                         axis,
                         output_layout.len() as i32,
                     );
@@ -176,15 +121,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        cuda_op2_func_call(
-            lhs_storage,
-            rhs_storage,
-            lhs_layout,
-            rhs_layout,
-            cuda_add_uint32_t,
-            cuda_add_float,
-            cuda_add_double,
-        )
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_add)
     }
 
     fn op_sub<T: Num>(
@@ -193,15 +130,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        cuda_op2_func_call(
-            lhs_storage,
-            rhs_storage,
-            lhs_layout,
-            rhs_layout,
-            cuda_sub_uint32_t,
-            cuda_sub_float,
-            cuda_sub_double,
-        )
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_sub)
     }
 
     fn op_mul<T: Num>(
@@ -210,15 +139,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        cuda_op2_func_call(
-            lhs_storage,
-            rhs_storage,
-            lhs_layout,
-            rhs_layout,
-            cuda_mul_uint32_t,
-            cuda_mul_float,
-            cuda_mul_double,
-        )
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_mul)
     }
 
     fn op_div<T: Num>(
@@ -227,19 +148,11 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        cuda_op2_func_call(
-            lhs_storage,
-            rhs_storage,
-            lhs_layout,
-            rhs_layout,
-            cuda_div_uint32_t,
-            cuda_div_float,
-            cuda_div_double,
-        )
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_div)
     }
 
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        cuda_op1_func_call(storage, layout, cuda_neg_float, cuda_neg_double)
+        cuda_op1_func_call(storage, layout, cuda_neg)
     }
 
     fn op_pow_scalar<T: Float>(
@@ -278,51 +191,83 @@ impl Backend for CudaBackend {
     }
 }
 
+#[macro_export]
+macro_rules! define_cuda_op1_func {
+    ($fn_name: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
+        unsafe fn $fn_name<T: Num>(a: *const T, a_base_offset: size_t, b: *mut T, len: i32) {
+            unsafe {
+                match T::dtype() {
+                    DType::F32 => $fn_name_f32(a as *const f32, a_base_offset, b as *mut f32, len),
+                    DType::F64 => $fn_name_f64(a as *const f64, a_base_offset, b as *mut f64, len),
+                    _ => panic!(),
+                }
+            }
+        }
+    };
+}
+
+define_cuda_op1_func!(cuda_neg, cuda_neg_float, cuda_neg_double);
+
+#[macro_export]
+macro_rules! define_cuda_op2_func {
+    ($fn_name: ident, $fn_name_u32: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
+        unsafe fn $fn_name<T: Num>(
+            a: *const T,
+            a_layout: CLayout,
+            b: *const T,
+            b_layout: CLayout,
+            c: *mut T,
+            len: i32,
+        ) {
+            unsafe {
+                match T::dtype() {
+                    DType::U32 => $fn_name_u32(
+                        a as *const u32,
+                        a_layout,
+                        b as *const u32,
+                        b_layout,
+                        c as *mut u32,
+                        len,
+                    ),
+                    DType::F32 => $fn_name_f32(
+                        a as *const f32,
+                        a_layout,
+                        b as *const f32,
+                        b_layout,
+                        c as *mut f32,
+                        len,
+                    ),
+                    DType::F64 => $fn_name_f64(
+                        a as *const f64,
+                        a_layout,
+                        b as *const f64,
+                        b_layout,
+                        c as *mut f64,
+                        len,
+                    ),
+                }
+            }
+        }
+    };
+}
+
+define_cuda_op2_func!(cuda_add, cuda_add_uint32_t, cuda_add_float, cuda_add_double);
+define_cuda_op2_func!(cuda_sub, cuda_sub_uint32_t, cuda_sub_float, cuda_sub_double);
+define_cuda_op2_func!(cuda_mul, cuda_mul_uint32_t, cuda_mul_float, cuda_mul_double);
+define_cuda_op2_func!(cuda_div, cuda_div_uint32_t, cuda_div_float, cuda_div_double);
+
 pub(crate) fn cuda_op1_func_call<T: Num>(
     storage: &Storage<T>,
     layout: &Layout,
-    f_f32: CudaOp1FuncF32,
-    f_f64: CudaOp1FuncF64,
-) -> Result<Storage<T>> {
-    match T::dtype() {
-        DType::F32 => cuda_op1_func_call_f32(storage, layout, f_f32),
-        DType::F64 => cuda_op1_func_call_f64(storage, layout, f_f64),
-        _ => panic!(),
-    }
-}
-
-pub(crate) fn cuda_op1_func_call_f32<T: Num>(
-    storage: &Storage<T>,
-    layout: &Layout,
-    f: CudaOp1FuncF32,
+    f: CudaOp1Func<T>,
 ) -> Result<Storage<T>> {
     let input_data = storage.get_cuda_storage()?;
     let output_data = unsafe {
         let output_data = GPUBuffer::<T>::new(layout.len());
         f(
-            input_data.ptr() as *const f32,
+            input_data.ptr() as *const T,
             layout.storage_offset(),
-            output_data.ptr() as *mut f32,
-            layout.len() as i32,
-        );
-        check_cuda_error();
-        output_data
-    };
-    Ok(Storage::CudaStorage(output_data))
-}
-
-pub(crate) fn cuda_op1_func_call_f64<T: Num>(
-    storage: &Storage<T>,
-    layout: &Layout,
-    f: CudaOp1FuncF64,
-) -> Result<Storage<T>> {
-    let input_data = storage.get_cuda_storage()?;
-    let output_data = unsafe {
-        let output_data = GPUBuffer::<T>::new(layout.len());
-        f(
-            input_data.ptr() as *const f64,
-            layout.storage_offset(),
-            output_data.ptr() as *mut f64,
+            output_data.ptr() as *mut T,
             layout.len() as i32,
         );
         check_cuda_error();
@@ -336,112 +281,48 @@ pub(crate) fn cuda_op2_func_call<T: Num>(
     rhs_storage: &Storage<T>,
     lhs_layout: &Layout,
     rhs_layout: &Layout,
-    f_u32: CudaU32Op2Func,
-    f_f32: CudaF32Op2Func,
-    f_f64: CudaF64Op2Func,
+    f: CudaOp2Func<T>,
 ) -> Result<Storage<T>> {
-    match T::dtype() {
-        DType::U32 => {
-            cuda_u32_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, f_u32)
-        }
-        DType::F32 => {
-            cuda_f32_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, f_f32)
-        }
-        DType::F64 => {
-            cuda_f64_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, f_f64)
-        }
+    let lhs_data = lhs_storage.get_cuda_storage()?;
+    let rhs_data = rhs_storage.get_cuda_storage()?;
+    let lhs_clayout = layout_to_clayout(lhs_layout)?;
+    let rhs_clayout = layout_to_clayout(rhs_layout)?;
+    let output_data = unsafe {
+        let output_data = GPUBuffer::<T>::new(lhs_layout.len());
+        f(
+            lhs_data.ptr() as *const T,
+            lhs_clayout,
+            rhs_data.ptr() as *mut T,
+            rhs_clayout,
+            output_data.ptr() as *mut T,
+            lhs_layout.len() as i32,
+        );
+        check_cuda_error();
+        output_data
+    };
+    Ok(Storage::CudaStorage(output_data))
+}
+
+fn layout_to_clayout(layout: &Layout) -> Result<CLayout> {
+    if layout.ndim() > MAX_NDIM {
+        return Err(Error::ArgumentsError {
+            msg: format!("Invalid layout ndim({})", layout.ndim()).to_string(),
+        });
     }
-}
-
-pub(crate) fn cuda_u32_op2_func_call<T: Num>(
-    lhs_storage: &Storage<T>,
-    rhs_storage: &Storage<T>,
-    lhs_layout: &Layout,
-    rhs_layout: &Layout,
-    f: CudaU32Op2Func,
-) -> Result<Storage<T>> {
-    let lhs_data = lhs_storage.get_cuda_storage()?;
-    let rhs_data = rhs_storage.get_cuda_storage()?;
-    let output_data = unsafe {
-        let output_data = GPUBuffer::<T>::new(lhs_layout.len());
-        f(
-            lhs_data.ptr() as *const u32,
-            lhs_layout.storage_offset(),
-            lhs_layout.shape().as_ptr() as *const size_t,
-            lhs_layout.stride().as_ptr() as *const size_t,
-            lhs_layout.ndim(),
-            rhs_data.ptr() as *mut u32,
-            rhs_layout.storage_offset(),
-            rhs_layout.shape().as_ptr() as *const size_t,
-            rhs_layout.stride().as_ptr() as *const size_t,
-            rhs_layout.ndim(),
-            output_data.ptr() as *mut u32,
-            lhs_layout.len() as i32,
-        );
-        check_cuda_error();
-        output_data
+    let mut shape = [0; MAX_NDIM];
+    for (i, dim) in layout.shape().iter().enumerate() {
+        shape[i] = *dim;
+    }
+    let mut stride = [0; MAX_NDIM];
+    for (i, dim) in layout.stride().iter().enumerate() {
+        stride[i] = *dim;
+    }
+    let clayout = CLayout {
+        shape,
+        stride,
+        ndim: layout.ndim(),
+        len: layout.len(),
+        storage_offset: layout.storage_offset(),
     };
-    Ok(Storage::CudaStorage(output_data))
-}
-
-pub(crate) fn cuda_f32_op2_func_call<T: Num>(
-    lhs_storage: &Storage<T>,
-    rhs_storage: &Storage<T>,
-    lhs_layout: &Layout,
-    rhs_layout: &Layout,
-    f: CudaF32Op2Func,
-) -> Result<Storage<T>> {
-    let lhs_data = lhs_storage.get_cuda_storage()?;
-    let rhs_data = rhs_storage.get_cuda_storage()?;
-    let output_data = unsafe {
-        let output_data = GPUBuffer::<T>::new(lhs_layout.len());
-        f(
-            lhs_data.ptr() as *const f32,
-            lhs_layout.storage_offset(),
-            lhs_layout.shape().as_ptr() as *const size_t,
-            lhs_layout.stride().as_ptr() as *const size_t,
-            lhs_layout.ndim(),
-            rhs_data.ptr() as *mut f32,
-            rhs_layout.storage_offset(),
-            rhs_layout.shape().as_ptr() as *const size_t,
-            rhs_layout.stride().as_ptr() as *const size_t,
-            rhs_layout.ndim(),
-            output_data.ptr() as *mut f32,
-            lhs_layout.len() as i32,
-        );
-        check_cuda_error();
-        output_data
-    };
-    Ok(Storage::CudaStorage(output_data))
-}
-
-pub(crate) fn cuda_f64_op2_func_call<T: Num>(
-    lhs_storage: &Storage<T>,
-    rhs_storage: &Storage<T>,
-    lhs_layout: &Layout,
-    rhs_layout: &Layout,
-    f: CudaF64Op2Func,
-) -> Result<Storage<T>> {
-    let lhs_data = lhs_storage.get_cuda_storage()?;
-    let rhs_data = rhs_storage.get_cuda_storage()?;
-    let output_data = unsafe {
-        let output_data = GPUBuffer::<T>::new(lhs_layout.len());
-        f(
-            lhs_data.ptr() as *const f64,
-            lhs_layout.storage_offset(),
-            lhs_layout.shape().as_ptr() as *const size_t,
-            lhs_layout.stride().as_ptr() as *const size_t,
-            lhs_layout.ndim(),
-            rhs_data.ptr() as *mut f64,
-            rhs_layout.storage_offset(),
-            rhs_layout.shape().as_ptr() as *const size_t,
-            rhs_layout.stride().as_ptr() as *const size_t,
-            rhs_layout.ndim(),
-            output_data.ptr() as *mut f64,
-            lhs_layout.len() as i32,
-        );
-        check_cuda_error();
-        output_data
-    };
-    Ok(Storage::CudaStorage(output_data))
+    Ok(clayout)
 }
