@@ -873,60 +873,43 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 continue;
             };
 
-            let gy = grads.get(&node).unwrap();
+            let gy = grads.get(&node).unwrap().clone();
             match op {
                 Op::Reshape(x) => {
-                    let gx = Self::reshape_grad(gy, x.shape().to_vec())?;
-                    grads.add(&x, gx)?;
+                    Self::reshape_backward(&mut grads, &gy, &x)?;
                 }
                 Op::BroadcastTo(x) => {
-                    let gx = Self::broadcast_to_grad(gy, x.shape().to_vec())?;
-                    grads.add(&x, gx)?;
+                    Self::broadcast_to_backward(&mut grads, &gy, &x)?;
                 }
                 Op::PermutedAxes(x, axes) => {
-                    let gx = Self::permuted_axes_grad(gy, axes)?;
-                    grads.add(&x, gx)?;
+                    Self::permuted_axes_backward(&mut grads, &gy, &x, axes)?;
                 }
                 Op::Contiguous(x) => {
-                    let gx = Self::contiguous_grad(gy);
-                    grads.add(&x, gx)?;
+                    Self::contiguous_backward(&mut grads, &gy, &x)?;
                 }
                 Op::SumAxis(x, axis, keepdims) => {
-                    let gx = Self::sum_axis_grad(gy, x.shape(), axis, keepdims)?;
-                    grads.add(&x, gx)?;
+                    Self::sum_axis_backward(&mut grads, &gy, &x, axis, keepdims)?;
                 }
                 Op::Add(x1, x2) => {
-                    let (gx1, gx2) = Self::add_grad(gy, x1.shape(), x2.shape())?;
-                    grads.add(&x1, gx1)?;
-                    grads.add(&x2, gx2)?;
+                    Self::add_backward(&mut grads, &gy, &x1, &x2)?;
                 }
                 Op::Sub(x1, x2) => {
-                    let (gx1, gx2) = Self::sub_grad(gy, x1.shape(), x2.shape())?;
-                    grads.add(&x1, gx1)?;
-                    grads.add(&x2, gx2)?;
+                    Self::sub_backward(&mut grads, &gy, &x1, &x2)?;
                 }
                 Op::Mul(x1, x2) => {
-                    let (gx1, gx2) = Self::mul_grad(gy, &x1, &x2)?;
-                    grads.add(&x1, gx1)?;
-                    grads.add(&x2, gx2)?;
+                    Self::mul_backward(&mut grads, &gy, &x1, &x2)?;
                 }
                 Op::Div(x1, x2) => {
-                    let (gx1, gx2) = Self::div_grad(gy, &x1, &x2)?;
-                    grads.add(&x1, gx1)?;
-                    grads.add(&x2, gx2)?;
+                    Self::div_backward(&mut grads, &gy, &x1, &x2)?;
                 }
                 Op::Neg(x) => {
-                    let gx = Self::neg_grad(gy)?;
-                    grads.add(&x, gx)?;
+                    Self::neg_backward(&mut grads, &gy, &x)?;
                 }
                 Op::Pow(x1, x2) => {
-                    let (gx1, gx2) = Self::pow_grad(gy, &x1, &x2)?;
-                    grads.add(&x1, gx1)?;
-                    grads.add(&x2, gx2)?;
+                    Self::pow_backward(&mut grads, &gy, &x1, &x2)?;
                 }
                 Op::Ln(x) => {
-                    let gx = Self::ln_grad(gy, &x)?;
-                    grads.add(&x, gx)?;
+                    Self::ln_backward(&mut grads, &gy, &x)?;
                 }
             }
             grads.remove(&node);
@@ -935,15 +918,32 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         Ok(grads)
     }
 
-    fn reshape_grad(gy: &Tensor<B, T>, shape: Vec<usize>) -> Result<Tensor<B, T>> {
-        gy.reshape(shape)
+    fn reshape_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+    ) -> Result<()> {
+        let gx = gy.reshape(x.shape().to_vec())?;
+        grads.add(&x, gx)?;
+        Ok(())
     }
 
-    fn broadcast_to_grad(gy: &Tensor<B, T>, shape: Vec<usize>) -> Result<Tensor<B, T>> {
-        gy.sum_to(&shape)
+    fn broadcast_to_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+    ) -> Result<()> {
+        let gx = gy.sum_to(x.shape())?;
+        grads.add(&x, gx)?;
+        Ok(())
     }
 
-    fn permuted_axes_grad(gy: &Tensor<B, T>, axes: Vec<usize>) -> Result<Tensor<B, T>> {
+    fn permuted_axes_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+        axes: Vec<usize>,
+    ) -> Result<()> {
         if gy.ndim() != axes.len() {
             return Err(Error::ArgumentsError {
                 msg: format!(
@@ -958,25 +958,33 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             let position = axes.iter().position(|&axis| axis == i).unwrap();
             inv_axes.push(position);
         }
-        gy.permuted_axes(&inv_axes)
+        let gx = gy.permuted_axes(&inv_axes)?;
+        grads.add(x, gx)?;
+        Ok(())
     }
 
-    fn contiguous_grad(gy: &Tensor<B, T>) -> Tensor<B, T> {
-        gy.clone()
-    }
-
-    fn sum_axis_grad(
+    fn contiguous_backward(
+        grads: &mut Gradients<B, T>,
         gy: &Tensor<B, T>,
-        x_shape: &[usize],
+        x: &Tensor<B, T>,
+    ) -> Result<()> {
+        grads.add(x, gy.clone())?;
+        Ok(())
+    }
+
+    fn sum_axis_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
         axis: usize,
         keepdims: bool,
-    ) -> Result<Tensor<B, T>> {
+    ) -> Result<()> {
         let gy = if keepdims {
             gy.clone()
         } else {
             let mut output_shape = Vec::new();
             let mut j = 0;
-            for i in 0..x_shape.len() {
+            for i in 0..x.shape().len() {
                 if i == axis {
                     output_shape.push(1);
                 } else {
@@ -986,66 +994,91 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             }
             gy.reshape(output_shape)?
         };
-        gy.broadcast_to(x_shape.to_vec())
+        let gx = gy.broadcast_to(x.shape().to_vec())?;
+        grads.add(x, gx)?;
+        Ok(())
     }
 
-    fn add_grad(
-        gy: &Tensor<B, T>,
-        x1_shape: &[usize],
-        x2_shape: &[usize],
-    ) -> Result<(Tensor<B, T>, Tensor<B, T>)> {
-        let gx1 = gy.sum_to(x1_shape)?;
-        let gx2 = gy.sum_to(x2_shape)?;
-        Ok((gx1, gx2))
-    }
-
-    fn sub_grad(
-        gy: &Tensor<B, T>,
-        x1_shape: &[usize],
-        x2_shape: &[usize],
-    ) -> Result<(Tensor<B, T>, Tensor<B, T>)> {
-        let gx1 = gy.sum_to(x1_shape)?;
-        let gx2 = (-gy)?.sum_to(x2_shape)?;
-        Ok((gx1, gx2))
-    }
-
-    fn mul_grad(
+    fn add_backward(
+        grads: &mut Gradients<B, T>,
         gy: &Tensor<B, T>,
         x1: &Tensor<B, T>,
         x2: &Tensor<B, T>,
-    ) -> Result<(Tensor<B, T>, Tensor<B, T>)> {
+    ) -> Result<()> {
+        let gx1 = gy.sum_to(x1.shape())?;
+        let gx2 = gy.sum_to(x2.shape())?;
+        grads.add(x1, gx1)?;
+        grads.add(x2, gx2)?;
+        Ok(())
+    }
+
+    fn sub_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x1: &Tensor<B, T>,
+        x2: &Tensor<B, T>,
+    ) -> Result<()> {
+        let gx1 = gy.sum_to(x1.shape())?;
+        let gx2 = (-gy)?.sum_to(x2.shape())?;
+        grads.add(x1, gx1)?;
+        grads.add(x2, gx2)?;
+        Ok(())
+    }
+
+    fn mul_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x1: &Tensor<B, T>,
+        x2: &Tensor<B, T>,
+    ) -> Result<()> {
         let gx1 = (gy * x2)?.sum_to(x1.shape())?;
         let gx2 = (gy * x1)?.sum_to(x2.shape())?;
-        Ok((gx1, gx2))
+        grads.add(x1, gx1)?;
+        grads.add(x2, gx2)?;
+        Ok(())
     }
 
-    fn div_grad(
+    fn div_backward(
+        grads: &mut Gradients<B, T>,
         gy: &Tensor<B, T>,
         x1: &Tensor<B, T>,
         x2: &Tensor<B, T>,
-    ) -> Result<(Tensor<B, T>, Tensor<B, T>)> {
+    ) -> Result<()> {
         let gx1 = (gy / x2)?.sum_to(x1.shape())?;
         let gx2 = (gy * (-x1 / x2.pow_scalar(T::from_f32(2.0))?)?)?.sum_to(x2.shape())?;
-        Ok((gx1, gx2))
+        grads.add(x1, gx1)?;
+        grads.add(x2, gx2)?;
+        Ok(())
     }
 
-    fn pow_grad(
+    fn pow_backward(
+        grads: &mut Gradients<B, T>,
         gy: &Tensor<B, T>,
         x1: &Tensor<B, T>,
         x2: &Tensor<B, T>,
-    ) -> Result<(Tensor<B, T>, Tensor<B, T>)> {
+    ) -> Result<()> {
         let one = Tensor::ones(vec![1], gy.device);
         let gx1 = (x2 * x1.pow(&((x2 - one)?))? * gy)?.sum_to(x1.shape())?;
         let gx2 = (gy * x1.ln()?)?.sum_to(x2.shape())?;
-        Ok((gx1, gx2))
+        grads.add(x1, gx1)?;
+        grads.add(x2, gx2)?;
+        Ok(())
     }
 
-    fn neg_grad(gy: &Tensor<B, T>) -> Result<Tensor<B, T>> {
-        -gy
+    fn neg_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+    ) -> Result<()> {
+        let gx = (-gy)?;
+        grads.add(x, gx)?;
+        Ok(())
     }
 
-    fn ln_grad(gy: &Tensor<B, T>, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
-        gy / x
+    fn ln_backward(grads: &mut Gradients<B, T>, gy: &Tensor<B, T>, x: &Tensor<B, T>) -> Result<()> {
+        let gx = (gy / x)?;
+        grads.add(x, gx)?;
+        Ok(())
     }
 }
 
