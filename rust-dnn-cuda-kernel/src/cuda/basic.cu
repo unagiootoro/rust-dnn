@@ -70,26 +70,16 @@ __global__ void cmp_max_kernel(
 }
 
 
-__global__ void cuda_contiguous_kernel_float(
-    float* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
-    float* b,
+template <typename T>
+__device__ void cuda_contiguous_kernel(
+    T* a,
+    Layout a_layout,
+    T* b,
     int len
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < len) {
-        size_t a_idx = compute_offset(a_base_offset, &a_shape.data[0], &a_strides.data[0], a_ndim, idx);
-        b[idx] = a[a_idx];
-    }
-}
-
-__global__ void cuda_contiguous_kernel_double(
-    double* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
-    double* b,
-    int len
-) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < len) {
-        size_t a_idx = compute_offset(a_base_offset, &a_shape.data[0], &a_strides.data[0], a_ndim, idx);
+        size_t a_idx = compute_offset(a_layout.storage_offset, &a_layout.shape[0], &a_layout.stride[0], a_layout.ndim, idx);
         b[idx] = a[a_idx];
     }
 }
@@ -336,39 +326,22 @@ extern "C" void cuda_cmp_max(
     );
 }
 
-extern "C" void cuda_contiguous_float(
-    float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    float* b,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    cuda_contiguous_kernel_float<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b,
-        len
-    );
+#define DEFINE_CUDA_CONTIGUOUS(type) \
+__global__ void cuda_contiguous_kernel_##type( \
+    type* a, Layout a_layout, type* b, int len \
+) { \
+    cuda_contiguous_kernel<type>(a, a_layout, b, len); \
+} \
+extern "C" void cuda_contiguous_##type( \
+    type* a, Layout a_layout, type* b, int len \
+) { \
+    int threads = 256; \
+    int blocks = (len + threads - 1) / threads; \
+    cuda_contiguous_kernel_##type<<<blocks, threads>>>(a, a_layout, b, len); \
 }
 
-extern "C" void cuda_contiguous_double(
-    double* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    double* b,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    cuda_contiguous_kernel_double<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b,
-        len
-    );
-}
+DEFINE_CUDA_CONTIGUOUS(float)
+DEFINE_CUDA_CONTIGUOUS(double)
 
 extern "C" void set_item(
     float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,

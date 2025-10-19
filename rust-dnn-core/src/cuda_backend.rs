@@ -10,7 +10,8 @@ use rust_dnn_cuda_kernel::clayout::{CLayout, MAX_NDIM};
 use rust_dnn_cuda_kernel::cuda::check_cuda_error;
 use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
 use rust_dnn_cuda_kernel::math::{
-    cuda_ln_double, cuda_ln_float, cuda_pow_double, cuda_pow_float, cuda_sum_axis_double, cuda_sum_axis_float
+    cuda_ln_double, cuda_ln_float, cuda_pow_double, cuda_pow_float, cuda_sum_axis_double,
+    cuda_sum_axis_float,
 };
 
 use crate::backend::Backend;
@@ -48,27 +49,12 @@ impl Backend for CudaBackend {
         let input_data = storage.get_cuda_storage()?;
         let output_data = unsafe {
             let output_data = GPUBuffer::<T>::new(layout.len());
-            match T::dtype() {
-                DType::F32 => cuda_contiguous_float(
-                    input_data.ptr() as *const f32,
-                    layout.storage_offset(),
-                    layout.shape().as_ptr() as *const size_t,
-                    layout.stride().as_ptr() as *const size_t,
-                    layout.ndim(),
-                    output_data.ptr() as *mut f32,
-                    layout.len() as i32,
-                ),
-                DType::F64 => cuda_contiguous_double(
-                    input_data.ptr() as *const f64,
-                    layout.storage_offset(),
-                    layout.shape().as_ptr() as *const size_t,
-                    layout.stride().as_ptr() as *const size_t,
-                    layout.ndim(),
-                    output_data.ptr() as *mut f64,
-                    layout.len() as i32,
-                ),
-                _ => panic!(),
-            }
+            cuda_contiguous(
+                input_data.ptr() as *const T,
+                layout_to_clayout(layout)?,
+                output_data.ptr() as *mut T,
+                layout.len() as i32,
+            );
             check_cuda_error();
             output_data
         };
@@ -316,6 +302,16 @@ pub(crate) fn cuda_op2_func_call<T: Num>(
         output_data
     };
     Ok(Storage::CudaStorage(output_data))
+}
+
+pub unsafe fn cuda_contiguous<T: Num>(a: *const T, a_layout: CLayout, b: *mut T, len: i32) {
+    unsafe {
+        match T::dtype() {
+            DType::F32 => cuda_contiguous_float(a as *const f32, a_layout, b as *mut f32, len),
+            DType::F64 => cuda_contiguous_double(a as *const f64, a_layout, b as *mut f64, len),
+            _ => panic!(),
+        }
+    }
 }
 
 fn layout_to_clayout(layout: &Layout) -> Result<CLayout> {

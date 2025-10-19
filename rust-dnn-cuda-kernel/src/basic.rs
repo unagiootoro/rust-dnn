@@ -6,7 +6,7 @@ use crate::clayout::CLayout;
 #[macro_export]
 macro_rules! define_extern_op1_func {
     ($f32_fn_name: ident, $f64_fn_name: ident) => {
-        #[rustfmt::skip]
+#[rustfmt::skip]
         unsafe extern "C" {
             pub fn $f32_fn_name(
                 a: *const c_float, a_base_offset: size_t,
@@ -15,7 +15,7 @@ macro_rules! define_extern_op1_func {
             );
         }
 
-        #[rustfmt::skip]
+#[rustfmt::skip]
         unsafe extern "C" {
             pub fn $f64_fn_name(
                 a: *const c_double, a_base_offset: size_t,
@@ -29,7 +29,7 @@ macro_rules! define_extern_op1_func {
 #[macro_export]
 macro_rules! define_extern_op2_func {
     ($u32_fn_name: ident, $f32_fn_name: ident, $f64_fn_name: ident) => {
-        #[rustfmt::skip]
+#[rustfmt::skip]
         unsafe extern "C" {
             pub fn $u32_fn_name(
                 a: *const u32, a_layout: CLayout,
@@ -39,7 +39,7 @@ macro_rules! define_extern_op2_func {
             );
         }
 
-        #[rustfmt::skip]
+#[rustfmt::skip]
         unsafe extern "C" {
             pub fn $f32_fn_name(
                 a: *const f32, a_layout: CLayout,
@@ -49,7 +49,7 @@ macro_rules! define_extern_op2_func {
             );
         }
 
-        #[rustfmt::skip]
+#[rustfmt::skip]
         unsafe extern "C" {
             pub fn $f64_fn_name(
                 a: *const f64, a_layout: CLayout,
@@ -64,7 +64,7 @@ macro_rules! define_extern_op2_func {
 #[macro_export]
 macro_rules! define_extern_float_op2_func {
     ($f32_fn_name: ident, $f64_fn_name: ident) => {
-        #[rustfmt::skip]
+#[rustfmt::skip]
         unsafe extern "C" {
             pub fn $f32_fn_name(
                 a: *const f32, a_layout: CLayout,
@@ -74,7 +74,7 @@ macro_rules! define_extern_float_op2_func {
             );
         }
 
-        #[rustfmt::skip]
+#[rustfmt::skip]
         unsafe extern "C" {
             pub fn $f64_fn_name(
                 a: *const f64, a_layout: CLayout,
@@ -164,7 +164,7 @@ unsafe extern "C" {
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn cuda_contiguous_float(
-        a: *const c_float, a_base_offset: size_t, a_shape: *const size_t, a_strides: *const size_t, a_ndim: size_t,
+        a: *const c_float, a_layout: CLayout,
         b: *mut c_float,
         len: i32
     );
@@ -173,7 +173,7 @@ unsafe extern "C" {
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn cuda_contiguous_double(
-        a: *const c_double, a_base_offset: size_t, a_shape: *const size_t, a_strides: *const size_t, a_ndim: size_t,
+        a: *const c_double, a_layout: CLayout,
         b: *mut c_double,
         len: i32
     );
