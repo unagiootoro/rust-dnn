@@ -3,6 +3,7 @@ pub mod cpu_backend;
 #[cfg(feature = "cuda")]
 pub mod cuda_backend;
 pub mod device;
+pub mod dim;
 pub mod dtype;
 pub mod error;
 pub mod float;

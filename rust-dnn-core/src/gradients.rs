@@ -1,27 +1,41 @@
 use std::collections::HashMap;
 
-use crate::{backend::Backend, error::Error, num::Num, tensor::Tensor};
+use crate::{
+    backend::Backend,
+    dim::{Dim, DynDim},
+    error::Error,
+    num::Num,
+    tensor::Tensor,
+};
 
-pub struct Gradients<B: Backend, T: Num>(HashMap<usize, Tensor<B, T>>);
+pub struct Gradients<B: Backend, T: Num>(HashMap<usize, Tensor<B, DynDim, T>>);
 
 impl<B: Backend, T: Num> Gradients<B, T> {
     pub fn new() -> Self {
         Self(HashMap::new())
     }
 
-    pub fn get_by_id(&self, id: usize) -> Option<&Tensor<B, T>> {
+    pub fn get_by_id(&self, id: usize) -> Option<&Tensor<B, DynDim, T>> {
         self.0.get(&id)
     }
 
-    pub fn get(&self, tensor: &Tensor<B, T>) -> Option<&Tensor<B, T>> {
-        self.0.get(&tensor.id())
+    pub fn get<D: Dim>(&self, tensor: &Tensor<B, D, T>) -> Option<&Tensor<B, D, T>> {
+        if let Some(t) = self.0.get(&tensor.id()) {
+            Some(t.to_dim_ref::<D>().unwrap())
+        } else {
+            None
+        }
     }
 
-    pub fn insert(&mut self, tensor: &Tensor<B, T>, grad: Tensor<B, T>) {
+    pub fn insert(&mut self, tensor: &Tensor<B, DynDim, T>, grad: Tensor<B, DynDim, T>) {
         self.0.insert(tensor.id(), grad);
     }
 
-    pub fn add(&mut self, tensor: &Tensor<B, T>, grad: Tensor<B, T>) -> Result<(), Error> {
+    pub fn add(
+        &mut self,
+        tensor: &Tensor<B, DynDim, T>,
+        grad: Tensor<B, DynDim, T>,
+    ) -> Result<(), Error> {
         if let Some(prev_grad) = self.0.get(&tensor.id()) {
             self.0.insert(tensor.id(), (prev_grad.clone() + grad)?);
         } else {
@@ -30,7 +44,7 @@ impl<B: Backend, T: Num> Gradients<B, T> {
         Ok(())
     }
 
-    pub fn remove(&mut self, tensor: &Tensor<B, T>) {
+    pub fn remove(&mut self, tensor: &Tensor<B, DynDim, T>) {
         self.0.remove(&tensor.id());
     }
 

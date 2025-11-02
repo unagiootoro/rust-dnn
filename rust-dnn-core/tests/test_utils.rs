@@ -1,4 +1,4 @@
-use rust_dnn_core::{backend::Backend, num::Num, tensor::Tensor};
+use rust_dnn_core::{backend::Backend, dim::Dim, num::Num, tensor::Tensor};
 
 #[macro_export]
 macro_rules! define_test {
@@ -16,16 +16,16 @@ macro_rules! define_test {
     };
 }
 
-pub fn assert_tensor<B1: Backend, B2: Backend, T: Num>(
-    actual: &Tensor<B1, T>,
-    expected: &Tensor<B2, T>,
+pub fn assert_tensor<B1: Backend, B2: Backend, D: Dim, T: Num>(
+    actual: &Tensor<B1, D, T>,
+    expected: &Tensor<B2, D, T>,
 ) {
-    assert_tensor_with_eps::<B1, B2, T>(actual, expected, 1e-4)
+    assert_tensor_with_eps::<B1, B2, D, T>(actual, expected, 1e-4)
 }
 
-pub fn assert_tensor_with_eps<B1: Backend, B2: Backend, T: Num>(
-    actual: &Tensor<B1, T>,
-    expected: &Tensor<B2, T>,
+pub fn assert_tensor_with_eps<B1: Backend, B2: Backend, D: Dim, T: Num>(
+    actual: &Tensor<B1, D, T>,
+    expected: &Tensor<B2, D, T>,
     eps: f32,
 ) {
     assert_eq!(actual.shape(), expected.shape());

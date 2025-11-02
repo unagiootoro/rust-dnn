@@ -11,7 +11,9 @@ use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
 
 use crate::{
     backend::Backend,
+    cpu_backend::CpuBackend,
     device::{Device, DeviceInfo},
+    dim::{ConstDim, Dim, DimKind, DynDim},
     dtype::DType,
     error::{Error, Result},
     float::Float,
@@ -26,7 +28,7 @@ thread_local! {
     pub static TENSOR_ID_COUNTER: RefCell<usize> = RefCell::new(0);
 }
 
-pub struct TensorState<B: Backend, T: Num> {
+pub struct TensorState<B: Backend, D: Dim, T: Num> {
     id: usize,
     storage: Rc<RefCell<Storage<T>>>,
     layout: Layout,
@@ -34,21 +36,50 @@ pub struct TensorState<B: Backend, T: Num> {
     dtype: DType,
     is_requires_grad: bool,
     op: Option<Op<B, T>>,
-    _marker: PhantomData<(B, T)>,
+    _marker: PhantomData<(B, D, T)>,
 }
 
 #[derive(Clone)]
-pub struct Tensor<B: Backend, T: Num>(Rc<TensorState<B, T>>);
+pub struct Tensor<B: Backend, D: Dim, T: Num>(Rc<TensorState<B, D, T>>);
 
-impl<B: Backend, T: Num> Deref for Tensor<B, T> {
-    type Target = TensorState<B, T>;
+impl<B: Backend, D: Dim, T: Num> Deref for Tensor<B, D, T> {
+    type Target = TensorState<B, D, T>;
 
     fn deref(&self) -> &Self::Target {
         self.0.as_ref()
     }
 }
 
-impl<B: Backend, T: Num> Tensor<B, T> {
+impl<B: Backend, const N: usize, T: Num> Tensor<B, ConstDim<N>, T> {
+    pub fn from_vec3(data: Vec<T>, shape: [usize; N], device: Device<B>) -> Result<Self> {
+        let len = Self::compute_len(&shape);
+        if data.len() != len {
+            let msg = format!(
+                "Invalid data length(data len = {}, shape len = {})",
+                data.len(),
+                len
+            );
+            return Err(Error::ArgumentsError { msg });
+        }
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
+        let stride = Self::compute_stride(&shape);
+        let layout = Layout::new(shape.to_vec(), stride, 0);
+        Ok(Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        ))
+    }
+}
+
+impl<B: Backend, D: Dim, T: Num> Tensor<B, D, T> {
     pub fn new(
         storage: Rc<RefCell<Storage<T>>>,
         layout: Layout,
@@ -59,7 +90,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     ) -> Self {
         let id = TENSOR_ID_COUNTER.with(|counter| *counter.borrow());
         TENSOR_ID_COUNTER.with(|counter| *counter.borrow_mut() = id + 1);
-        let state = TensorState::<B, T> {
+        let state = TensorState::<B, D, T> {
             id,
             storage,
             layout,
@@ -90,6 +121,37 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, 0);
         Ok(Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        ))
+    }
+
+    pub fn from_vec2<const N: usize>(
+        data: Vec<T>,
+        shape: [usize; N],
+        device: Device<B>,
+    ) -> Result<Tensor<B, ConstDim<N>, T>> {
+        let len = Self::compute_len(&shape);
+        if data.len() != len {
+            let msg = format!(
+                "Invalid data length(data len = {}, shape len = {})",
+                data.len(),
+                len
+            );
+            return Err(Error::ArgumentsError { msg });
+        }
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
+        let stride = Self::compute_stride(&shape);
+        let layout = Layout::new(shape.to_vec(), stride, 0);
+        Ok(Tensor::<B, ConstDim<N>, T>::new(
             Rc::new(RefCell::new(storage)),
             layout,
             device,
@@ -252,20 +314,28 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         }
     }
 
-    fn add_impl(&self, rhs: &Tensor<B, T>) -> Result<Self> {
-        self.op2_impl(rhs, Self::op_add, |t1, t2| Op::Add(t1, t2))
+    fn add_impl(&self, rhs: &Tensor<B, D, T>) -> Result<Self> {
+        self.op2_impl(rhs, Self::op_add, |t1, t2| {
+            Op::Add(t1.to_dyndim(), t2.to_dyndim())
+        })
     }
 
-    fn sub_impl(&self, rhs: &Tensor<B, T>) -> Result<Self> {
-        self.op2_impl(rhs, Self::op_sub, |t1, t2| Op::Sub(t1, t2))
+    fn sub_impl(&self, rhs: &Tensor<B, D, T>) -> Result<Self> {
+        self.op2_impl(rhs, Self::op_sub, |t1, t2| {
+            Op::Sub(t1.to_dyndim(), t2.to_dyndim())
+        })
     }
 
-    fn mul_impl(&self, rhs: &Tensor<B, T>) -> Result<Self> {
-        self.op2_impl(rhs, Self::op_mul, |t1, t2| Op::Mul(t1, t2))
+    fn mul_impl(&self, rhs: &Tensor<B, D, T>) -> Result<Self> {
+        self.op2_impl(rhs, Self::op_mul, |t1, t2| {
+            Op::Mul(t1.to_dyndim(), t2.to_dyndim())
+        })
     }
 
-    fn div_impl(&self, rhs: &Tensor<B, T>) -> Result<Self> {
-        self.op2_impl(rhs, Self::op_div, |t1, t2| Op::Div(t1, t2))
+    fn div_impl(&self, rhs: &Tensor<B, D, T>) -> Result<Self> {
+        self.op2_impl(rhs, Self::op_div, |t1, t2| {
+            Op::Div(t1.to_dyndim(), t2.to_dyndim())
+        })
     }
 
     fn op_add(
@@ -307,7 +377,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     fn op1_impl<F1, F2>(&self, f1: F1, f2: F2) -> Result<Self>
     where
         F1: for<'a> Fn(&'a Storage<T>, &'a Layout) -> Result<Storage<T>>,
-        F2: Fn(Tensor<B, T>) -> Op<B, T>,
+        F2: Fn(Tensor<B, D, T>) -> Op<B, T>,
     {
         let input_storage = &*self.storage.borrow();
 
@@ -329,7 +399,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Result::Ok(output)
     }
 
-    fn op2_impl<F1, F2>(&self, rhs: &Tensor<B, T>, f1: F1, f2: F2) -> Result<Self>
+    fn op2_impl<F1, F2>(&self, rhs: &Tensor<B, D, T>, f1: F1, f2: F2) -> Result<Self>
     where
         F1: for<'a> Fn(
             &'a Storage<T>,
@@ -337,7 +407,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             &'a Layout,
             &'a Layout,
         ) -> Result<Storage<T>>,
-        F2: Fn(Tensor<B, T>, Tensor<B, T>) -> Op<B, T>,
+        F2: Fn(Tensor<B, D, T>, Tensor<B, D, T>) -> Op<B, T>,
     {
         let is_requires_grad = self.is_requires_grad() || rhs.is_requires_grad();
         let op = if is_requires_grad {
@@ -367,7 +437,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Result::Ok(output)
     }
 
-    pub fn reshape(&self, shape: Vec<usize>) -> Result<Self> {
+    pub fn reshape_dyn(&self, shape: Vec<usize>) -> Result<Self> {
         let new_shape_len = Self::compute_len(&shape);
         if self.len() != new_shape_len {
             let msg = format!(
@@ -383,7 +453,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, input.storage_offset());
         let op = if self.is_requires_grad {
-            Some(Op::Reshape(self.clone()))
+            Some(Op::Reshape(self.clone().to_dyndim()))
         } else {
             None
         };
@@ -396,6 +466,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             op,
         );
         Result::Ok(output)
+    }
+
+    pub fn reshape<const N: usize>(&self, shape: [usize; N]) -> Result<Tensor<B, ConstDim<N>, T>> {
+        self.reshape_dyn(shape.to_vec())?.to_dim::<ConstDim<N>>()
     }
 
     pub fn permuted_axes(&self, axes: &[usize]) -> Result<Self> {
@@ -415,7 +489,42 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         }
         let layout = Layout::new(new_shape, new_stride, self.storage_offset());
         let op = if self.is_requires_grad {
-            Some(Op::PermutedAxes(self.clone(), axes.to_vec()))
+            Some(Op::PermutedAxes(self.clone().to_dyndim(), axes.to_vec()))
+        } else {
+            None
+        };
+        let output = Tensor::new(
+            self.storage.clone(),
+            layout,
+            self.device.clone(),
+            self.dtype,
+            self.is_requires_grad,
+            op,
+        );
+        Result::Ok(output)
+    }
+
+    pub fn permuted_axes2<const N: usize>(
+        &self,
+        axes: [usize; N],
+    ) -> Result<Tensor<B, ConstDim<N>, T>> {
+        if self.ndim() != axes.len() {
+            let msg = format!(
+                "Mismatch dims(self.ndim() = {}, axes.len() = {})",
+                self.ndim(),
+                axes.len()
+            );
+            return Err(Error::ArgumentsError { msg });
+        }
+        let mut new_shape = Vec::new();
+        let mut new_stride = Vec::new();
+        for axis in axes {
+            new_shape.push(self.shape()[axis]);
+            new_stride.push(self.stride()[axis]);
+        }
+        let layout = Layout::new(new_shape, new_stride, self.storage_offset());
+        let op = if self.is_requires_grad {
+            Some(Op::PermutedAxes(self.clone().to_dyndim(), axes.to_vec()))
         } else {
             None
         };
@@ -448,11 +557,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         for dim in self.shape() {
             input_shape.push(*dim);
         }
-        let input = self.reshape(input_shape.clone())?;
+        let input = self.reshape_dyn(input_shape.clone())?;
         let stride = Self::compute_broadcast_stride(input.shape(), input.stride(), &shape)?;
         let layout = Layout::new(shape, stride, input.storage_offset());
         let op = if self.is_requires_grad {
-            Some(Op::BroadcastTo(self.clone()))
+            Some(Op::BroadcastTo(self.clone().to_dyndim()))
         } else {
             None
         };
@@ -467,7 +576,39 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Ok(output)
     }
 
-    pub fn sum_to(&self, shape: &[usize]) -> Result<Tensor<B, T>> {
+    pub fn broadcast_to2<const N: usize>(
+        &self,
+        shape: [usize; N],
+    ) -> Result<Tensor<B, ConstDim<N>, T>> {
+        let mut input_shape = Vec::new();
+        if self.ndim() < shape.len() {
+            for _ in 0..(shape.len() - self.ndim()) {
+                input_shape.push(1);
+            }
+        }
+        for dim in self.shape() {
+            input_shape.push(*dim);
+        }
+        let input = self.reshape_dyn(input_shape.clone())?;
+        let stride = Self::compute_broadcast_stride(input.shape(), input.stride(), &shape)?;
+        let layout = Layout::new(shape.to_vec(), stride, input.storage_offset());
+        let op = if self.is_requires_grad {
+            Some(Op::BroadcastTo(self.clone().to_dyndim()))
+        } else {
+            None
+        };
+        let output = Tensor::new(
+            Rc::clone(&input.storage),
+            layout,
+            self.device.clone(),
+            self.dtype,
+            self.is_requires_grad,
+            op,
+        );
+        Ok(output)
+    }
+
+    pub fn sum_to(&self, shape: &[usize]) -> Result<Tensor<B, D, T>> {
         let y = if self.shape() == shape {
             self.clone()
         } else {
@@ -499,14 +640,60 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                     result = result.sum_axis(i, true)?;
                 }
             }
-            result.reshape(shape.to_vec())?
+            result.reshape_dyn(shape.to_vec())?
         };
         Ok(y)
     }
 
-    pub fn sum_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, T>> {
+    pub fn sum_to2<const N: usize>(&self, shape: [usize; N]) -> Result<Tensor<B, ConstDim<N>, T>> {
+        let y = if self.shape() == shape {
+            self.clone().to_dim::<ConstDim<N>>()?
+        } else {
+            let mut shape2 = Vec::new();
+            if shape.len() < self.shape().len() {
+                for _ in 0..(self.shape().len() - shape.len()) {
+                    shape2.push(1);
+                }
+            }
+            for dim in shape {
+                shape2.push(dim);
+            }
+
+            for (i, dim) in self.shape().iter().enumerate() {
+                if shape2[i] != *dim && shape2[i] != 1 && *dim != 1 {
+                    return Err(Error::ArgumentsError {
+                        msg: format!(
+                            "Invalud sum_to input shape: self.shape = {:?}, target shape = {:?}",
+                            self.shape(),
+                            shape
+                        ),
+                    });
+                }
+            }
+
+            let mut result = self.clone();
+            for i in 0..self.ndim() {
+                if self.shape()[i] > 1 && shape2[i] == 1 {
+                    result = result.sum_axis(i, true)?;
+                }
+            }
+            result
+                .clone()
+                .reshape_dyn(shape.to_vec())?
+                .to_dim::<ConstDim<N>>()?
+        };
+        Ok(y)
+    }
+
+    pub fn sum_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, D, T>> {
         self.op_reduce_axis_impl(axis, keepdims, Self::op_sum_axis, |t, axis, keepdims| {
-            Op::SumAxis(t, axis, keepdims)
+            Op::SumAxis(t.to_dyndim(), axis, keepdims)
+        })
+    }
+
+    pub fn sum_axis2(&self, axis: usize) -> Result<Tensor<B, D, T>> {
+        self.op_reduce_axis_impl(axis, true, Self::op_sum_axis, |t, axis, keepdims| {
+            Op::SumAxis(t.to_dyndim(), axis, keepdims)
         })
     }
 
@@ -528,7 +715,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     ) -> Result<Self>
     where
         F1: for<'a> Fn(&'a Storage<T>, &'a Layout, &'a Layout, usize) -> Result<Storage<T>>,
-        F2: Fn(Tensor<B, T>, usize, bool) -> Op<B, T>,
+        F2: Fn(Tensor<B, D, T>, usize, bool) -> Op<B, T>,
     {
         let mut output_shape = Vec::new();
         for i in 0..self.ndim() {
@@ -646,7 +833,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             0,
         );
         let op = if self.is_requires_grad {
-            Some(Op::Contiguous(self.clone()))
+            Some(Op::Contiguous(self.clone().to_dyndim()))
         } else {
             None
         };
@@ -662,7 +849,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     #[cfg(feature = "cuda")]
-    pub fn to_device<B2: Backend>(&self, device: Device<B2>) -> Result<Tensor<B2, T>> {
+    pub fn to_device<B2: Backend>(&self, device: Device<B2>) -> Result<Tensor<B2, D, T>> {
         if self.device.info() == device.info() {
             return unsafe { Ok(self.detach().reinterpret_cast_backend::<B2>()) };
         } else if *self.device.info() == DeviceInfo::Cpu && *device.info() == DeviceInfo::Cuda {
@@ -698,13 +885,35 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         })
     }
 
+    pub fn to_dim<D2: Dim>(self) -> Result<Tensor<B, D2, T>> {
+        if D2::kind() == DimKind::ConstDim && D2::dim() != self.ndim() {
+            return Err(Error::ArgumentsError {
+                msg: "Mismatch dim kind".to_string(),
+            });
+        }
+        Ok(unsafe { std::mem::transmute::<Self, Tensor<B, D2, T>>(self) })
+    }
+
+    pub fn to_dim_ref<D2: Dim>(&self) -> Result<&Tensor<B, D2, T>> {
+        if D2::kind() == DimKind::ConstDim && D2::dim() != self.ndim() {
+            return Err(Error::ArgumentsError {
+                msg: "Mismatch dim kind".to_string(),
+            });
+        }
+        Ok(unsafe { std::mem::transmute::<&Self, &Tensor<B, D2, T>>(&self) })
+    }
+
+    pub fn to_dyndim(self) -> Tensor<B, DynDim, T> {
+        unsafe { std::mem::transmute::<Self, Tensor<B, DynDim, T>>(self) }
+    }
+
     #[cfg(not(feature = "cuda"))]
-    pub fn to_device<B2: Backend>(&self, _device: Device<B2>) -> Result<Tensor<B2, T>> {
+    pub fn to_device<B2: Backend>(&self, _device: Device<B2>) -> Result<Tensor<B2, D, T>> {
         return unsafe { Ok(self.detach().reinterpret_cast_backend::<B2>()) };
     }
 
-    pub unsafe fn reinterpret_cast_backend<B2: Backend>(self) -> Tensor<B2, T> {
-        unsafe { std::mem::transmute::<Self, Tensor<B2, T>>(self) }
+    pub unsafe fn reinterpret_cast_backend<B2: Backend>(self) -> Tensor<B2, D, T> {
+        unsafe { std::mem::transmute::<Self, Tensor<B2, D, T>>(self) }
     }
 
     fn broadcast_shape(a: &[usize], b: &[usize]) -> Result<Vec<usize>> {
@@ -738,9 +947,9 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 }
 
-impl<B: Backend, T: Float> Tensor<B, T> {
+impl<B: Backend, D: Dim, T: Float> Tensor<B, D, T> {
     fn neg_impl(&self) -> Result<Self> {
-        self.op1_impl(Self::op_neg, |t| Op::Neg(t))
+        self.op1_impl(Self::op_neg, |t| Op::Neg(t.to_dyndim()))
     }
 
     fn op_neg(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
@@ -748,7 +957,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn pow(&self, rhs: &Self) -> Result<Self> {
-        self.op2_impl(rhs, Self::op_pow, |t1, t2| Op::Pow(t1, t2))
+        self.op2_impl(rhs, Self::op_pow, |t1, t2| {
+            Op::Pow(t1.to_dyndim(), t2.to_dyndim())
+        })
     }
 
     pub fn pow_scalar(&self, rhs: T) -> Result<Self> {
@@ -757,7 +968,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn ln(&self) -> Result<Self> {
-        self.op1_impl(Self::op_ln, |t| Op::Ln(t))
+        self.op1_impl(Self::op_ln, |t| Op::Ln(t.to_dyndim()))
     }
 
     fn op_ln(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
@@ -774,13 +985,13 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 }
 
-impl<B: Backend, T: Float> Tensor<B, T> {
-    pub fn sorted_nodes(&self) -> Vec<Tensor<B, T>> {
-        let mut nodes: Vec<(usize, Tensor<B, T>)> = Vec::new();
+impl<B: Backend, D: Dim, T: Float> Tensor<B, D, T> {
+    pub fn sorted_nodes(&self) -> Vec<Tensor<B, DynDim, T>> {
+        let mut nodes: Vec<(usize, Tensor<B, DynDim, T>)> = Vec::new();
 
         let mut seen_set = HashSet::new();
-        let mut work_nodes = Vec::<(usize, Tensor<B, T>)>::new();
-        Self::add_work_node(0, self.clone(), &mut work_nodes, &mut seen_set);
+        let mut work_nodes = Vec::<(usize, Tensor<B, DynDim, T>)>::new();
+        Self::add_work_node(0, self.clone().to_dyndim(), &mut work_nodes, &mut seen_set);
 
         while work_nodes.len() > 0 {
             let (depth, op_tensor) = work_nodes.pop().unwrap();
@@ -844,8 +1055,8 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn add_work_node(
         depth: usize,
-        node: Tensor<B, T>,
-        work_nodes: &mut Vec<(usize, Tensor<B, T>)>,
+        node: Tensor<B, DynDim, T>,
+        work_nodes: &mut Vec<(usize, Tensor<B, DynDim, T>)>,
         seen_set: &mut HashSet<usize>,
     ) {
         if !seen_set.contains(&node.id()) {
@@ -860,8 +1071,8 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             return Ok(grads);
         }
 
-        let gy = Tensor::<B, T>::ones(self.shape().to_vec(), self.device.clone());
-        grads.insert(self, gy.clone());
+        let gy = Tensor::<B, DynDim, T>::ones(self.shape().to_vec(), self.device.clone());
+        grads.insert(&self.clone().to_dyndim(), gy.clone());
 
         let nodes = self.sorted_nodes();
 
@@ -920,18 +1131,18 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn reshape_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
-        let gx = gy.reshape(x.shape().to_vec())?;
+        let gx = gy.reshape_dyn(x.shape().to_vec())?;
         grads.add(&x, gx)?;
         Ok(())
     }
 
     fn broadcast_to_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
         let gx = gy.sum_to(x.shape())?;
         grads.add(&x, gx)?;
@@ -940,8 +1151,8 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn permuted_axes_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x: &Tensor<B, DynDim, T>,
         axes: Vec<usize>,
     ) -> Result<()> {
         if gy.ndim() != axes.len() {
@@ -965,8 +1176,8 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn contiguous_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
         grads.add(x, gy.clone())?;
         Ok(())
@@ -974,8 +1185,8 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn sum_axis_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x: &Tensor<B, DynDim, T>,
         axis: usize,
         keepdims: bool,
     ) -> Result<()> {
@@ -992,7 +1203,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                     j += 1;
                 }
             }
-            gy.reshape(output_shape)?
+            gy.reshape_dyn(output_shape)?
         };
         let gx = gy.broadcast_to(x.shape().to_vec())?;
         grads.add(x, gx)?;
@@ -1001,9 +1212,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn add_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x1: &Tensor<B, T>,
-        x2: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x1: &Tensor<B, DynDim, T>,
+        x2: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
         let gx1 = gy.sum_to(x1.shape())?;
         let gx2 = gy.sum_to(x2.shape())?;
@@ -1014,9 +1225,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn sub_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x1: &Tensor<B, T>,
-        x2: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x1: &Tensor<B, DynDim, T>,
+        x2: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
         let gx1 = gy.sum_to(x1.shape())?;
         let gx2 = (-gy)?.sum_to(x2.shape())?;
@@ -1027,9 +1238,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn mul_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x1: &Tensor<B, T>,
-        x2: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x1: &Tensor<B, DynDim, T>,
+        x2: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
         let gx1 = (gy * x2)?.sum_to(x1.shape())?;
         let gx2 = (gy * x1)?.sum_to(x2.shape())?;
@@ -1040,9 +1251,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn div_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x1: &Tensor<B, T>,
-        x2: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x1: &Tensor<B, DynDim, T>,
+        x2: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
         let gx1 = (gy / x2)?.sum_to(x1.shape())?;
         let gx2 = (gy * (-x1 / x2.pow_scalar(T::from_f32(2.0))?)?)?.sum_to(x2.shape())?;
@@ -1053,9 +1264,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn pow_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x1: &Tensor<B, T>,
-        x2: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x1: &Tensor<B, DynDim, T>,
+        x2: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
         let one = Tensor::ones(vec![1], gy.device);
         let gx1 = (x2 * x1.pow(&((x2 - one)?))? * gy)?.sum_to(x1.shape())?;
@@ -1067,19 +1278,57 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn neg_backward(
         grads: &mut Gradients<B, T>,
-        gy: &Tensor<B, T>,
-        x: &Tensor<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x: &Tensor<B, DynDim, T>,
     ) -> Result<()> {
         let gx = (-gy)?;
         grads.add(x, gx)?;
         Ok(())
     }
 
-    fn ln_backward(grads: &mut Gradients<B, T>, gy: &Tensor<B, T>, x: &Tensor<B, T>) -> Result<()> {
+    fn ln_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, DynDim, T>,
+        x: &Tensor<B, DynDim, T>,
+    ) -> Result<()> {
         let gx = (gy / x)?;
         grads.add(x, gx)?;
         Ok(())
     }
+}
+
+pub fn ten1d<const N: usize, T: Num>(array: [T; N]) -> Tensor<CpuBackend, ConstDim<1>, T> {
+    let mut data = Vec::new();
+    for v in array {
+        data.push(v);
+    }
+    Tensor::from_vec3(data, [N], Device::get_cpu_device()).unwrap()
+}
+
+pub fn ten2d<const N1: usize, const N2: usize, T: Num>(
+    array: [[T; N2]; N1],
+) -> Tensor<CpuBackend, ConstDim<2>, T> {
+    let mut data = Vec::new();
+    for v in array {
+        for v2 in v {
+            data.push(v2);
+        }
+    }
+    Tensor::from_vec3(data, [N1, N2], Device::get_cpu_device()).unwrap()
+}
+
+pub fn ten3d<const N1: usize, const N2: usize, const N3: usize, T: Num>(
+    array: [[[T; N3]; N2]; N1],
+) -> Tensor<CpuBackend, ConstDim<3>, T> {
+    let mut data = Vec::new();
+    for v in array {
+        for v2 in v {
+            for v3 in v2 {
+                data.push(v3);
+            }
+        }
+    }
+    Tensor::from_vec3(data, [N1, N2, N3], Device::get_cpu_device()).unwrap()
 }
 
 #[macro_export]
@@ -1095,61 +1344,65 @@ macro_rules! ten {
             .into_iter()
             .flat_map(|a| a.to_vec().unwrap())
             .collect::<Vec<_>>();
-        tensor::Tensor::from_vec(data, shape, Device::get_cpu_device()).unwrap()
+        tensor::Tensor::<_, rust_dnn_core::dim::DynDim, _>::from_vec(data, shape, Device::get_cpu_device()).unwrap()
     }};
     ( $($x:expr),+ $(,)? ) => {{
         let data = vec![$($x),+];
         let shape = vec![data.len()];
-        tensor::Tensor::from_vec(data, shape, Device::get_cpu_device()).unwrap()
+        tensor::Tensor::<_, rust_dnn_core::dim::DynDim, _>::from_vec(data, shape, Device::get_cpu_device()).unwrap()
     }};
 }
 
 macro_rules! define_op_arg2 {
     ($op_name:ident, $fn_name:ident, $impl_fn_name:ident) => {
-        impl<B: Backend, T: Num> std::ops::$op_name<Tensor<B, T>> for Tensor<B, T> {
-            type Output = Result<Tensor<B, T>>;
+        impl<B: Backend, D: Dim, T: Num> std::ops::$op_name<Tensor<B, D, T>> for Tensor<B, D, T> {
+            type Output = Result<Tensor<B, D, T>>;
 
-            fn $fn_name(self, rhs: Tensor<B, T>) -> Result<Tensor<B, T>> {
+            fn $fn_name(self, rhs: Tensor<B, D, T>) -> Result<Tensor<B, D, T>> {
                 self.$impl_fn_name(&rhs)
             }
         }
 
-        impl<B: Backend, T: Num> std::ops::$op_name<Tensor<B, T>> for Result<Tensor<B, T>> {
-            type Output = Result<Tensor<B, T>>;
+        impl<B: Backend, D: Dim, T: Num> std::ops::$op_name<Tensor<B, D, T>>
+            for Result<Tensor<B, D, T>>
+        {
+            type Output = Result<Tensor<B, D, T>>;
 
-            fn $fn_name(self, rhs: Tensor<B, T>) -> Result<Tensor<B, T>> {
+            fn $fn_name(self, rhs: Tensor<B, D, T>) -> Result<Tensor<B, D, T>> {
                 self?.$impl_fn_name(&rhs)
             }
         }
 
-        impl<B: Backend, T: Num> std::ops::$op_name<&Tensor<B, T>> for Tensor<B, T> {
-            type Output = Result<Tensor<B, T>>;
+        impl<B: Backend, D: Dim, T: Num> std::ops::$op_name<&Tensor<B, D, T>> for Tensor<B, D, T> {
+            type Output = Result<Tensor<B, D, T>>;
 
-            fn $fn_name(self, rhs: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+            fn $fn_name(self, rhs: &Tensor<B, D, T>) -> Result<Tensor<B, D, T>> {
                 self.$impl_fn_name(&rhs)
             }
         }
 
-        impl<B: Backend, T: Num> std::ops::$op_name<&Tensor<B, T>> for Result<Tensor<B, T>> {
-            type Output = Result<Tensor<B, T>>;
+        impl<B: Backend, D: Dim, T: Num> std::ops::$op_name<&Tensor<B, D, T>>
+            for Result<Tensor<B, D, T>>
+        {
+            type Output = Result<Tensor<B, D, T>>;
 
-            fn $fn_name(self, rhs: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+            fn $fn_name(self, rhs: &Tensor<B, D, T>) -> Result<Tensor<B, D, T>> {
                 self?.$impl_fn_name(&rhs)
             }
         }
 
-        impl<B: Backend, T: Num> std::ops::$op_name<Tensor<B, T>> for &Tensor<B, T> {
-            type Output = Result<Tensor<B, T>>;
+        impl<B: Backend, D: Dim, T: Num> std::ops::$op_name<Tensor<B, D, T>> for &Tensor<B, D, T> {
+            type Output = Result<Tensor<B, D, T>>;
 
-            fn $fn_name(self, rhs: Tensor<B, T>) -> Result<Tensor<B, T>> {
+            fn $fn_name(self, rhs: Tensor<B, D, T>) -> Result<Tensor<B, D, T>> {
                 self.$impl_fn_name(&rhs)
             }
         }
 
-        impl<B: Backend, T: Num> std::ops::$op_name<&Tensor<B, T>> for &Tensor<B, T> {
-            type Output = Result<Tensor<B, T>>;
+        impl<B: Backend, D: Dim, T: Num> std::ops::$op_name<&Tensor<B, D, T>> for &Tensor<B, D, T> {
+            type Output = Result<Tensor<B, D, T>>;
 
-            fn $fn_name(self, rhs: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+            fn $fn_name(self, rhs: &Tensor<B, D, T>) -> Result<Tensor<B, D, T>> {
                 self.$impl_fn_name(&rhs)
             }
         }
@@ -1161,18 +1414,18 @@ define_op_arg2!(Sub, sub, sub_impl);
 define_op_arg2!(Mul, mul, mul_impl);
 define_op_arg2!(Div, div, div_impl);
 
-impl<B: Backend, T: Float> ops::Neg for Tensor<B, T> {
-    type Output = Result<Tensor<B, T>>;
+impl<B: Backend, D: Dim, T: Float> ops::Neg for Tensor<B, D, T> {
+    type Output = Result<Tensor<B, D, T>>;
 
-    fn neg(self) -> Result<Tensor<B, T>> {
+    fn neg(self) -> Result<Tensor<B, D, T>> {
         self.neg_impl()
     }
 }
 
-impl<B: Backend, T: Float> ops::Neg for &Tensor<B, T> {
-    type Output = Result<Tensor<B, T>>;
+impl<B: Backend, D: Dim, T: Float> ops::Neg for &Tensor<B, D, T> {
+    type Output = Result<Tensor<B, D, T>>;
 
-    fn neg(self) -> Result<Tensor<B, T>> {
+    fn neg(self) -> Result<Tensor<B, D, T>> {
         self.neg_impl()
     }
 }

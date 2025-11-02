@@ -20,7 +20,7 @@ fn test_dtype_u32<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_dtype_u32, test_dtype_u32_cpu, test_dtype_u32_cuda);
 
 fn test_dtype_f32<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1: Tensor<_, f32> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
+    let x1: Tensor<_, _, f32> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
     let y = (x1 + x2)?;
     assert_tensor(&y, &ten![[4.0, 6.0, 8.0], [10.0, 12.0, 14.0]]);
@@ -30,7 +30,7 @@ fn test_dtype_f32<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_dtype_f32, test_dtype_f32_cpu, test_dtype_f32_cuda);
 
 fn test_dtype_backward_f32<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1: Tensor<_, f32> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]
+    let x1: Tensor<_, _, f32> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]
         .to_device(device)?
         .requires_grad();
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]]
@@ -56,7 +56,7 @@ define_test!(
 );
 
 fn test_dtype_f64<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1: Tensor<_, f64> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
+    let x1: Tensor<_, _, f64> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
     let y = (x1 + x2)?;
     assert_tensor(&y, &ten![[4.0, 6.0, 8.0], [10.0, 12.0, 14.0]]);
@@ -66,7 +66,7 @@ fn test_dtype_f64<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_dtype_f64, test_dtype_f64_cpu, test_dtype_f64_cuda);
 
 fn test_dtype_backward_f64<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1: Tensor<_, f64> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]
+    let x1: Tensor<_, _, f64> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]
         .to_device(device)?
         .requires_grad();
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]]

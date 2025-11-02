@@ -4,7 +4,7 @@ use rust_dnn_core::{
     device::Device,
     error::Result,
     ten,
-    tensor::{self, Tensor},
+    tensor::{self, Tensor, ten1d, ten2d, ten3d},
 };
 
 use crate::test_utils::assert_tensor;
@@ -26,10 +26,10 @@ fn test_arange<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_arange, test_arange_cpu, test_arange_cuda);
 
 fn test_add<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
-    let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
+    let x1 = ten2d([[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]).to_device(device)?;
+    let x2 = ten2d([[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]]).to_device(device)?;
     let y = (x1 + x2)?;
-    assert_tensor(&y, &ten![[4.0, 6.0, 8.0], [10.0, 12.0, 14.0]]);
+    assert_tensor(&y, &ten2d([[4.0, 6.0, 8.0], [10.0, 12.0, 14.0]]));
     Ok(())
 }
 
@@ -72,22 +72,22 @@ fn test_sub<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_sub, test_sub_cpu, test_sub_cuda);
 
 fn test_sub_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]
+    let x1 = ten2d([[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]])
         .to_device(device)?
         .requires_grad();
-    let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]]
+    let x2 = ten2d([[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]])
         .to_device(device)?
         .requires_grad();
-    let x3 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+    let x3 = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         .to_device(device)?
         .requires_grad();
     let y = ((&x1 - &x2)? * x3)?;
-    assert_tensor(&y, &ten![[-6.0, -12.0, -18.0], [-24.0, -30.0, -36.0]]);
+    assert_tensor(&y, &ten2d([[-6.0, -12.0, -18.0], [-24.0, -30.0, -36.0]]));
     let grads = y.backward()?;
     let gx1 = grads.get(&x1).unwrap();
-    assert_tensor(gx1, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    assert_tensor(gx1, &ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]));
     let gx2 = grads.get(&x2).unwrap();
-    assert_tensor(gx2, &ten![[-1.0, -2.0, -3.0], [-4.0, -5.0, -6.0]]);
+    assert_tensor(gx2, &ten2d([[-1.0, -2.0, -3.0], [-4.0, -5.0, -6.0]]));
     Ok(())
 }
 
@@ -324,34 +324,34 @@ define_test!(
 );
 
 fn test_reshape<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.reshape(vec![6])?;
-    assert_tensor(&y, &ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = x.reshape([6])?;
+    assert_tensor(&y, &ten1d([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]));
     Ok(())
 }
 
 define_test!(test_reshape, test_reshape_cpu, test_reshape_cuda);
 
 fn test_reshape2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![1.0, 2.0, 3.0].to_device(device)?;
+    let x = ten1d([1.0, 2.0, 3.0]).to_device(device)?;
     let x = x.broadcast_to(vec![2, 3])?;
-    let y = x.reshape(vec![6])?;
-    assert_tensor(&y, &ten![1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
+    let y = x.reshape([6])?;
+    assert_tensor(&y, &ten1d([1.0, 2.0, 3.0, 1.0, 2.0, 3.0]));
     Ok(())
 }
 
 define_test!(test_reshape2, test_reshape2_cpu, test_reshape2_cuda);
 
 fn test_reshape_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+    let x1 = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         .to_device(device)?
         .requires_grad();
-    let x2 = ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0].to_device(device)?;
-    let y = (x1.reshape(vec![6])? * x2)?;
-    assert_tensor(&y, &ten![1.0, 4.0, 9.0, 16.0, 25.0, 36.0]);
+    let x2 = ten1d([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).to_device(device)?;
+    let y = (x1.reshape([6])? * x2)?;
+    assert_tensor(&y, &ten1d([1.0, 4.0, 9.0, 16.0, 25.0, 36.0]));
     let grads = y.backward()?;
     let gx = grads.get(&x1).unwrap();
-    assert_tensor(gx, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    assert_tensor(gx, &ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]));
     Ok(())
 }
 
@@ -362,13 +362,13 @@ define_test!(
 );
 
 fn test_reshape_backward2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
-    let x2 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = (x1.broadcast_to(vec![2, 3])? * x2)?;
-    assert_tensor(&y, &ten![[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]);
+    let x1 = ten1d([1.0, 2.0, 3.0]).to_device(device)?.requires_grad();
+    let x2 = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = (x1.broadcast_to2([2, 3])? * x2)?;
+    assert_tensor(&y, &ten2d([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]));
     let grads = y.backward()?;
     let gx1 = grads.get(&x1).unwrap();
-    assert_tensor(gx1, &ten![5.0, 7.0, 9.0]);
+    assert_tensor(gx1, &ten1d([5.0, 7.0, 9.0]));
     Ok(())
 }
 
@@ -379,9 +379,9 @@ define_test!(
 );
 
 fn test_permuted_axes<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.permuted_axes(&[1, 0])?;
-    assert_tensor(&y, &ten![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = x.permuted_axes2([1, 0])?;
+    assert_tensor(&y, &ten2d([[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]));
     Ok(())
 }
 
@@ -392,14 +392,14 @@ define_test!(
 );
 
 fn test_permuted_axes_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         .to_device(device)?
         .requires_grad();
-    let y = x.permuted_axes(&[1, 0])?;
-    assert_tensor(&y, &ten![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
+    let y = x.permuted_axes2([1, 0])?;
+    assert_tensor(&y, &ten2d([[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]));
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
-    assert_tensor(gx, &ten![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
+    assert_tensor(gx, &ten2d([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]));
     Ok(())
 }
 
@@ -423,9 +423,9 @@ define_test!(
 );
 
 fn test_broadcast_to<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![1.0, 2.0, 3.0].to_device(device)?;
-    let y = x.broadcast_to(vec![2, 3])?;
-    assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
+    let x = ten1d([1.0, 2.0, 3.0]).to_device(device)?;
+    let y = x.broadcast_to2([2, 3])?;
+    assert_tensor(&y, &ten2d([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]));
     Ok(())
 }
 
@@ -436,9 +436,9 @@ define_test!(
 );
 
 fn test_broadcast_to2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.broadcast_to(vec![2, 3])?;
-    assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = x.broadcast_to2([2, 3])?;
+    assert_tensor(&y, &ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]));
     Ok(())
 }
 
@@ -449,10 +449,10 @@ define_test!(
 );
 
 fn test_broadcast_to3<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![1.0, 2.0, 3.0].to_device(device)?;
-    let x = x.broadcast_to(vec![2, 3])?;
-    let y = x.broadcast_to(vec![2, 3])?;
-    assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
+    let x = ten1d([1.0, 2.0, 3.0]).to_device(device)?;
+    let x = x.broadcast_to2([2, 3])?;
+    let y = x.broadcast_to2([2, 3])?;
+    assert_tensor(&y, &ten2d([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]));
     Ok(())
 }
 
@@ -463,9 +463,9 @@ define_test!(
 );
 
 fn test_broadcast_to4<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0], [2.0], [3.0]].to_device(device)?;
-    let y = x.broadcast_to(vec![3, 2])?;
-    assert_tensor(&y, &ten![[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]);
+    let x = ten2d([[1.0], [2.0], [3.0]]).to_device(device)?;
+    let y = x.broadcast_to2([3, 2])?;
+    assert_tensor(&y, &ten2d([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]));
     Ok(())
 }
 
@@ -476,22 +476,22 @@ define_test!(
 );
 
 fn test_broadcast_to5<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0], [2.0], [3.0]].to_device(device)?;
-    let y = x.broadcast_to(vec![2, 3, 4])?;
+    let x = ten2d([[1.0], [2.0], [3.0]]).to_device(device)?;
+    let y = x.broadcast_to2([2, 3, 4])?;
     assert_tensor(
         &y,
-        &ten![
+        &ten3d([
             [
                 [1.0, 1.0, 1.0, 1.0],
                 [2.0, 2.0, 2.0, 2.0],
-                [3.0, 3.0, 3.0, 3.0]
+                [3.0, 3.0, 3.0, 3.0],
             ],
             [
                 [1.0, 1.0, 1.0, 1.0],
                 [2.0, 2.0, 2.0, 2.0],
-                [3.0, 3.0, 3.0, 3.0]
-            ]
-        ],
+                [3.0, 3.0, 3.0, 3.0],
+            ],
+        ]),
     );
     Ok(())
 }
@@ -503,13 +503,13 @@ define_test!(
 );
 
 fn test_broadcast_to_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
-    let x2 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = (x1.broadcast_to(vec![2, 3])? * x2)?;
-    assert_tensor(&y, &ten![[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]);
+    let x1 = ten1d([1.0, 2.0, 3.0]).to_device(device)?.requires_grad();
+    let x2 = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = (x1.broadcast_to2([2, 3])? * x2)?;
+    assert_tensor(&y, &ten2d([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]));
     let grads = y.backward()?;
     let gx = grads.get(&x1).unwrap();
-    assert_tensor(gx, &ten![5.0, 7.0, 9.0]);
+    assert_tensor(gx, &ten1d([5.0, 7.0, 9.0]));
     Ok(())
 }
 
@@ -520,47 +520,47 @@ define_test!(
 );
 
 fn test_sum_to<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_to(&vec![1, 3])?;
-    assert_tensor(&y, &ten![[5.0, 7.0, 9.0]]);
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = x.sum_to2([1, 3])?;
+    assert_tensor(&y, &ten2d([[5.0, 7.0, 9.0]]));
     Ok(())
 }
 
 define_test!(test_sum_to, test_sum_to_cpu, test_sum_to_cuda);
 
 fn test_sum_to2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_to(&vec![3])?;
-    assert_tensor(&y, &ten![5.0, 7.0, 9.0]);
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = x.sum_to2([3])?;
+    assert_tensor(&y, &ten1d([5.0, 7.0, 9.0]));
     Ok(())
 }
 
 define_test!(test_sum_to2, test_sum_to2_cpu, test_sum_to2_cuda);
 
 fn test_sum_to3<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0]].to_device(device)?;
-    let x = x.broadcast_to(vec![4, 3])?;
-    let y = x.sum_to(&vec![1, 3])?;
-    assert_tensor(&y, &ten![[4.0, 8.0, 12.0]]);
+    let x = ten2d([[1.0, 2.0, 3.0]]).to_device(device)?;
+    let x = x.broadcast_to2([4, 3])?;
+    let y = x.sum_to2([1, 3])?;
+    assert_tensor(&y, &ten2d([[4.0, 8.0, 12.0]]));
     Ok(())
 }
 
 define_test!(test_sum_to3, test_sum_to3_cpu, test_sum_to3_cuda);
 
 fn test_sum_to4<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0]].to_device(device)?;
-    let x = x.broadcast_to(vec![4, 3])?;
-    let y = x.sum_to(&vec![4, 1])?;
-    assert_tensor(&y, &ten![[6.0], [6.0], [6.0], [6.0]]);
+    let x = ten2d([[1.0, 2.0, 3.0]]).to_device(device)?;
+    let x = x.broadcast_to2([4, 3])?;
+    let y = x.sum_to2([4, 1])?;
+    assert_tensor(&y, &ten2d([[6.0], [6.0], [6.0], [6.0]]));
     Ok(())
 }
 
 define_test!(test_sum_to4, test_sum_to4_cpu, test_sum_to4_cuda);
 
 fn test_sum_to5<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_to(&vec![1])?;
-    assert_tensor(&y, &ten![21.0]);
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = x.sum_to2([1])?;
+    assert_tensor(&y, &ten1d([21.0]));
     Ok(())
 }
 
@@ -568,22 +568,22 @@ define_test!(test_sum_to5, test_sum_to5_cpu, test_sum_to5_cuda);
 
 fn test_sum_to6<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_to(&vec![2, 1])?;
-    assert_tensor(&y, &ten![[6.0], [15.0]]);
+    let y = x.sum_to2([2, 1])?;
+    assert_tensor(&y, &ten2d([[6.0], [15.0]]));
     Ok(())
 }
 
 define_test!(test_sum_to6, test_sum_to6_cpu, test_sum_to6_cuda);
 
 fn test_sum_to_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         .to_device(device)?
         .requires_grad();
-    let y = x.sum_to(&vec![3])?;
-    assert_tensor(&y, &ten![5.0, 7.0, 9.0]);
+    let y = x.sum_to2([3])?;
+    assert_tensor(&y, &ten1d([5.0, 7.0, 9.0]));
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
-    assert_tensor(gx, &ten![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
+    assert_tensor(gx, &ten2d([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]));
     Ok(())
 }
 
@@ -603,9 +603,9 @@ fn test_sum_axis<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_sum_axis, test_sum_axis_cpu, test_sum_axis_cuda);
 
 fn test_sum_axis_keepdims_true<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_axis(0, true)?;
-    assert_tensor(&y, &ten![[5.0, 7.0, 9.0]]);
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).to_device(device)?;
+    let y = x.sum_axis2(0)?;
+    assert_tensor(&y, &ten2d([[5.0, 7.0, 9.0]]));
     Ok(())
 }
 
@@ -634,14 +634,14 @@ define_test!(
 );
 
 fn test_sum_axis_backward_keepdims_true<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+    let x = ten2d([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         .to_device(device)?
         .requires_grad();
     let y = x.sum_axis(0, true)?;
-    assert_tensor(&y, &ten![[5.0, 7.0, 9.0]]);
+    assert_tensor(&y, &ten2d([[5.0, 7.0, 9.0]]));
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
-    assert_tensor(gx, &ten![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
+    assert_tensor(gx, &ten2d([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]));
     Ok(())
 }
 
@@ -652,27 +652,27 @@ define_test!(
 );
 
 fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![1.0, 2.0, 3.0].to_device(device)?;
-    let x = x.broadcast_to(vec![2, 3])?;
+    let x = ten1d([1.0, 2.0, 3.0]).to_device(device)?;
+    let x = x.broadcast_to2([2, 3])?;
     assert!(!x.is_contiguous());
     let y = x.contiguous()?;
     assert!(y.is_contiguous());
-    assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
+    assert_tensor(&y, &ten2d([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]));
     Ok(())
 }
 
 define_test!(test_contiguous, test_contiguous_cpu, test_contiguous_cuda);
 
 fn test_contiguous_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
-    let h = x.broadcast_to(vec![2, 3])?;
+    let x = ten1d([1.0, 2.0, 3.0]).to_device(device)?.requires_grad();
+    let h = x.broadcast_to2([2, 3])?;
     assert!(!h.is_contiguous());
     let y = h.contiguous()?;
     assert!(y.is_contiguous());
-    assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
+    assert_tensor(&y, &ten2d([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]));
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
-    assert_tensor(gx, &ten![2.0, 2.0, 2.0]);
+    assert_tensor(gx, &ten1d([2.0, 2.0, 2.0]));
     Ok(())
 }
 
