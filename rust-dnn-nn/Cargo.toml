@@ -1,0 +1,9 @@
+[package]
+name = "rust-dnn-nn"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[dependencies.rust-dnn-core]
+path = "../rust-dnn-core"

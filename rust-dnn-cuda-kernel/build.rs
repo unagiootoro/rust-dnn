@@ -14,7 +14,7 @@ fn main() {
 
     if ENABLE_CUDA {
         // Makefile で CUDA をビルド
-        if let Result::Ok(status) = Command::new("make").status() {
+        if let Ok(status) = Command::new("make").status() {
             if !status.success() {
                 println!("Make failed");
                 return;

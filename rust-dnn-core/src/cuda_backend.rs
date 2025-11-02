@@ -137,11 +137,65 @@ impl Backend for CudaBackend {
         cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_div)
     }
 
+    fn eq<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<u32>> {
+        todo!()
+    }
+
+    fn lt<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<u32>> {
+        todo!()
+    }
+
+    fn le<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<u32>> {
+        todo!()
+    }
+
+    fn gt<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<u32>> {
+        todo!()
+    }
+
+    fn ge<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<u32>> {
+        todo!()
+    }
+
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         cuda_op1_func_call(storage, layout, cuda_neg)
     }
 
-    fn op_pow<T: Float>(
+    fn copy<T: Num>(
+        lhs_storage: &mut Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn pow<T: Float>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
@@ -150,8 +204,145 @@ impl Backend for CudaBackend {
         cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_pow)
     }
 
-    fn op_ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+    fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         cuda_op1_func_call(storage, layout, cuda_ln)
+    }
+
+    fn matmul<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        todo!()
+    }
+
+    fn gather<T: Num>(
+        input_storage: &Storage<T>,
+        index_storage: &Storage<u32>,
+        input_layout: &Layout,
+        index_layout: &Layout,
+        axis: usize,
+    ) -> Result<Storage<T>> {
+        todo!()
+    }
+
+    fn scatter<T: Num>(
+        input_storage: &mut Storage<T>,
+        index_storage: &Storage<u32>,
+        src_storage: &Storage<T>,
+        input_layout: &Layout,
+        index_layout: &Layout,
+        src_layout: &Layout,
+        axis: usize,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn scatter_add<T: Num>(
+        input_storage: &mut Storage<T>,
+        index_storage: &Storage<u32>,
+        src_storage: &Storage<T>,
+        input_layout: &Layout,
+        index_layout: &Layout,
+        src_layout: &Layout,
+        axis: usize,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn index_select<T: Num>(
+        input_storage: &Storage<T>,
+        index_storage: &Storage<u32>,
+        input_layout: &Layout,
+        index_layout: &Layout,
+        output_layout: &Layout,
+        axis: usize,
+    ) -> Result<Storage<T>> {
+        todo!()
+    }
+
+    fn index_copy<T: Num>(
+        input_storage: &mut Storage<T>,
+        index_storage: &Storage<u32>,
+        src_storage: &Storage<T>,
+        input_layout: &Layout,
+        index_layout: &Layout,
+        src_layout: &Layout,
+        output_layout: &Layout,
+        axis: usize,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn index_add<T: Num>(
+        input_storage: &mut Storage<T>,
+        index_storage: &Storage<u32>,
+        src_storage: &Storage<T>,
+        input_layout: &Layout,
+        index_layout: &Layout,
+        src_layout: &Layout,
+        output_layout: &Layout,
+        axis: usize,
+    ) -> Result<()> {
+        todo!()
+    }
+    
+    fn sum<T: Num>(input_storage: &Storage<T>, input_layout: &Layout) -> Result<Storage<T>> {
+        todo!()
+    }
+    
+    fn max<T: Num>(input_storage: &Storage<T>, input_layout: &Layout) -> Result<Storage<T>> {
+        todo!()
+    }
+    
+    fn max_axis<T: Num>(
+        input_storage: &Storage<T>,
+        input_layout: &Layout,
+        output_layout: &Layout,
+        axis: usize,
+    ) -> Result<Storage<T>> {
+        todo!()
+    }
+    
+    fn op_add_assign<T: Num>(
+        lhs_storage: &mut Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<()> {
+        todo!()
+    }
+    
+    fn op_sub_assign<T: Num>(
+        lhs_storage: &mut Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<()> {
+        todo!()
+    }
+    
+    fn op_mul_assign<T: Num>(
+        lhs_storage: &mut Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<()> {
+        todo!()
+    }
+    
+    fn op_div_assign<T: Num>(
+        lhs_storage: &mut Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<()> {
+        todo!()
+    }
+    
+    fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        todo!()
     }
 }
 

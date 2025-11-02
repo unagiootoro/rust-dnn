@@ -1,7 +1,5 @@
 use std::{
-    fmt::Debug,
-    iter::Sum,
-    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
+    f32, fmt::Debug, iter::Sum, ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign}, u32
 };
 
 use crate::dtype::DType;
@@ -27,17 +25,25 @@ pub trait Num:
     + 'static
 {
     fn as_usize(self) -> usize;
+    fn as_u32(self) -> u32;
     fn as_f32(self) -> f32;
     fn as_f64(self) -> f64;
     fn from_isize(value: isize) -> Self;
+    fn from_usize(value: usize) -> Self;
     fn zero() -> Self;
     fn one() -> Self;
+    fn min_value() -> Self;
+    fn max_value() -> Self;
     fn dtype() -> DType;
 }
 
 impl Num for u32 {
     fn as_usize(self) -> usize {
         self as usize
+    }
+
+    fn as_u32(self) -> Self {
+        self
     }
 
     fn as_f32(self) -> f32 {
@@ -52,12 +58,24 @@ impl Num for u32 {
         value as Self
     }
 
+    fn from_usize(value: usize) -> Self {
+        value as Self
+    }
+
     fn zero() -> Self {
         0
     }
 
     fn one() -> Self {
         1
+    }
+
+    fn min_value() -> Self {
+        u32::MIN
+    }
+
+    fn max_value() -> Self {
+        u32::MAX
     }
 
     fn dtype() -> DType {
@@ -70,6 +88,10 @@ impl Num for f32 {
         self as usize
     }
 
+    fn as_u32(self) -> u32 {
+        self as u32
+    }
+
     fn as_f32(self) -> f32 {
         self
     }
@@ -82,12 +104,24 @@ impl Num for f32 {
         value as Self
     }
 
+    fn from_usize(value: usize) -> Self {
+        value as Self
+    }
+
     fn zero() -> Self {
         0.0
     }
 
     fn one() -> Self {
         1.0
+    }
+
+    fn min_value() -> Self {
+        f32::MIN
+    }
+
+    fn max_value() -> Self {
+        f32::MAX
     }
 
     fn dtype() -> DType {
@@ -98,6 +132,10 @@ impl Num for f32 {
 impl Num for f64 {
     fn as_usize(self) -> usize {
         self as usize
+    }
+
+    fn as_u32(self) -> u32 {
+        self as u32
     }
 
     fn as_f32(self) -> f32 {
@@ -112,12 +150,24 @@ impl Num for f64 {
         value as Self
     }
 
+    fn from_usize(value: usize) -> Self {
+        value as Self
+    }
+
     fn zero() -> Self {
         0.0
     }
 
     fn one() -> Self {
         1.0
+    }
+
+    fn min_value() -> Self {
+        f64::MIN
+    }
+
+    fn max_value() -> Self {
+        f64::MAX
     }
 
     fn dtype() -> DType {
