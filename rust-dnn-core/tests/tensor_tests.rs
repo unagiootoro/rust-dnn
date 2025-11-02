@@ -7,7 +7,7 @@ use crate::test_utils::assert_tensor;
 
 fn test_to_vec<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?;
-    assert_eq!(x.to_vec()?, vec![0.0, 1.0, 2.0]);
+    assert_eq!(x.to_vec(), vec![0.0, 1.0, 2.0]);
     Ok(())
 }
 
@@ -173,7 +173,7 @@ define_test!(
 
 fn test_neg<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
-    let y = (-x)?;
+    let y = -x;
     assert_tensor(&y, &ten![[0.0, 2.0, 4.0], [-1.0, -2.0, -3.0]]);
     Ok(())
 }
@@ -184,7 +184,7 @@ fn test_neg_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
         .to_device(device)?
         .requires_grad();
-    let y = (-&x)?;
+    let y = -&x;
     assert_tensor(&y, &ten![[0.0, 2.0, 4.0], [-1.0, -2.0, -3.0]]);
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
@@ -272,7 +272,7 @@ fn test_matmul_batch<B: Backend>(device: Device<B>) -> Result<()> {
     let x2 = Tensor::<_, f64>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6])?;
     let y = x1.matmul(&x2)?;
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
-    assert_eq!(y.to_vec()?, MATMUL_BATCH_FORWARD_EXPECTED_DATA);
+    assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD_EXPECTED_DATA);
     Ok(())
 }
 
@@ -283,7 +283,7 @@ fn test_matmul_batch2<B: Backend>(device: Device<B>) -> Result<()> {
     let x2 = Tensor::<_, f64>::arange(0..(5 * 6), device).reshape(vec![5, 6])?;
     let y = x1.matmul(&x2)?;
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
-    assert_eq!(y.to_vec()?, MATMUL_BATCH_FORWARD2_EXPECTED_DATA);
+    assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD2_EXPECTED_DATA);
     Ok(())
 }
 
@@ -327,12 +327,12 @@ fn test_matmul_batch_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x2 = Tensor::<_, f64>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6])?;
     let y = x1.matmul(&x2)?;
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
-    assert_eq!(y.to_vec()?, MATMUL_BATCH_FORWARD_EXPECTED_DATA);
+    assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD_EXPECTED_DATA);
     let grads = y.backward()?;
     let gx1 = grads.get(&x1).unwrap();
     let gx2 = grads.get(&x2).unwrap();
-    assert_eq!(gx1.to_vec()?, MATMUL_BATCH_BACKWARD_X1_EXPECTED_DATA);
-    assert_eq!(gx2.to_vec()?, MATMUL_BATCH_BACKWARD_X2_EXPECTED_DATA);
+    assert_eq!(gx1.to_vec(), MATMUL_BATCH_BACKWARD_X1_EXPECTED_DATA);
+    assert_eq!(gx2.to_vec(), MATMUL_BATCH_BACKWARD_X2_EXPECTED_DATA);
     Ok(())
 }
 
@@ -458,7 +458,7 @@ define_test!(
 
 fn test_exp<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![2.0].to_device(device)?;
-    let y = x.exp()?;
+    let y = x.exp();
     assert_tensor(&y, &ten![7.38905609893065]);
     Ok(())
 }
@@ -467,7 +467,7 @@ define_test!(test_exp, test_exp_cpu, test_exp_cuda);
 
 fn test_exp_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![2.0].to_device(device)?.requires_grad();
-    let y = (x.exp()? * ten![2.0].to_device(device)?)?;
+    let y = (x.exp() * ten![2.0].to_device(device)?)?;
     assert_tensor(&y, &ten![14.7781121978613]);
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
@@ -483,7 +483,7 @@ define_test!(
 
 fn test_ln<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![4.0].to_device(device)?;
-    let y = x.ln()?;
+    let y = x.ln();
     assert_tensor(&y, &ten![1.3862944]);
     Ok(())
 }
@@ -492,7 +492,7 @@ define_test!(test_ln, test_ln_cpu, test_ln_cuda);
 
 fn test_ln_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![4.0].to_device(device)?.requires_grad();
-    let y = (x.ln()? * ten![2.0].to_device(device)?)?;
+    let y = (x.ln() * ten![2.0].to_device(device)?)?;
     assert_tensor(&y, &ten![2.772588722239781]);
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
@@ -866,7 +866,7 @@ fn test_get_item3<B: Backend>(device: Device<B>) -> Result<()> {
     ]
     .to_device(device)?;
     let h = x.get_item(vec![(1, 3), (1, 4)])?;
-    let y = (-h)?;
+    let y = -h;
     assert_tensor(&y, &ten![[-6.0, -7.0, -8.0], [-10.0, -11.0, -12.0]]);
     Ok(())
 }
@@ -1299,7 +1299,7 @@ fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
     let x = x.broadcast_to(vec![2, 3])?;
     assert!(!x.is_contiguous());
-    let y = x.contiguous()?;
+    let y = x.contiguous();
     assert!(y.is_contiguous());
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     Ok(())
@@ -1311,7 +1311,7 @@ fn test_contiguous_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
     let h = x.broadcast_to(vec![2, 3])?;
     assert!(!h.is_contiguous());
-    let y = h.contiguous()?;
+    let y = h.contiguous();
     assert!(y.is_contiguous());
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     let grads = y.backward()?;

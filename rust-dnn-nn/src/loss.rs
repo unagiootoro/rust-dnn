@@ -17,5 +17,5 @@ pub fn cross_entropy<B: Backend, T: Float>(
     let x = x.log_softmax(1)?;
     let index = y.unsqueeze(1)?;
     let output = -x.gather(&index, 1)?.mean_axis(0, false)?.sum()?;
-    output
+    Ok(output)
 }

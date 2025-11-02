@@ -22,7 +22,7 @@ fn test_sgd_update_parameters<B: Backend>(device: Device<B>) -> Result<()> {
     let y = linear.forward(&x)?;
 
     let loss = mean_squared_error(&y, &t)?;
-    assert_eq!(loss.to_vec()?, vec![115.25]);
+    assert_eq!(loss.to_vec(), vec![115.25]);
     let grads = loss.backward()?;
 
     let mut optimizer = SGD::new(0.01);
@@ -32,7 +32,7 @@ fn test_sgd_update_parameters<B: Backend>(device: Device<B>) -> Result<()> {
 
     let y = linear.forward(&x)?;
     let loss: Tensor<B, f64> = mean_squared_error(&y, &t)?;
-    assert_eq!(loss.to_vec()?, vec![22.783962500000005]);
+    assert_eq!(loss.to_vec(), vec![22.783962500000005]);
     let grads = loss.backward()?;
     optimizer.update_parameters(&mut linear.all_parameters_map(), &grads)?;
     assert_tensor(&w, &ten![[-0.6279, 0.0973, 0.8224]]);

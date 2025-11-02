@@ -37,8 +37,8 @@ pub fn assert_tensor_with_eps<B1: Backend, B2: Backend, T: Num>(
 ) {
     assert_eq!(actual.shape(), expected.shape());
     assert_eq!(actual.len(), expected.len());
-    let actual_data = actual.to_vec().unwrap();
-    let expected_data = expected.to_vec().unwrap();
+    let actual_data = actual.to_vec();
+    let expected_data = expected.to_vec();
     for i in 0..expected_data.len() {
         let diff = ((actual_data[i] - expected_data[i]).as_f32()).abs();
         // NOTE: NaN対策にdiff >= epsではなく!(diff < eps)で比較している。

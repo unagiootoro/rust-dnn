@@ -192,10 +192,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         strides
     }
 
-    pub fn to_vec(&self) -> Result<Vec<T>> {
-        let x = self.contiguous()?;
+    pub fn to_vec(&self) -> Vec<T> {
+        let x = self.contiguous();
         let storage = &*x.storage.borrow();
-        Ok(storage.to_vec_range(x.layout.storage_offset()..x.layout.len()))
+        storage.to_vec_range(x.layout.storage_offset()..x.layout.len())
     }
 
     pub fn id(&self) -> usize {
@@ -339,13 +339,13 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.op2_impl(rhs, None, B::ge)
     }
 
-    fn op1_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Result<Self>
+    fn op1_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Self
     where
         F: for<'a> Fn(&'a Storage<T>, &'a Layout) -> Result<Storage<T>>,
     {
-        let input = self.contiguous()?;
+        let input = self.contiguous();
         let input_storage = &*input.storage.borrow();
-        let output_storage = f(input_storage, &input.layout)?;
+        let output_storage = f(input_storage, &input.layout).unwrap();
         let ouput_layout = Layout::new(input.shape().to_vec(), input.stride().to_vec(), 0);
         let output = Tensor::new(
             Rc::new(RefCell::new(output_storage)),
@@ -355,7 +355,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             self.is_requires_grad,
             op,
         );
-        Ok(output)
+        output
     }
 
     fn op2_impl<T2: Num, F>(
@@ -426,7 +426,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             );
             return Err(Error::ArgumentsError { msg });
         }
-        let input = self.contiguous()?;
+        let input = self.contiguous();
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, input.storage_offset());
         let op = if self.is_requires_grad {
@@ -872,13 +872,13 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         true
     }
 
-    pub fn contiguous(&self) -> Result<Self> {
+    pub fn contiguous(&self) -> Self {
         if self.is_contiguous() {
-            return Ok(self.clone());
+            return self.clone();
         }
 
         let input_storage = &*self.storage.borrow();
-        let output_storage = B::contiguous::<T>(input_storage, &self.layout)?;
+        let output_storage = B::contiguous::<T>(input_storage, &self.layout).unwrap();
 
         let layout = Layout::new(
             self.shape().to_vec(),
@@ -898,7 +898,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             self.is_requires_grad,
             op,
         );
-        Ok(output)
+        output
     }
 
     #[cfg(feature = "cuda")]
@@ -992,7 +992,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
 }
 
 impl<B: Backend, T: Float> Tensor<B, T> {
-    fn neg_impl(&self) -> Result<Self> {
+    fn neg_impl(&self) -> Self {
         let op = if self.is_requires_grad() {
             Some(Op::Neg(self.clone()))
         } else {
@@ -1098,7 +1098,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.pow(&scalar)
     }
 
-    pub fn exp(&self) -> Result<Self> {
+    pub fn exp(&self) -> Self {
         let op = if self.is_requires_grad() {
             Some(Op::Exp(self.clone()))
         } else {
@@ -1107,7 +1107,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op1_impl(op, B::exp)
     }
 
-    pub fn ln(&self) -> Result<Self> {
+    pub fn ln(&self) -> Self {
         let op = if self.is_requires_grad() {
             Some(Op::Ln(self.clone()))
         } else {
@@ -1284,13 +1284,13 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     pub fn softmax(&self, axis: usize) -> Result<Self> {
         let x_stable = (self - self.max_axis(axis, true)?)?;
-        let x_stable_exp = x_stable.exp()?;
+        let x_stable_exp = x_stable.exp();
         &x_stable_exp / &x_stable_exp.sum_axis(axis, true)?
     }
 
     pub fn log_softmax(&self, axis: usize) -> Result<Self> {
         let eps = Tensor::from_scalar(T::from_f64(1e-7), self.device);
-        (self.softmax(axis)? + eps)?.ln()
+        Ok((self.softmax(axis)? + eps)?.ln())
     }
 }
 
@@ -1617,7 +1617,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         x2: &Tensor<B, T>,
     ) -> Result<()> {
         let gx1 = gy.sum_to(x1.shape())?;
-        let gx2 = (-gy)?.sum_to(x2.shape())?;
+        let gx2 = -gy.sum_to(x2.shape())?;
         grads.add(x1, gx1)?;
         grads.add(x2, gx2)?;
         Ok(())
@@ -1709,7 +1709,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     ) -> Result<()> {
         let one = Tensor::ones(vec![1], gy.device);
         let gx1 = (x2 * x1.pow(&((x2 - one)?))? * gy)?.sum_to(x1.shape())?;
-        let gx2 = (gy * x1.ln()?)?.sum_to(x2.shape())?;
+        let gx2 = (gy * x1.ln())?.sum_to(x2.shape())?;
         grads.add(x1, gx1)?;
         grads.add(x2, gx2)?;
         Ok(())
@@ -1720,7 +1720,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         gy: &Tensor<B, T>,
         x: &Tensor<B, T>,
     ) -> Result<()> {
-        let gx = (-gy)?;
+        let gx = -gy;
         grads.add(x, gx)?;
         Ok(())
     }
@@ -1730,7 +1730,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         gy: &Tensor<B, T>,
         x: &Tensor<B, T>,
     ) -> Result<()> {
-        let gx = (gy * x.exp()?)?;
+        let gx = (gy * x.exp())?;
         grads.add(x, gx)?;
         Ok(())
     }
@@ -1779,7 +1779,7 @@ macro_rules! ten {
         };
         let data = arrays
             .into_iter()
-            .flat_map(|a| a.to_vec().unwrap())
+            .flat_map(|a| a.to_vec())
             .collect::<Vec<_>>();
         rust_dnn_core::tensor::Tensor::from_vec(data, shape, Device::get_cpu_device()).unwrap()
     }};
@@ -1848,17 +1848,17 @@ define_op_arg2!(Mul, mul, mul_impl);
 define_op_arg2!(Div, div, div_impl);
 
 impl<B: Backend, T: Float> ops::Neg for Tensor<B, T> {
-    type Output = Result<Tensor<B, T>>;
+    type Output = Tensor<B, T>;
 
-    fn neg(self) -> Result<Tensor<B, T>> {
+    fn neg(self) -> Tensor<B, T> {
         self.neg_impl()
     }
 }
 
 impl<B: Backend, T: Float> ops::Neg for &Tensor<B, T> {
-    type Output = Result<Tensor<B, T>>;
+    type Output = Tensor<B, T>;
 
-    fn neg(self) -> Result<Tensor<B, T>> {
+    fn neg(self) -> Tensor<B, T> {
         self.neg_impl()
     }
 }
