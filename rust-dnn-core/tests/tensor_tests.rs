@@ -822,6 +822,52 @@ define_test!(
     test_reversed_axes_cuda
 );
 
+fn test_cat<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![[1.0, 2.0]].to_device(device)?;
+    let x2 = ten![[3.0, 4.0]].to_device(device)?;
+    let x3 = ten![[5.0, 6.0]].to_device(device)?;
+    let y = Tensor::cat(&vec![x1, x2, x3], 0)?;
+    assert_tensor(&y, &ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);
+    Ok(())
+}
+
+define_test!(test_cat, test_cat_cpu, test_cat_cuda);
+
+fn test_cat_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![[1.0, 2.0]].to_device(device)?.requires_grad();
+    let x2 = ten![[3.0, 4.0]].to_device(device)?.requires_grad();
+    let x3 = ten![[5.0, 6.0]].to_device(device)?.requires_grad();
+    let y = Tensor::cat(&vec![x1.clone(), x2.clone(), x3.clone()], 0)?;
+    let y = (y * ten![[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]].to_device(device)?)?;
+    assert_tensor(&y, &ten![[10.0, 40.0], [90.0, 160.0], [250.0, 360.0]]);
+    let grads = y.backward()?;
+    let gx1 = grads.get(&x1).unwrap();
+    let gx2 = grads.get(&x2).unwrap();
+    let gx3 = grads.get(&x3).unwrap();
+    assert_tensor(&gx1, &ten![[10.0, 20.0]]);
+    assert_tensor(&gx2, &ten![[30.0, 40.0]]);
+    assert_tensor(&gx3, &ten![[50.0, 60.0]]);
+    Ok(())
+}
+
+define_test!(
+    test_cat_backward,
+    test_cat_backward_cpu,
+    test_cat_backward_cuda
+);
+
+fn test_split<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+        .to_device(device)?
+        .requires_grad();
+    let ys = x.split(1, &vec![2, 1])?;
+    assert_tensor(&ys[0], &ten![[1.0, 2.0], [4.0, 5.0]]);
+    assert_tensor(&ys[1], &ten![[3.0], [6.0]]);
+    Ok(())
+}
+
+define_test!(test_split, test_split_cpu, test_split_cuda);
+
 fn test_get_item<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
         [1.0, 2.0, 3.0, 4.0],

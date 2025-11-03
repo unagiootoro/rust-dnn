@@ -4,4 +4,5 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     ArgumentsError { msg: String },
     DeviceError { msg: String },
+    LoadDatasetError { msg: String },
 }

@@ -195,7 +195,9 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     pub fn to_vec(&self) -> Vec<T> {
         let x = self.contiguous();
         let storage = &*x.storage.borrow();
-        storage.to_vec_range(x.layout.storage_offset()..x.layout.len())
+        let start = x.layout.storage_offset();
+        let end = start + x.layout.len();
+        storage.to_vec_range(start..end)
     }
 
     pub fn id(&self) -> usize {
@@ -415,14 +417,14 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn reshape(&self, shape: Vec<usize>) -> Result<Self> {
-        let new_shape_len = Self::compute_len(&shape);
-        if self.len() != new_shape_len {
+        let output_len = Self::compute_len(&shape);
+        if self.len() != output_len {
             let msg = format!(
                 "Length mismatch (from shape = {:?}, from shape len = {}, to shape = {:?}, to shape len = {})",
                 self.shape(),
                 self.len(),
                 shape,
-                new_shape_len
+                output_len
             );
             return Err(Error::ArgumentsError { msg });
         }
@@ -622,6 +624,69 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             }
         }
         Ok(self.get_item(ranges).unwrap())
+    }
+
+    pub fn cat(tensors: &[Self], axis: usize) -> Result<Self> {
+        let mut split_sections = Vec::new();
+
+        let mut output_shape = Vec::new();
+        for i in 0..tensors[0].ndim() {
+            if i == axis {
+                let mut dim = 0;
+                for x in tensors {
+                    dim += x.shape()[i];
+                }
+                output_shape.push(dim);
+            } else {
+                output_shape.push(tensors[0].shape()[i]);
+            }
+        }
+
+        let y = Tensor::zeros(output_shape, tensors[0].device());
+        let y = if tensors.iter().any(|x| x.is_requires_grad()) {
+            y.requires_grad()
+        } else {
+            y
+        };
+
+        let mut total_axis_ndim = 0;
+        for x in tensors {
+            let mut ranges = Vec::new();
+            for i in 0..y.shape().len() {
+                if i == axis {
+                    let next_total_axis_ndim = total_axis_ndim + x.shape()[i];
+                    ranges.push((total_axis_ndim, next_total_axis_ndim));
+                    total_axis_ndim = next_total_axis_ndim;
+                    split_sections.push(x.shape()[i]);
+                } else {
+                    ranges.push((0, x.shape()[i]));
+                }
+            }
+            y.set_item(&ranges, &x)?
+        }
+
+        let y = y.with_op(Some(Op::Cat(tensors.to_vec(), axis, split_sections)));
+        Ok(y)
+    }
+
+    pub fn split(&self, axis: usize, split_sections: &[usize]) -> Result<Vec<Self>> {
+        let mut ys = Vec::new();
+        let mut total_axis_ndim = 0;
+        for dim in split_sections {
+            let mut ranges = Vec::new();
+            for i in 0..self.ndim() {
+                if i == axis {
+                    let next_total_axis_ndim = total_axis_ndim + dim;
+                    ranges.push((total_axis_ndim, next_total_axis_ndim));
+                    total_axis_ndim = next_total_axis_ndim;
+                } else {
+                    ranges.push((0, self.shape()[i]));
+                }
+            }
+            let y = self.get_item(ranges)?;
+            ys.push(y);
+        }
+        Ok(ys)
     }
 
     pub fn copy(&self, src: &Self) -> Result<()> {
@@ -1323,6 +1388,11 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 Op::PermutedAxes(x, _) => {
                     Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
                 }
+                Op::Cat(xs, _, _) => {
+                    for x in xs {
+                        Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
+                    }
+                }
                 Op::GetItem(x, _) => {
                     Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
                 }
@@ -1429,6 +1499,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 Op::PermutedAxes(x, axes) => {
                     Self::permuted_axes_backward(&mut grads, &gy, &x, axes)?;
                 }
+                Op::Cat(xs, axis, split_sections) => {
+                    Self::cat_backward(&mut grads, &gy, &xs, axis, &split_sections)?;
+                }
                 Op::GetItem(x, ranges) => {
                     Self::get_item_backward(&mut grads, &gy, &x, ranges)?;
                 }
@@ -1529,6 +1602,19 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         }
         let gx = gy.permuted_axes(&inv_axes)?;
         grads.add(x, gx)?;
+        Ok(())
+    }
+
+    fn cat_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        xs: &[Tensor<B, T>],
+        axis: usize,
+        split_sections: &[usize],
+    ) -> Result<()> {
+        for (i, t) in gy.split(axis, split_sections)?.iter().enumerate() {
+            grads.add(&xs[i], t.clone())?;
+        }
         Ok(())
     }
 

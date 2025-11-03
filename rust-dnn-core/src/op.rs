@@ -4,6 +4,7 @@ use crate::{backend::Backend, num::Num, tensor::Tensor};
 pub enum Op<B: Backend, T: Num> {
     Reshape(Tensor<B, T>),
     PermutedAxes(Tensor<B, T>, Vec<usize>),
+    Cat(Vec<Tensor<B, T>>, usize, Vec<usize>),
     BroadcastTo(Tensor<B, T>),
     GetItem(Tensor<B, T>, Vec<(usize, usize)>),
     Contiguous(Tensor<B, T>),

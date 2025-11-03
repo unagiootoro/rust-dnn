@@ -1,0 +1,13 @@
+[package]
+name = "rust-dnn-datasets"
+version = "0.1.0"
+edition = "2024"
+
+[profile.dev]
+opt-level = 3
+
+[dependencies]
+flate2 = "*"
+
+[dependencies.rust-dnn-core]
+path = "../rust-dnn-core"
