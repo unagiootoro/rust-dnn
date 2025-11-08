@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashSet,
+    f64::consts::PI,
     marker::PhantomData,
     ops::{self, Deref, Range},
     rc::Rc,
@@ -20,6 +21,7 @@ use crate::{
     num::Num,
     op::Op,
     storage::Storage,
+    xorshift128::XorShift128Plus,
 };
 
 thread_local! {
@@ -626,6 +628,166 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Ok(self.get_item(ranges).unwrap())
     }
 
+    pub fn gather(&self, index: &Tensor<B, u32>, axis: usize) -> Result<Self> {
+        let input_storage = &*self.storage.borrow();
+        let index_storage = &*index.storage.borrow();
+
+        let output_storage = B::gather(
+            input_storage,
+            index_storage,
+            &self.layout,
+            &index.layout,
+            axis,
+        )?;
+
+        let output_shape = index.shape().to_vec();
+        let output_stride = Self::compute_stride(&output_shape);
+        let layout = Layout::new(output_shape, output_stride, 0);
+        let output = Tensor::new(
+            Rc::new(RefCell::new(output_storage)),
+            layout,
+            self.device.clone(),
+            self.dtype,
+            self.is_requires_grad(),
+            Some(Op::Gather(self.clone(), index.clone(), axis)),
+        );
+        Ok(output)
+    }
+
+    pub fn scatter(&self, index: &Tensor<B, u32>, src: &Self, axis: usize) -> Result<()> {
+        let input_storage = &mut *self.storage.borrow_mut();
+        let index_storage = &*index.storage.borrow();
+        let src_storage = &*src.storage.borrow();
+        B::scatter(
+            input_storage,
+            index_storage,
+            src_storage,
+            &self.layout,
+            &index.layout,
+            &src.layout,
+            axis,
+        )
+    }
+
+    pub fn scatter_add(&self, index: &Tensor<B, u32>, src: &Self, axis: usize) -> Result<()> {
+        let input_storage = &mut *self.storage.borrow_mut();
+        let index_storage = &*index.storage.borrow();
+        let src_storage = &*src.storage.borrow();
+        B::scatter_add(
+            input_storage,
+            index_storage,
+            src_storage,
+            &self.layout,
+            &index.layout,
+            &src.layout,
+            axis,
+        )
+    }
+
+    pub fn index_select(&self, axis: usize, index: &Tensor<B, u32>) -> Result<Self> {
+        if axis > self.ndim() {
+            return Err(Error::ArgumentsError {
+                msg: format!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim()),
+            });
+        }
+        let input_storage = &*self.storage.borrow();
+        let index_storage = &*index.storage.borrow();
+
+        let mut output_shape = Vec::new();
+        for (i, dim) in self.shape().iter().enumerate() {
+            if i == axis {
+                output_shape.push(index.len());
+            } else {
+                output_shape.push(*dim);
+            }
+        }
+        let output_stride = Self::compute_stride(&output_shape);
+        let output_layout = Layout::new(output_shape, output_stride, 0);
+
+        let output_storage = B::index_select(
+            input_storage,
+            index_storage,
+            &self.layout,
+            &index.layout,
+            &output_layout,
+            axis,
+        )?;
+
+        let output = Tensor::new(
+            Rc::new(RefCell::new(output_storage)),
+            output_layout,
+            self.device.clone(),
+            self.dtype,
+            self.is_requires_grad(),
+            Some(Op::IndexSelect(self.clone(), index.clone(), axis)),
+        );
+        Ok(output)
+    }
+
+    pub fn index_copy(
+        &self,
+        axis: usize,
+        index: &Tensor<B, u32>,
+        src: &Tensor<B, T>,
+    ) -> Result<()> {
+        self.index_set_impl(axis, index, src, B::index_copy)
+    }
+
+    pub fn index_add(&self, axis: usize, index: &Tensor<B, u32>, src: &Tensor<B, T>) -> Result<()> {
+        self.index_set_impl(axis, index, src, B::index_add)
+    }
+
+    fn index_set_impl<F>(
+        &self,
+        axis: usize,
+        index: &Tensor<B, u32>,
+        src: &Tensor<B, T>,
+        f: F,
+    ) -> Result<()>
+    where
+        F: for<'a> Fn(
+            &'a mut Storage<T>,
+            &'a Storage<u32>,
+            &'a Storage<T>,
+            &'a Layout,
+            &'a Layout,
+            &'a Layout,
+            &'a Layout,
+            usize,
+        ) -> Result<()>,
+    {
+        if axis > self.ndim() {
+            return Err(Error::ArgumentsError {
+                msg: format!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim()),
+            });
+        }
+        let input_storage = &mut *self.storage.borrow_mut();
+        let index_storage = &*index.storage.borrow();
+        let src_storage = &*src.storage.borrow();
+
+        let mut output_shape = Vec::new();
+        for (i, dim) in self.shape().iter().enumerate() {
+            if i == axis {
+                output_shape.push(index.len());
+            } else {
+                output_shape.push(*dim);
+            }
+        }
+        let output_stride = Self::compute_stride(&output_shape);
+        let output_layout = Layout::new(output_shape, output_stride, 0);
+
+        f(
+            input_storage,
+            index_storage,
+            src_storage,
+            &self.layout,
+            &index.layout,
+            &src.layout,
+            &output_layout,
+            axis,
+        )
+    }
+
     pub fn cat(tensors: &[Self], axis: usize) -> Result<Self> {
         let mut split_sections = Vec::new();
 
@@ -806,6 +968,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Ok(output.with_op(op))
     }
 
+    pub fn argmax_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, u32>> {
+        self.op_reduce_axis_impl(axis, keepdims, None, B::argmax_axis)
+    }
+
     fn op_reduce_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Result<Self>
     where
         F: for<'a> Fn(&'a Storage<T>, &'a Layout) -> Result<Storage<T>>,
@@ -823,15 +989,15 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Ok(output)
     }
 
-    fn op_reduce_axis_impl<F>(
+    fn op_reduce_axis_impl<T2: Num, F>(
         &self,
         axis: usize,
         keepdims: bool,
-        op: Option<Op<B, T>>,
+        op: Option<Op<B, T2>>,
         f: F,
-    ) -> Result<Self>
+    ) -> Result<Tensor<B, T2>>
     where
-        F: for<'a> Fn(&'a Storage<T>, &'a Layout, &'a Layout, usize) -> Result<Storage<T>>,
+        F: for<'a> Fn(&'a Storage<T>, &'a Layout, &'a Layout, usize) -> Result<Storage<T2>>,
     {
         let mut output_shape = Vec::new();
         for i in 0..self.ndim() {
@@ -1057,6 +1223,43 @@ impl<B: Backend, T: Num> Tensor<B, T> {
 }
 
 impl<B: Backend, T: Float> Tensor<B, T> {
+    pub fn rand_norm(shape: &[usize], seed: Option<u64>, device: Device<B>) -> Self {
+        let u1 = Self::rand_uniform(shape, seed, device);
+        let u2 = Self::rand_uniform(shape, seed, device);
+        let two = Tensor::from_scalar(T::from_f64(2.0), device);
+        let pi = Tensor::from_scalar(T::from_f64(PI), device);
+        let output = (-&two * u1.ln()).unwrap().sqrt() * (&two * pi * u2).unwrap().cos();
+        output.unwrap()
+    }
+
+    pub fn rand_uniform(shape: &[usize], seed: Option<u64>, device: Device<B>) -> Self {
+        let mut rnd = if let Some(seed) = seed {
+            XorShift128Plus::from_seed(seed)
+        } else {
+            XorShift128Plus::from_seed2()
+        };
+        let mut data = Vec::new();
+        for _ in 0..Self::compute_len(shape) {
+            let n = rnd.next_f64();
+            data.push(T::from_f64(n));
+        }
+        let stride = Self::compute_stride(shape);
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
+        let layout = Layout::new(shape.to_vec(), stride, 0);
+        Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        )
+    }
+
     fn neg_impl(&self) -> Self {
         let op = if self.is_requires_grad() {
             Some(Op::Neg(self.clone()))
@@ -1163,6 +1366,33 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.pow(&scalar)
     }
 
+    pub fn sin(&self) -> Self {
+        let op = if self.is_requires_grad() {
+            Some(Op::Sqrt(self.clone()))
+        } else {
+            None
+        };
+        self.op1_impl(op, B::sin)
+    }
+
+    pub fn cos(&self) -> Self {
+        let op = if self.is_requires_grad() {
+            Some(Op::Sqrt(self.clone()))
+        } else {
+            None
+        };
+        self.op1_impl(op, B::cos)
+    }
+
+    pub fn sqrt(&self) -> Self {
+        let op = if self.is_requires_grad() {
+            Some(Op::Sqrt(self.clone()))
+        } else {
+            None
+        };
+        self.op1_impl(op, B::sqrt)
+    }
+
     pub fn exp(&self) -> Self {
         let op = if self.is_requires_grad() {
             Some(Op::Exp(self.clone()))
@@ -1181,170 +1411,10 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op1_impl(op, B::ln)
     }
 
-    pub fn gather(&self, index: &Tensor<B, u32>, axis: usize) -> Result<Self> {
-        let input_storage = &*self.storage.borrow();
-        let index_storage = &*index.storage.borrow();
-
-        let output_storage = B::gather(
-            input_storage,
-            index_storage,
-            &self.layout,
-            &index.layout,
-            axis,
-        )?;
-
-        let output_shape = index.shape().to_vec();
-        let output_stride = Self::compute_stride(&output_shape);
-        let layout = Layout::new(output_shape, output_stride, 0);
-        let output = Tensor::new(
-            Rc::new(RefCell::new(output_storage)),
-            layout,
-            self.device.clone(),
-            self.dtype,
-            self.is_requires_grad(),
-            Some(Op::Gather(self.clone(), index.clone(), axis)),
-        );
-        Ok(output)
-    }
-
-    pub fn scatter(&self, index: &Tensor<B, u32>, src: &Self, axis: usize) -> Result<()> {
-        let input_storage = &mut *self.storage.borrow_mut();
-        let index_storage = &*index.storage.borrow();
-        let src_storage = &*src.storage.borrow();
-        B::scatter(
-            input_storage,
-            index_storage,
-            src_storage,
-            &self.layout,
-            &index.layout,
-            &src.layout,
-            axis,
-        )
-    }
-
-    pub fn scatter_add(&self, index: &Tensor<B, u32>, src: &Self, axis: usize) -> Result<()> {
-        let input_storage = &mut *self.storage.borrow_mut();
-        let index_storage = &*index.storage.borrow();
-        let src_storage = &*src.storage.borrow();
-        B::scatter_add(
-            input_storage,
-            index_storage,
-            src_storage,
-            &self.layout,
-            &index.layout,
-            &src.layout,
-            axis,
-        )
-    }
-
-    pub fn index_select(&self, axis: usize, index: &Tensor<B, u32>) -> Result<Self> {
-        if axis > self.ndim() {
-            return Err(Error::ArgumentsError {
-                msg: format!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim()),
-            });
-        }
-        let input_storage = &*self.storage.borrow();
-        let index_storage = &*index.storage.borrow();
-
-        let mut output_shape = Vec::new();
-        for (i, dim) in self.shape().iter().enumerate() {
-            if i == axis {
-                output_shape.push(index.len());
-            } else {
-                output_shape.push(*dim);
-            }
-        }
-        let output_stride = Self::compute_stride(&output_shape);
-        let output_layout = Layout::new(output_shape, output_stride, 0);
-
-        let output_storage = B::index_select(
-            input_storage,
-            index_storage,
-            &self.layout,
-            &index.layout,
-            &output_layout,
-            axis,
-        )?;
-
-        let output = Tensor::new(
-            Rc::new(RefCell::new(output_storage)),
-            output_layout,
-            self.device.clone(),
-            self.dtype,
-            self.is_requires_grad(),
-            Some(Op::IndexSelect(self.clone(), index.clone(), axis)),
-        );
-        Ok(output)
-    }
-
-    pub fn index_copy(
-        &self,
-        axis: usize,
-        index: &Tensor<B, u32>,
-        src: &Tensor<B, T>,
-    ) -> Result<()> {
-        self.index_set_impl(axis, index, src, B::index_copy)
-    }
-
-    pub fn index_add(&self, axis: usize, index: &Tensor<B, u32>, src: &Tensor<B, T>) -> Result<()> {
-        self.index_set_impl(axis, index, src, B::index_add)
-    }
-
-    fn index_set_impl<F>(
-        &self,
-        axis: usize,
-        index: &Tensor<B, u32>,
-        src: &Tensor<B, T>,
-        f: F,
-    ) -> Result<()>
-    where
-        F: for<'a> Fn(
-            &'a mut Storage<T>,
-            &'a Storage<u32>,
-            &'a Storage<T>,
-            &'a Layout,
-            &'a Layout,
-            &'a Layout,
-            &'a Layout,
-            usize,
-        ) -> Result<()>,
-    {
-        if axis > self.ndim() {
-            return Err(Error::ArgumentsError {
-                msg: format!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim()),
-            });
-        }
-        let input_storage = &mut *self.storage.borrow_mut();
-        let index_storage = &*index.storage.borrow();
-        let src_storage = &*src.storage.borrow();
-
-        let mut output_shape = Vec::new();
-        for (i, dim) in self.shape().iter().enumerate() {
-            if i == axis {
-                output_shape.push(index.len());
-            } else {
-                output_shape.push(*dim);
-            }
-        }
-        let output_stride = Self::compute_stride(&output_shape);
-        let output_layout = Layout::new(output_shape, output_stride, 0);
-
-        f(
-            input_storage,
-            index_storage,
-            src_storage,
-            &self.layout,
-            &index.layout,
-            &src.layout,
-            &output_layout,
-            axis,
-        )
-    }
-
-    pub fn relu(&self) -> Result<Self> {
+    pub fn relu(&self) -> Self {
         let zero = Tensor::zeros(vec![1], self.device);
-        let mask = self.gt(&zero)?.to_dtype::<T>()?;
-        self * mask
+        let mask = self.gt(&zero).unwrap().to_dtype::<T>().unwrap();
+        (self * mask).unwrap()
     }
 
     pub fn softmax(&self, axis: usize) -> Result<Self> {
@@ -1437,6 +1507,15 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 Op::Pow(x1, x2) => {
                     Self::add_work_node(depth + 1, x1.clone(), &mut work_nodes, &mut seen_set);
                     Self::add_work_node(depth + 1, x2.clone(), &mut work_nodes, &mut seen_set);
+                }
+                Op::Sin(x) => {
+                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
+                }
+                Op::Cos(x) => {
+                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
+                }
+                Op::Sqrt(x) => {
+                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
                 }
                 Op::Exp(x) => {
                     Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
@@ -1540,6 +1619,15 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 }
                 Op::Pow(x1, x2) => {
                     Self::pow_backward(&mut grads, &gy, &x1, &x2)?;
+                }
+                Op::Sin(x) => {
+                    Self::sin_backward(&mut grads, &gy, &x)?;
+                }
+                Op::Cos(x) => {
+                    Self::cos_backward(&mut grads, &gy, &x)?;
+                }
+                Op::Sqrt(x) => {
+                    Self::sqrt_backward(&mut grads, &gy, &x)?;
                 }
                 Op::Exp(x) => {
                     Self::exp_backward(&mut grads, &gy, &x)?;
@@ -1807,6 +1895,38 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         x: &Tensor<B, T>,
     ) -> Result<()> {
         let gx = -gy;
+        grads.add(x, gx)?;
+        Ok(())
+    }
+
+    fn sin_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+    ) -> Result<()> {
+        let gx = (gy * x.cos())?;
+        grads.add(x, gx)?;
+        Ok(())
+    }
+
+    fn cos_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+    ) -> Result<()> {
+        let gx = (gy * -x.sin())?;
+        grads.add(x, gx)?;
+        Ok(())
+    }
+
+    fn sqrt_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+    ) -> Result<()> {
+        let one = Tensor::from_scalar(T::from_f64(1.0), gy.device);
+        let two = Tensor::from_scalar(T::from_f64(2.0), gy.device);
+        let gx = (gy * (one / two * x.sqrt())?)?;
         grads.add(x, gx)?;
         Ok(())
     }

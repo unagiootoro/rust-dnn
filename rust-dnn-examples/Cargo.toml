@@ -1,0 +1,16 @@
+[package]
+name = "rust-dnn-examples"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rand = "*"
+
+[dependencies.rust-dnn-core]
+path = "../rust-dnn-core"
+
+[dependencies.rust-dnn-nn]
+path = "../rust-dnn-nn"
+
+[dependencies.rust-dnn-datasets]
+path = "../rust-dnn-datasets"

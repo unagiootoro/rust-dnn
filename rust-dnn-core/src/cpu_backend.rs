@@ -62,6 +62,22 @@ impl Backend for CpuBackend {
         )
     }
 
+    fn argmax_axis<T: Num>(
+        input_storage: &Storage<T>,
+        input_layout: &Layout,
+        output_layout: &Layout,
+        axis: usize,
+    ) -> Result<Storage<u32>> {
+        reduce_cmp_axis_index(
+            input_storage,
+            input_layout,
+            output_layout,
+            axis,
+            T::min_value(),
+            |prev, current| prev < current,
+        )
+    }
+
     fn op_add<T: Num>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,
@@ -229,6 +245,18 @@ impl Backend for CpuBackend {
         map_arg2::<T, _, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
             a.powf(b)
         })
+    }
+
+    fn sin<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        map_arg1::<T, _>(storage, layout, |a| a.sin())
+    }
+
+    fn cos<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        map_arg1::<T, _>(storage, layout, |a| a.cos())
+    }
+
+    fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        map_arg1::<T, _>(storage, layout, |a| a.sqrt())
     }
 
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
@@ -454,6 +482,50 @@ where
             result = f(result, input_data[input_index]);
         }
         output_data[i] += result;
+    }
+
+    let output_storage = Storage::CpuStorage(output_data);
+    Ok(output_storage)
+}
+
+fn reduce_cmp_axis_index<T: Num, F>(
+    input_storage: &Storage<T>,
+    input_layout: &Layout,
+    output_layout: &Layout,
+    axis: usize,
+    initial_value: T,
+    f: F,
+) -> Result<Storage<u32>>
+where
+    F: Fn(T, T) -> bool,
+{
+    let mut output_data = Vec::new();
+    let output_data_len = output_layout.len();
+    for _ in 0..output_data_len {
+        output_data.push(0);
+    }
+
+    let input_data = input_storage.get_cpu_storage()?;
+
+    for i in 0..output_data.len() {
+        let mut result = initial_value;
+        let mut result_index = 0u32;
+        for j in 0..input_layout.shape()[axis] {
+            let input_index = compute_offset_by_axis_index(
+                input_layout.storage_offset(),
+                output_layout.shape(),
+                input_layout.stride(),
+                i,
+                axis,
+                j,
+            );
+            let updated = f(result, input_data[input_index]);
+            if updated {
+                result = input_data[input_index];
+                result_index = j as u32;
+            }
+        }
+        output_data[i] = result_index;
     }
 
     let output_storage = Storage::CpuStorage(output_data);

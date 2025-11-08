@@ -80,7 +80,9 @@ impl<B: Backend, T: Float> Linear<B, T> {
         use_bias: bool,
         device: Device<B>,
     ) -> Result<Self> {
-        let weight = Tensor::zeros(vec![out_features, in_features], device).requires_grad();
+        let weight = (Tensor::rand_norm(&[out_features, in_features], None, device)
+            * Tensor::from_scalar(T::from_f64(1.0 / in_features as f64), device))?
+        .requires_grad();
         let bias = if use_bias {
             Some(Tensor::zeros(vec![out_features], device).requires_grad())
         } else {

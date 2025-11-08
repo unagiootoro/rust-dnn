@@ -204,6 +204,18 @@ impl Backend for CudaBackend {
         cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_pow)
     }
 
+    fn sin<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        todo!()
+    }
+
+    fn cos<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        todo!()
+    }
+
+    fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        todo!()
+    }
+
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         cuda_op1_func_call(storage, layout, cuda_ln)
     }
@@ -342,6 +354,15 @@ impl Backend for CudaBackend {
     }
     
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        todo!()
+    }
+    
+    fn argmax_axis<T: Num>(
+        input_storage: &Storage<T>,
+        input_layout: &Layout,
+        output_layout: &Layout,
+        axis: usize,
+    ) -> Result<Storage<u32>> {
         todo!()
     }
 }

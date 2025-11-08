@@ -18,6 +18,12 @@ pub trait Backend: Clone + Copy {
         output_layout: &Layout,
         axis: usize,
     ) -> Result<Storage<T>>;
+    fn argmax_axis<T: Num>(
+        input_storage: &Storage<T>,
+        input_layout: &Layout,
+        output_layout: &Layout,
+        axis: usize,
+    ) -> Result<Storage<u32>>;
     fn op_add<T: Num>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,
@@ -109,6 +115,9 @@ pub trait Backend: Clone + Copy {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>>;
+    fn sin<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
+    fn cos<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
+    fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn matmul<T: Float>(

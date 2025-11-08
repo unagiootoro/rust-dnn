@@ -1341,6 +1341,32 @@ define_test!(
     test_max_axis_backward_keepdims_true_cuda
 );
 
+fn test_argmax_axis<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]].to_device(device)?;
+    let y = x.argmax_axis(0, false)?;
+    assert_tensor(&y, &ten![1, 0, 1]);
+    Ok(())
+}
+
+define_test!(
+    test_argmax_axis,
+    test_argmax_axis_cpu,
+    test_argmax_axis_cuda
+);
+
+fn test_argmax_axis_keepdims_true<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]].to_device(device)?;
+    let y = x.argmax_axis(0, true)?;
+    assert_tensor(&y, &ten![[1, 0, 1]]);
+    Ok(())
+}
+
+define_test!(
+    test_argmax_axis_keepdims_true,
+    test_argmax_axis_keepdims_true_cpu,
+    test_argmax_axis_keepdims_true_cuda
+);
+
 fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
     let x = x.broadcast_to(vec![2, 3])?;
@@ -1374,7 +1400,7 @@ define_test!(
 
 fn test_relu<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![-1.0, 0.0, 1.0].to_device(device)?;
-    let y = x.relu()?;
+    let y = x.relu();
     assert_tensor(&y, &ten![0.0, 0.0, 1.0]);
     Ok(())
 }
@@ -1383,7 +1409,7 @@ define_test!(test_relu, test_relu_cpu);
 
 fn test_relu_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![-1.0, 0.0, 1.0].to_device(device)?.requires_grad();
-    let y = (x.relu()? * ten![2.0].to_device(device)?)?;
+    let y = (x.relu() * ten![2.0].to_device(device)?)?;
     assert_tensor(&y, &ten![0.0, 0.0, 2.0]);
     let grads = y.backward()?;
     let gx = grads.get(&x).unwrap();
