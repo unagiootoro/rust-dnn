@@ -281,7 +281,8 @@ impl Backend for CudaBackend {
         input_layout: &Layout,
         index_layout: &Layout,
         src_layout: &Layout,
-        output_layout: &Layout,
+        dest_shape: &[usize],
+        dest_len: usize,
         axis: usize,
     ) -> Result<()> {
         todo!()
@@ -294,7 +295,8 @@ impl Backend for CudaBackend {
         input_layout: &Layout,
         index_layout: &Layout,
         src_layout: &Layout,
-        output_layout: &Layout,
+        dest_shape: &[usize],
+        dest_len: usize,
         axis: usize,
     ) -> Result<()> {
         todo!()

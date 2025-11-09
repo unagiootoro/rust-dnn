@@ -395,7 +395,8 @@ impl Backend for CpuBackend {
         input_layout: &Layout,
         index_layout: &Layout,
         src_layout: &Layout,
-        output_layout: &Layout,
+        dest_shape: &[usize],
+        dest_len: usize,
         axis: usize,
     ) -> Result<()> {
         index_set_impl(
@@ -405,7 +406,8 @@ impl Backend for CpuBackend {
             input_layout,
             index_layout,
             src_layout,
-            output_layout,
+            dest_shape,
+            dest_len,
             axis,
             |a, b| *a = b,
         )
@@ -418,7 +420,8 @@ impl Backend for CpuBackend {
         input_layout: &Layout,
         index_layout: &Layout,
         src_layout: &Layout,
-        output_layout: &Layout,
+        dest_shape: &[usize],
+        dest_len: usize,
         axis: usize,
     ) -> Result<()> {
         index_set_impl(
@@ -428,7 +431,8 @@ impl Backend for CpuBackend {
             input_layout,
             index_layout,
             src_layout,
-            output_layout,
+            dest_shape,
+            dest_len,
             axis,
             |a, b| *a += b,
         )
@@ -645,7 +649,8 @@ fn index_set_impl<T: Num, F>(
     input_layout: &Layout,
     index_layout: &Layout,
     src_layout: &Layout,
-    output_layout: &Layout,
+    dest_shape: &[usize],
+    dest_len: usize,
     axis: usize,
     f: F,
 ) -> Result<()>
@@ -656,15 +661,15 @@ where
     let index_data = index_storage.get_cpu_storage()?;
     let src_data = src_storage.get_cpu_storage()?;
 
-    for i in 0..output_layout.len() {
-        let output_axis_index = unravel_index_axis(output_layout.shape(), axis, i);
+    for i in 0..dest_len {
+        let output_axis_index = unravel_index_axis(dest_shape, axis, i);
 
         let index_offset = compute_offset(index_layout, output_axis_index);
         let index_value = index_data[index_offset];
 
         let input_index = compute_offset_by_axis_index(
             input_layout.storage_offset(),
-            &output_layout.shape(),
+            &dest_shape,
             &input_layout.stride(),
             i,
             axis,
