@@ -14,3 +14,7 @@ path = "../rust-dnn-nn"
 
 [dependencies.rust-dnn-datasets]
 path = "../rust-dnn-datasets"
+
+[features]
+default = []
+cuda = [] 

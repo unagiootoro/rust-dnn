@@ -24,15 +24,15 @@ __device__ size_t compute_offset2(Layout* layout, size_t linear_index) {
     return layout->storage_offset + offset;
 }
 
-__device__ size_t compute_offset_by_indices_dim2(size_t base_offset, size_t* strides, size_t i, size_t j) {
+__device__ size_t compute_offset_by_indices_dim2(Layout* layout, size_t i, size_t j) {
     size_t offset = 0;
-    if (strides[0] > 0) {
-        offset += i * strides[0];
+    if (layout->stride[0] > 0) {
+        offset += i * layout->stride[0];
     }
-    if (strides[1] > 0) {
-        offset += j * strides[1];
+    if (layout->stride[1] > 0) {
+        offset += j * layout->stride[1];
     }
-    return base_offset + offset;
+    return layout->storage_offset + offset;
 }
 
 __device__ size_t compute_offset_by_ranges(size_t base_offset, size_t* strides, size_t* ranges, size_t ndim) {
@@ -78,4 +78,15 @@ __device__ size_t compute_offset_by_axis_index(size_t base_offset, size_t* shape
         linear_index /= shape[i];
     }
     return base_offset + offset;
+}
+
+__device__ size_t unravel_index_axis(size_t* shape, size_t ndim, size_t axis, size_t linear_index) {
+    for (int i = ndim - 1; i >= 0; i--) {
+        size_t idx = linear_index % shape[i];
+        linear_index /= shape[i];
+        if (i == axis) {
+            return idx;
+        }
+    }
+    return 0;
 }

@@ -884,161 +884,6 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Ok(output)
     }
 
-    pub fn sum_to(&self, shape: &[usize]) -> Result<Tensor<B, T>> {
-        let y = if self.shape() == shape {
-            self.clone()
-        } else {
-            let mut shape2 = Vec::new();
-            if shape.len() < self.shape().len() {
-                for _ in 0..(self.shape().len() - shape.len()) {
-                    shape2.push(1);
-                }
-            }
-            for dim in shape {
-                shape2.push(*dim);
-            }
-
-            for (i, dim) in self.shape().iter().enumerate() {
-                if shape2[i] != *dim && shape2[i] != 1 && *dim != 1 {
-                    return Err(Error::ArgumentsError {
-                        msg: format!(
-                            "Invalud sum_to input shape: self.shape = {:?}, target shape = {:?}",
-                            self.shape(),
-                            shape
-                        ),
-                    });
-                }
-            }
-
-            let mut result = self.clone();
-            for i in 0..self.ndim() {
-                if self.shape()[i] > 1 && shape2[i] == 1 {
-                    result = result.sum_axis(i, true)?;
-                }
-            }
-            result.reshape(shape.to_vec())?
-        };
-        Ok(y)
-    }
-
-    pub fn sum(&self) -> Result<Tensor<B, T>> {
-        let op = if self.is_requires_grad() {
-            Some(Op::Sum(self.clone()))
-        } else {
-            None
-        };
-        self.op_reduce_impl(op, B::sum)
-    }
-
-    pub fn sum_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, T>> {
-        let op = if self.is_requires_grad() {
-            Some(Op::SumAxis(self.clone()))
-        } else {
-            None
-        };
-        self.op_reduce_axis_impl(axis, keepdims, op, B::sum_axis)
-    }
-
-    pub fn mean(&self) -> Result<Self> {
-        self.sum() / Tensor::from_scalar(T::from_usize(self.len()), self.device)
-    }
-
-    pub fn mean_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, T>> {
-        self.sum_axis(axis, keepdims)
-            / Tensor::from_scalar(T::from_usize(self.shape()[axis]), self.device)
-    }
-
-    pub fn max(&self) -> Result<Tensor<B, T>> {
-        let output = self.op_reduce_impl(None, B::max)?;
-        let op = if self.is_requires_grad() {
-            Some(Op::Max(self.clone(), output.detach()))
-        } else {
-            None
-        };
-        Ok(output.with_op(op))
-    }
-
-    pub fn max_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, T>> {
-        let output = self.op_reduce_axis_impl(axis, keepdims, None, B::max_axis)?;
-        let op = if self.is_requires_grad() {
-            Some(Op::MaxAxis(self.clone(), output.detach()))
-        } else {
-            None
-        };
-        Ok(output.with_op(op))
-    }
-
-    pub fn argmax_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, u32>> {
-        self.op_reduce_axis_impl(axis, keepdims, None, B::argmax_axis)
-    }
-
-    fn op_reduce_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Result<Self>
-    where
-        F: for<'a> Fn(&'a Storage<T>, &'a Layout) -> Result<Storage<T>>,
-    {
-        let storage = &*self.storage.borrow();
-        let output_storage = f(storage, &self.layout)?;
-        let output = Tensor::new(
-            Rc::new(RefCell::new(output_storage)),
-            Layout::new(vec![1], vec![1], 0),
-            self.device.clone(),
-            self.dtype,
-            self.is_requires_grad,
-            op,
-        );
-        Ok(output)
-    }
-
-    fn op_reduce_axis_impl<T2: Num, F>(
-        &self,
-        axis: usize,
-        keepdims: bool,
-        op: Option<Op<B, T2>>,
-        f: F,
-    ) -> Result<Tensor<B, T2>>
-    where
-        F: for<'a> Fn(&'a Storage<T>, &'a Layout, &'a Layout, usize) -> Result<Storage<T2>>,
-    {
-        let mut output_shape = Vec::new();
-        for i in 0..self.ndim() {
-            if i == axis {
-                output_shape.push(1);
-            } else {
-                output_shape.push(self.shape()[i]);
-            }
-        }
-
-        let mut output_data = Vec::new();
-        let output_data_len = Self::compute_len(&output_shape);
-        for _ in 0..output_data_len {
-            output_data.push(T::zero());
-        }
-
-        let storage = &*self.storage.borrow();
-
-        let output_stride = Self::compute_stride(&output_shape);
-        let output_layout = Layout::new(output_shape.clone(), output_stride, 0);
-
-        let output_storage = f(storage, &self.layout, &output_layout, axis)?;
-        let output_stride = Self::compute_stride(&output_shape);
-
-        let output_layout = Layout::new(output_shape, output_stride, 0);
-        let output = Tensor::new(
-            Rc::new(RefCell::new(output_storage)),
-            output_layout,
-            self.device.clone(),
-            self.dtype,
-            self.is_requires_grad,
-            op,
-        );
-
-        if keepdims {
-            Ok(output)
-        } else {
-            Ok(output.squeeze_axes(&[axis]).unwrap())
-        }
-    }
-
     fn compute_broadcast_stride(
         original_shape: &[usize],
         original_strides: &[usize],
@@ -1350,6 +1195,161 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         let y = y.reshape(y_shape)?;
         let op = Op::Matmul(self.clone(), rhs.clone());
         Ok(y.with_op(Some(op)))
+    }
+
+    pub fn sum_to(&self, shape: &[usize]) -> Result<Tensor<B, T>> {
+        let y = if self.shape() == shape {
+            self.clone()
+        } else {
+            let mut shape2 = Vec::new();
+            if shape.len() < self.shape().len() {
+                for _ in 0..(self.shape().len() - shape.len()) {
+                    shape2.push(1);
+                }
+            }
+            for dim in shape {
+                shape2.push(*dim);
+            }
+
+            for (i, dim) in self.shape().iter().enumerate() {
+                if shape2[i] != *dim && shape2[i] != 1 && *dim != 1 {
+                    return Err(Error::ArgumentsError {
+                        msg: format!(
+                            "Invalud sum_to input shape: self.shape = {:?}, target shape = {:?}",
+                            self.shape(),
+                            shape
+                        ),
+                    });
+                }
+            }
+
+            let mut result = self.clone();
+            for i in 0..self.ndim() {
+                if self.shape()[i] > 1 && shape2[i] == 1 {
+                    result = result.sum_axis(i, true)?;
+                }
+            }
+            result.reshape(shape.to_vec())?
+        };
+        Ok(y)
+    }
+
+    pub fn sum(&self) -> Result<Tensor<B, T>> {
+        let op = if self.is_requires_grad() {
+            Some(Op::Sum(self.clone()))
+        } else {
+            None
+        };
+        self.op_reduce_impl(op, B::sum)
+    }
+
+    pub fn sum_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, T>> {
+        let op = if self.is_requires_grad() {
+            Some(Op::SumAxis(self.clone()))
+        } else {
+            None
+        };
+        self.op_reduce_axis_impl(axis, keepdims, op, B::sum_axis)
+    }
+
+    pub fn mean(&self) -> Result<Self> {
+        self.sum() / Tensor::from_scalar(T::from_usize(self.len()), self.device)
+    }
+
+    pub fn mean_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, T>> {
+        self.sum_axis(axis, keepdims)
+            / Tensor::from_scalar(T::from_usize(self.shape()[axis]), self.device)
+    }
+
+    pub fn max(&self) -> Result<Tensor<B, T>> {
+        let output = self.op_reduce_impl(None, B::max)?;
+        let op = if self.is_requires_grad() {
+            Some(Op::Max(self.clone(), output.detach()))
+        } else {
+            None
+        };
+        Ok(output.with_op(op))
+    }
+
+    pub fn max_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, T>> {
+        let output = self.op_reduce_axis_impl(axis, keepdims, None, B::max_axis)?;
+        let op = if self.is_requires_grad() {
+            Some(Op::MaxAxis(self.clone(), output.detach()))
+        } else {
+            None
+        };
+        Ok(output.with_op(op))
+    }
+
+    pub fn argmax_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, u32>> {
+        self.op_reduce_axis_impl(axis, keepdims, None, B::argmax_axis)
+    }
+
+    fn op_reduce_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Result<Self>
+    where
+        F: for<'a> Fn(&'a Storage<T>, &'a Layout) -> Result<Storage<T>>,
+    {
+        let storage = &*self.storage.borrow();
+        let output_storage = f(storage, &self.layout)?;
+        let output = Tensor::new(
+            Rc::new(RefCell::new(output_storage)),
+            Layout::new(vec![1], vec![1], 0),
+            self.device.clone(),
+            self.dtype,
+            self.is_requires_grad,
+            op,
+        );
+        Ok(output)
+    }
+
+    fn op_reduce_axis_impl<T2: Num, F>(
+        &self,
+        axis: usize,
+        keepdims: bool,
+        op: Option<Op<B, T2>>,
+        f: F,
+    ) -> Result<Tensor<B, T2>>
+    where
+        F: for<'a> Fn(&'a Storage<T>, &'a Layout, &'a Layout, usize) -> Result<Storage<T2>>,
+    {
+        let mut output_shape = Vec::new();
+        for i in 0..self.ndim() {
+            if i == axis {
+                output_shape.push(1);
+            } else {
+                output_shape.push(self.shape()[i]);
+            }
+        }
+
+        let mut output_data = Vec::new();
+        let output_data_len = Self::compute_len(&output_shape);
+        for _ in 0..output_data_len {
+            output_data.push(T::zero());
+        }
+
+        let storage = &*self.storage.borrow();
+
+        let output_stride = Self::compute_stride(&output_shape);
+        let output_layout = Layout::new(output_shape.clone(), output_stride, 0);
+
+        let output_storage = f(storage, &self.layout, &output_layout, axis)?;
+        let output_stride = Self::compute_stride(&output_shape);
+
+        let output_layout = Layout::new(output_shape, output_stride, 0);
+        let output = Tensor::new(
+            Rc::new(RefCell::new(output_storage)),
+            output_layout,
+            self.device.clone(),
+            self.dtype,
+            self.is_requires_grad,
+            op,
+        );
+
+        if keepdims {
+            Ok(output)
+        } else {
+            Ok(output.squeeze_axes(&[axis]).unwrap())
+        }
     }
 
     pub fn pow(&self, rhs: &Self) -> Result<Self> {

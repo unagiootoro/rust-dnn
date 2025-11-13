@@ -13,6 +13,15 @@ fn test_to_vec<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_to_vec, test_to_vec_cpu, test_to_vec_cuda);
 
+fn test_to_dtype<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.0, 1.0, 2.0].to_device(device)?;
+    let y = x.to_dtype::<u32>()?;
+    assert_eq!(y.to_vec(), vec![0, 1, 2]);
+    Ok(())
+}
+
+define_test!(test_to_dtype, test_to_dtype_cpu, test_to_dtype_cuda);
+
 fn test_arange<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::arange(-1..2, device);
     assert_tensor(&x, &ten![-1.0, 0.0, 1.0]);
@@ -198,6 +207,56 @@ define_test!(
     test_neg_backward_cuda
 );
 
+fn test_eq<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let x2 = ten![-1.0, 0.0, 2.0].to_device(device)?;
+    let y = x1.eq(&x2)?;
+    assert_tensor(&y, &ten![1, 1, 0]);
+    Ok(())
+}
+
+define_test!(test_eq, test_eq_cpu, test_eq_cuda);
+
+fn test_lt<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let x2 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let y = x1.lt(&x2)?;
+    assert_tensor(&y, &ten![1, 0, 0]);
+    Ok(())
+}
+
+define_test!(test_lt, test_lt_cpu, test_lt_cuda);
+
+fn test_le<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let x2 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let y = x1.le(&x2)?;
+    assert_tensor(&y, &ten![1, 0, 1]);
+    Ok(())
+}
+
+define_test!(test_le, test_le_cpu, test_le_cuda);
+
+fn test_gt<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let y = x1.gt(&x2)?;
+    assert_tensor(&y, &ten![1, 0, 0]);
+    Ok(())
+}
+
+define_test!(test_gt, test_gt_cpu, test_gt_cuda);
+
+fn test_ge<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let y = x1.ge(&x2)?;
+    assert_tensor(&y, &ten![1, 0, 1]);
+    Ok(())
+}
+
+define_test!(test_ge, test_ge_cpu, test_ge_cuda);
+
 static MATMUL_BATCH_FORWARD_EXPECTED_DATA: [f64; 144] = [
     180., 190., 200., 210., 220., 230., 480., 515., 550., 585., 620., 655., 780., 840., 900., 960.,
     1020., 1080., 1080., 1165., 1250., 1335., 1420., 1505., 4680., 4790., 4900., 5010., 5120.,
@@ -265,7 +324,7 @@ fn test_matmul<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_matmul, test_matmul_cpu);
+define_test!(test_matmul, test_matmul_cpu, test_matmul_cuda);
 
 fn test_matmul_batch<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5])?;
@@ -276,7 +335,11 @@ fn test_matmul_batch<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_matmul_batch, test_matmul_batch_cpu);
+define_test!(
+    test_matmul_batch,
+    test_matmul_batch_cpu,
+    test_matmul_batch_cuda
+);
 
 fn test_matmul_batch2<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5])?;
@@ -287,7 +350,11 @@ fn test_matmul_batch2<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_matmul_batch2, test_matmul_batch2_cpu);
+define_test!(
+    test_matmul_batch2,
+    test_matmul_batch2_cpu,
+    test_matmul_batch2_cuda
+);
 
 fn test_matmul_transpose<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[0.0, -2.0], [-4.0, 1.0], [2.0, 3.0]]
@@ -301,7 +368,11 @@ fn test_matmul_transpose<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_matmul_transpose, test_matmul_transpose_cpu);
+define_test!(
+    test_matmul_transpose,
+    test_matmul_transpose_cpu,
+    test_matmul_transpose_cuda
+);
 
 fn test_matmul_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
@@ -320,7 +391,11 @@ fn test_matmul_backward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_matmul_backward, test_matmul_backward_cpu);
+define_test!(
+    test_matmul_backward,
+    test_matmul_backward_cpu,
+    test_matmul_backward_cuda
+);
 
 fn test_matmul_batch_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5])?;
@@ -336,7 +411,11 @@ fn test_matmul_batch_backward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_matmul_batch_backward, test_matmul_batch_backward_cpu);
+define_test!(
+    test_matmul_batch_backward,
+    test_matmul_batch_backward_cpu,
+    test_matmul_batch_backward_cuda
+);
 
 fn test_matmul_transpose_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[0.0, -2.0], [-4.0, 1.0], [2.0, 3.0]]
@@ -357,7 +436,8 @@ fn test_matmul_transpose_backward<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(
     test_matmul_transpose_backward,
-    test_matmul_transpose_backward_cpu
+    test_matmul_transpose_backward_cpu,
+    test_matmul_transpose_backward_cuda
 );
 
 fn test_broadcast_op2<B: Backend>(device: Device<B>) -> Result<()> {
@@ -758,7 +838,7 @@ fn test_squeeze<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_squeeze, test_squeeze_cpu);
+define_test!(test_squeeze, test_squeeze_cpu, test_squeeze_cuda);
 
 fn test_squeeze_axes<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[[[1.0], [2.0], [3.0]], [[4.0], [5.0], [6.0]]]].to_device(device)?;
@@ -767,7 +847,11 @@ fn test_squeeze_axes<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_squeeze_axes, test_squeeze_axes_cpu);
+define_test!(
+    test_squeeze_axes,
+    test_squeeze_axes_cpu,
+    test_squeeze_axes_cuda
+);
 
 fn test_unsqueeze<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
@@ -776,7 +860,7 @@ fn test_unsqueeze<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_unsqueeze, test_unsqueeze_cpu);
+define_test!(test_unsqueeze, test_unsqueeze_cpu, test_unsqueeze_cuda);
 
 fn test_permuted_axes<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
@@ -880,7 +964,7 @@ fn test_get_item<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_get_item, test_get_item_cpu);
+define_test!(test_get_item, test_get_item_cpu, test_get_item_cuda);
 
 fn test_get_item2<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
@@ -902,7 +986,7 @@ fn test_get_item2<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_get_item2, test_get_item2_cpu);
+define_test!(test_get_item2, test_get_item2_cpu, test_get_item2_cuda);
 
 fn test_get_item3<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
@@ -917,7 +1001,7 @@ fn test_get_item3<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_get_item3, test_get_item3_cpu);
+define_test!(test_get_item3, test_get_item3_cpu, test_get_item3_cuda);
 
 fn test_get_item_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
@@ -943,7 +1027,11 @@ fn test_get_item_backward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_get_item_backward, test_get_item_backward_cpu);
+define_test!(
+    test_get_item_backward,
+    test_get_item_backward_cpu,
+    test_get_item_backward_cuda
+);
 
 fn test_set_item<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![3, 4], device);
@@ -962,7 +1050,7 @@ fn test_set_item<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_set_item, test_set_item_cpu);
+define_test!(test_set_item, test_set_item_cpu, test_set_item_cuda);
 
 fn test_select<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
@@ -976,7 +1064,7 @@ fn test_select<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_select, test_select_cpu);
+define_test!(test_select, test_select_cpu, test_select_cuda);
 
 fn test_narrow<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
@@ -990,7 +1078,7 @@ fn test_narrow<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_narrow, test_narrow_cpu);
+define_test!(test_narrow, test_narrow_cpu, test_narrow_cuda);
 
 fn test_copy<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![2, 3], device);
@@ -999,7 +1087,7 @@ fn test_copy<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_copy, test_copy_cpu);
+define_test!(test_copy, test_copy_cpu, test_copy_cuda);
 
 fn test_copy2<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![2, 3], device);
@@ -1008,7 +1096,7 @@ fn test_copy2<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_copy2, test_copy2_cpu);
+define_test!(test_copy2, test_copy2_cpu, test_copy2_cuda);
 
 fn test_copy3<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![3, 4], device);
@@ -1025,7 +1113,7 @@ fn test_copy3<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_copy3, test_copy3_cpu);
+define_test!(test_copy3, test_copy3_cpu, test_copy3_cuda);
 
 fn test_broadcast_to<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
@@ -1405,7 +1493,7 @@ fn test_relu<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_relu, test_relu_cpu);
+define_test!(test_relu, test_relu_cpu, test_relu_cuda);
 
 fn test_relu_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![-1.0, 0.0, 1.0].to_device(device)?.requires_grad();
@@ -1417,7 +1505,11 @@ fn test_relu_backward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_relu_backward, test_relu_backward_cpu);
+define_test!(
+    test_relu_backward,
+    test_relu_backward_cpu,
+    test_relu_backward_cuda
+);
 
 fn test_softmax<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?;
@@ -1433,7 +1525,7 @@ fn test_softmax<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_softmax, test_softmax_cpu);
+define_test!(test_softmax, test_softmax_cpu, test_softmax_cuda);
 
 fn test_softmax_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?.requires_grad();
@@ -1459,4 +1551,8 @@ fn test_softmax_backward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_softmax_backward, test_softmax_backward_cpu);
+define_test!(
+    test_softmax_backward,
+    test_softmax_backward_cpu,
+    test_softmax_backward_cuda
+);

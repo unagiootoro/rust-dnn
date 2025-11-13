@@ -5,6 +5,7 @@ use rust_dnn_core::{
     backend::Backend, device::Device, error::Result, float::Float, num::Num, ten, tensor::Tensor,
 };
 use rust_dnn_datasets::mnist::MNISTLoader;
+use rust_dnn_examples::argv::get_argv;
 use rust_dnn_nn::{
     batch_iter::batch_iter,
     layer::{Layer, Linear},
@@ -49,15 +50,13 @@ impl<B: Backend, T: Float> Model<B, T> {
 }
 
 fn accuracy<B: Backend, T: Float>(x: &Tensor<B, T>, t: &Tensor<B, u32>) -> Result<usize> {
-    let correct = x.argmax_axis(1, false)?.eq(t)?.sum()?;
-    Ok(correct.to_vec()[0] as usize)
+    let correct = x.argmax_axis(1, false)?.eq(t)?.to_dtype::<T>()?.sum()?;
+    Ok(correct.to_vec()[0].as_usize())
 }
 
-pub fn main() -> Result<()> {
+fn run<B: Backend>(device: Device<B>) -> Result<()> {
     let train_dataset = MNISTLoader::new("../datasets").load_train()?;
     let test_dataset = MNISTLoader::new("../datasets").load_test()?;
-
-    let device = Device::get_cpu_device();
 
     let model = Model::<_, f32>::new(device)?;
     let mut optimizer = SGD::new(0.1);
@@ -71,10 +70,11 @@ pub fn main() -> Result<()> {
             for (iter, (images, labels)) in
                 batch_iter(&train_dataset, batch_size, true, None).enumerate()
             {
-                let images = images.to_dtype::<f32>()?;
+                let images = images.to_device(device)?.to_dtype::<f32>()?;
                 let images = (images / ten![255.0].to_device(device)?)?;
                 let images = images.reshape(vec![100, 784])?;
                 let y = model.forward(&images)?;
+                let labels = labels.to_device(device)?;
                 let loss = cross_entropy(&y, &labels)?;
                 let grads = loss.backward()?;
                 println!("iter = {}, loss = {}", iter, loss.to_vec()[0]);
@@ -86,10 +86,11 @@ pub fn main() -> Result<()> {
     {
         let mut correct = 0;
         for (images, labels) in batch_iter(&test_dataset, batch_size, false, None) {
-            let images = images.to_dtype::<f32>()?;
+            let images = images.to_device(device)?.to_dtype::<f32>()?;
             let images = (images / ten![255.0].to_device(device)?)?;
             let images = images.reshape(vec![100, 784])?;
             let y = model.forward(&images)?;
+            let labels = labels.to_device(device)?;
             correct += accuracy(&y, &labels)?;
         }
 
@@ -97,4 +98,25 @@ pub fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn main() -> Result<()> {
+    let argv = get_argv();
+    let is_gpu = if let Some(device) = argv.get("-d") {
+        if device == "gpu" { true } else { false }
+    } else {
+        false
+    };
+    if is_gpu {
+        #[cfg(feature = "cuda")]
+        {
+            run(Device::get_cuda_device())
+        }
+        #[cfg(not(feature = "cuda"))]
+        {
+            panic!("cuda was not enabled.");
+        }
+    } else {
+        run(Device::get_cpu_device())
+    }
 }

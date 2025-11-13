@@ -8,3 +8,9 @@ pub struct CLayout {
     pub len: usize,
     pub storage_offset: usize,
 }
+
+# [repr(C)]
+pub struct NDimArray {
+    pub data: [usize; MAX_NDIM],
+    pub ndim: usize,
+}

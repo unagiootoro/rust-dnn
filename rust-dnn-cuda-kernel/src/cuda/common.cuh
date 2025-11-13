@@ -2,12 +2,20 @@
 
 #define MAX_NDIM (8)
 
+enum DType {
+    DType_U32 = 0,
+    DType_F32 = 1,
+    DType_F64 = 2
+};
+
 class NDimArray {
 public:
     size_t data[MAX_NDIM];
+    size_t ndim;
 
-    NDimArray(size_t* data, size_t len) {
-        memcpy(&this->data[0], data, len * sizeof(size_t));
+    NDimArray(size_t* data, size_t ndim) {
+        memcpy(&this->data[0], data, ndim * sizeof(size_t));
+        this->ndim = ndim;
     }
 };
 

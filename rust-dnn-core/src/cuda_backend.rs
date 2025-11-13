@@ -1,18 +1,10 @@
 use std::ffi::c_float;
 
-use rust_dnn_cuda_kernel::basic::{
-    cuda_add_double, cuda_add_float, cuda_add_uint32_t, cuda_contiguous_double,
-    cuda_contiguous_float, cuda_div_double, cuda_div_float, cuda_div_uint32_t, cuda_mul_double,
-    cuda_mul_float, cuda_mul_uint32_t, cuda_neg_double, cuda_neg_float, cuda_sub_double,
-    cuda_sub_float, cuda_sub_uint32_t,
-};
-use rust_dnn_cuda_kernel::clayout::{CLayout, MAX_NDIM};
+use rust_dnn_cuda_kernel::basic::*;
+use rust_dnn_cuda_kernel::clayout::{CLayout, MAX_NDIM, NDimArray};
 use rust_dnn_cuda_kernel::cuda::check_cuda_error;
 use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
-use rust_dnn_cuda_kernel::math::{
-    cuda_ln_double, cuda_ln_float, cuda_pow_double, cuda_pow_float, cuda_sum_axis_double,
-    cuda_sum_axis_float,
-};
+use rust_dnn_cuda_kernel::math::*;
 
 use crate::backend::Backend;
 use crate::dtype::DType;
@@ -20,24 +12,33 @@ use crate::error::{Error, Result};
 use crate::float::Float;
 use crate::num::Num;
 use crate::{layout::Layout, storage::Storage};
-use libc::size_t;
 
-pub(crate) type CudaOp1Func<T> = unsafe fn(a: *const T, a_base_offset: size_t, b: *mut T, len: i32);
+pub(crate) type CudaOp1Func<T> =
+    unsafe fn(a: *const T, a_storage_offset: usize, b: *mut T, len: i32);
 
-pub(crate) type CudaOp2Func<T> =
-    unsafe fn(a: *const T, a_layout: CLayout, b: *const T, b_layout: CLayout, c: *mut T, len: i32);
+pub(crate) type CudaOp2Func<T1, T2> = unsafe fn(
+    a: *const T1,
+    a_layout: CLayout,
+    b: *const T1,
+    b_layout: CLayout,
+    c: *mut T2,
+    len: i32,
+);
 
-pub(crate) type CudaOp2AssignFunc = unsafe extern "C" fn(
-    a: *const c_float,
-    a_base_offset: size_t,
-    a_shape: *const size_t,
-    a_strides: *const size_t,
-    a_ndim: size_t,
-    b: *const c_float,
-    b_base_offset: size_t,
-    b_shape: *const size_t,
-    b_strides: *const size_t,
-    b_ndim: size_t,
+pub(crate) type CudaOp2AssignFunc<T> =
+    unsafe fn(a: *mut T, a_layout: CLayout, b: *const T, b_layout: CLayout, len: i32);
+
+pub(crate) type CudaReduceFunc<T> = unsafe fn(a: *const T, a_layout: CLayout, b: *mut T, len: i32);
+
+pub(crate) type CudaReduceAxisFunc<T> =
+    unsafe fn(a: *const T, a_layout: CLayout, b: *mut T, b_layout: CLayout, axis: usize, len: i32);
+
+pub(crate) type CudaReduceCmpAxisIndexFunc<T> = unsafe fn(
+    a: *const T,
+    a_layout: CLayout,
+    b: *mut u32,
+    b_layout: CLayout,
+    axis: usize,
     len: i32,
 );
 
@@ -50,9 +51,10 @@ impl Backend for CudaBackend {
         let output_data = unsafe {
             let output_data = GPUBuffer::<T>::new(layout.len());
             cuda_contiguous(
-                input_data.ptr() as *const T,
-                layout_to_clayout(layout)?,
-                output_data.ptr() as *mut T,
+                T::dtype() as i32,
+                input_data.ptr(),
+                layout_to_clayout(&layout)?,
+                output_data.ptr(),
                 layout.len() as i32,
             );
             check_cuda_error();
@@ -67,38 +69,13 @@ impl Backend for CudaBackend {
         output_layout: &Layout,
         axis: usize,
     ) -> Result<Storage<T>> {
-        let input_data = input_storage.get_cuda_storage()?;
-        let output_data = unsafe {
-            let output_data = GPUBuffer::<T>::new(output_layout.len());
-            let input_clayout = layout_to_clayout(input_layout)?;
-            let output_clayout = layout_to_clayout(output_layout)?;
-            match T::dtype() {
-                DType::F32 => {
-                    cuda_sum_axis_float(
-                        input_data.ptr() as *const f32,
-                        input_clayout,
-                        output_data.ptr() as *mut f32,
-                        output_clayout,
-                        axis,
-                        output_layout.len() as i32,
-                    );
-                }
-                DType::F64 => {
-                    cuda_sum_axis_double(
-                        input_data.ptr() as *const f64,
-                        input_clayout,
-                        output_data.ptr() as *mut f64,
-                        output_clayout,
-                        axis,
-                        output_layout.len() as i32,
-                    );
-                }
-                _ => panic!(),
-            }
-            check_cuda_error();
-            output_data
-        };
-        Ok(Storage::CudaStorage(output_data))
+        cuda_reduce_axis_func_call(
+            input_storage,
+            input_layout,
+            output_layout,
+            axis,
+            cuda_sum_axis,
+        )
     }
 
     fn op_add<T: Num>(
@@ -143,7 +120,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        cuda_op2_func_call::<T, u32>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_eq)
     }
 
     fn lt<T: Num>(
@@ -152,7 +129,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_lt)
     }
 
     fn le<T: Num>(
@@ -161,7 +138,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_le)
     }
 
     fn gt<T: Num>(
@@ -170,7 +147,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_gt)
     }
 
     fn ge<T: Num>(
@@ -179,7 +156,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_ge)
     }
 
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
@@ -192,7 +169,7 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<()> {
-        todo!()
+        cuda_op2_assign_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_copy)
     }
 
     fn pow<T: Float>(
@@ -205,15 +182,15 @@ impl Backend for CudaBackend {
     }
 
     fn sin<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        cuda_op1_func_call(storage, layout, cuda_sin)
     }
 
     fn cos<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        cuda_op1_func_call(storage, layout, cuda_cos)
     }
 
     fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        cuda_op1_func_call(storage, layout, cuda_sqrt)
     }
 
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
@@ -226,7 +203,26 @@ impl Backend for CudaBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        todo!()
+        let lhs_rows = lhs_layout.shape()[0];
+        let rhs_cols = rhs_layout.shape()[1];
+
+        let lhs_data = lhs_storage.get_cuda_storage()?;
+        let rhs_data = rhs_storage.get_cuda_storage()?;
+        let output_data = unsafe {
+            let output_data = GPUBuffer::<T>::new(rhs_layout.len());
+            cuda_matmul(
+                T::dtype() as i32,
+                lhs_data.ptr(),
+                layout_to_clayout(lhs_layout)?,
+                rhs_data.ptr(),
+                layout_to_clayout(rhs_layout)?,
+                output_data.ptr(),
+                (lhs_rows * rhs_cols) as i32,
+            );
+            check_cuda_error();
+            output_data
+        };
+        Ok(Storage::CudaStorage(output_data))
     }
 
     fn gather<T: Num>(
@@ -236,7 +232,24 @@ impl Backend for CudaBackend {
         index_layout: &Layout,
         axis: usize,
     ) -> Result<Storage<T>> {
-        todo!()
+        let input_data = input_storage.get_cuda_storage()?;
+        let index_data = index_storage.get_cuda_storage()?;
+        let output_data = unsafe {
+            let output_data = GPUBuffer::<T>::new(index_layout.len());
+            cuda_gather(
+                T::dtype() as i32,
+                input_data.ptr(),
+                layout_to_clayout(input_layout)?,
+                index_data.ptr() as *const u32,
+                layout_to_clayout(index_layout)?,
+                output_data.ptr(),
+                axis,
+                index_layout.len() as i32,
+            );
+            check_cuda_error();
+            output_data
+        };
+        Ok(Storage::CudaStorage(output_data))
     }
 
     fn scatter<T: Num>(
@@ -248,7 +261,32 @@ impl Backend for CudaBackend {
         src_layout: &Layout,
         axis: usize,
     ) -> Result<()> {
-        todo!()
+        let input_data = input_storage.get_cuda_storage()?;
+        let index_data = index_storage.get_cuda_storage()?;
+        let src_data = src_storage.get_cuda_storage()?;
+
+        let mut len = 1;
+        for (i, dim) in index_layout.shape().iter().enumerate() {
+            if i != axis {
+                len *= *dim;
+            }
+        }
+
+        unsafe {
+            cuda_scatter(
+                T::dtype() as i32,
+                input_data.ptr(),
+                layout_to_clayout(input_layout)?,
+                index_data.ptr() as *const u32,
+                layout_to_clayout(index_layout)?,
+                src_data.ptr(),
+                layout_to_clayout(src_layout)?,
+                axis,
+                len as i32,
+            );
+            check_cuda_error();
+        };
+        Ok(())
     }
 
     fn scatter_add<T: Num>(
@@ -260,7 +298,32 @@ impl Backend for CudaBackend {
         src_layout: &Layout,
         axis: usize,
     ) -> Result<()> {
-        todo!()
+        let input_data = input_storage.get_cuda_storage()?;
+        let index_data = index_storage.get_cuda_storage()?;
+        let src_data = src_storage.get_cuda_storage()?;
+
+        let mut len = 1;
+        for (i, dim) in index_layout.shape().iter().enumerate() {
+            if i != axis {
+                len *= *dim;
+            }
+        }
+
+        unsafe {
+            cuda_scatter_add(
+                T::dtype() as i32,
+                input_data.ptr(),
+                layout_to_clayout(input_layout)?,
+                index_data.ptr() as *const u32,
+                layout_to_clayout(index_layout)?,
+                src_data.ptr(),
+                layout_to_clayout(src_layout)?,
+                axis,
+                len as i32,
+            );
+            check_cuda_error();
+        };
+        Ok(())
     }
 
     fn index_select<T: Num>(
@@ -271,7 +334,25 @@ impl Backend for CudaBackend {
         output_layout: &Layout,
         axis: usize,
     ) -> Result<Storage<T>> {
-        todo!()
+        let input_data = input_storage.get_cuda_storage()?;
+        let index_data = index_storage.get_cuda_storage()?;
+        let output_data = unsafe {
+            let output_data = GPUBuffer::<T>::new(output_layout.len());
+            cuda_index_select(
+                T::dtype() as i32,
+                input_data.ptr(),
+                layout_to_clayout(input_layout)?,
+                index_data.ptr() as *const u32,
+                layout_to_clayout(index_layout)?,
+                output_data.ptr(),
+                layout_to_clayout(output_layout)?,
+                axis,
+                output_layout.len() as i32,
+            );
+            check_cuda_error();
+            output_data
+        };
+        Ok(Storage::CudaStorage(output_data))
     }
 
     fn index_copy<T: Num>(
@@ -285,7 +366,34 @@ impl Backend for CudaBackend {
         dest_len: usize,
         axis: usize,
     ) -> Result<()> {
-        todo!()
+        let input_data = input_storage.get_cuda_storage()?;
+        let index_data = index_storage.get_cuda_storage()?;
+        let src_data = src_storage.get_cuda_storage()?;
+
+        let mut len = 1;
+        for (i, dim) in dest_shape.iter().enumerate() {
+            if i != axis {
+                len *= *dim;
+            }
+        }
+
+        unsafe {
+            cuda_index_copy(
+                T::dtype() as i32,
+                input_data.ptr(),
+                layout_to_clayout(input_layout)?,
+                index_data.ptr() as *const u32,
+                layout_to_clayout(index_layout)?,
+                src_data.ptr(),
+                layout_to_clayout(src_layout)?,
+                slice_to_ndimarray(dest_shape)?,
+                axis,
+                // dest_len as i32,
+                len as i32,
+            );
+            check_cuda_error();
+        };
+        Ok(())
     }
 
     fn index_add<T: Num>(
@@ -299,84 +407,150 @@ impl Backend for CudaBackend {
         dest_len: usize,
         axis: usize,
     ) -> Result<()> {
-        todo!()
+        let input_data = input_storage.get_cuda_storage()?;
+        let index_data = index_storage.get_cuda_storage()?;
+        let src_data = src_storage.get_cuda_storage()?;
+
+        let mut len = 1;
+        for (i, dim) in dest_shape.iter().enumerate() {
+            if i != axis {
+                len *= *dim;
+            }
+        }
+
+        unsafe {
+            cuda_index_add(
+                T::dtype() as i32,
+                input_data.ptr(),
+                layout_to_clayout(input_layout)?,
+                index_data.ptr() as *const u32,
+                layout_to_clayout(index_layout)?,
+                src_data.ptr(),
+                layout_to_clayout(src_layout)?,
+                slice_to_ndimarray(dest_shape)?,
+                axis,
+                len as i32,
+            );
+            check_cuda_error();
+        };
+        Ok(())
     }
-    
+
     fn sum<T: Num>(input_storage: &Storage<T>, input_layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        cuda_reduce_func_call(input_storage, input_layout, cuda_sum)
     }
-    
+
     fn max<T: Num>(input_storage: &Storage<T>, input_layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        cuda_reduce_func_call(input_storage, input_layout, cuda_max)
     }
-    
+
     fn max_axis<T: Num>(
         input_storage: &Storage<T>,
         input_layout: &Layout,
         output_layout: &Layout,
         axis: usize,
     ) -> Result<Storage<T>> {
-        todo!()
+        cuda_reduce_axis_func_call(
+            input_storage,
+            input_layout,
+            output_layout,
+            axis,
+            cuda_max_axis,
+        )
     }
-    
+
     fn op_add_assign<T: Num>(
         lhs_storage: &mut Storage<T>,
         rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<()> {
-        todo!()
+        cuda_op2_assign_func_call(
+            lhs_storage,
+            rhs_storage,
+            lhs_layout,
+            rhs_layout,
+            cuda_add_assign,
+        )
     }
-    
+
     fn op_sub_assign<T: Num>(
         lhs_storage: &mut Storage<T>,
         rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<()> {
-        todo!()
+        cuda_op2_assign_func_call(
+            lhs_storage,
+            rhs_storage,
+            lhs_layout,
+            rhs_layout,
+            cuda_sub_assign,
+        )
     }
-    
+
     fn op_mul_assign<T: Num>(
         lhs_storage: &mut Storage<T>,
         rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<()> {
-        todo!()
+        cuda_op2_assign_func_call(
+            lhs_storage,
+            rhs_storage,
+            lhs_layout,
+            rhs_layout,
+            cuda_mul_assign,
+        )
     }
-    
+
     fn op_div_assign<T: Num>(
         lhs_storage: &mut Storage<T>,
         rhs_storage: &Storage<T>,
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<()> {
-        todo!()
+        cuda_op2_assign_func_call(
+            lhs_storage,
+            rhs_storage,
+            lhs_layout,
+            rhs_layout,
+            cuda_div_assign,
+        )
     }
-    
+
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        cuda_op1_func_call(storage, layout, cuda_exp)
     }
-    
+
     fn argmax_axis<T: Num>(
         input_storage: &Storage<T>,
         input_layout: &Layout,
         output_layout: &Layout,
         axis: usize,
     ) -> Result<Storage<u32>> {
-        todo!()
+        cuda_reduce_cmp_axis_index_func_call(
+            input_storage,
+            input_layout,
+            output_layout,
+            axis,
+            cuda_argmax_axis,
+        )
     }
 }
 
 #[macro_export]
 macro_rules! define_cuda_op1_func {
     ($fn_name: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
-        unsafe fn $fn_name<T: Num>(a: *const T, a_base_offset: size_t, b: *mut T, len: i32) {
+        unsafe fn $fn_name<T: Num>(a: *const T, a_storage_offset: usize, b: *mut T, len: i32) {
             unsafe {
                 match T::dtype() {
-                    DType::F32 => $fn_name_f32(a as *const f32, a_base_offset, b as *mut f32, len),
-                    DType::F64 => $fn_name_f64(a as *const f64, a_base_offset, b as *mut f64, len),
+                    DType::F32 => {
+                        $fn_name_f32(a as *const f32, a_storage_offset, b as *mut f32, len)
+                    }
+                    DType::F64 => {
+                        $fn_name_f64(a as *const f64, a_storage_offset, b as *mut f64, len)
+                    }
                     _ => panic!(),
                 }
             }
@@ -428,6 +602,76 @@ macro_rules! define_cuda_op2_func {
 }
 
 #[macro_export]
+macro_rules! define_cuda_op2_u32_func {
+    ($fn_name: ident, $fn_name_u32: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
+        unsafe fn $fn_name<T: Num>(
+            a: *const T,
+            a_layout: CLayout,
+            b: *const T,
+            b_layout: CLayout,
+            c: *mut u32,
+            len: i32,
+        ) {
+            unsafe {
+                match T::dtype() {
+                    DType::U32 => $fn_name_u32(
+                        a as *const u32,
+                        a_layout,
+                        b as *const u32,
+                        b_layout,
+                        c as *mut u32,
+                        len,
+                    ),
+                    DType::F32 => $fn_name_f32(
+                        a as *const f32,
+                        a_layout,
+                        b as *const f32,
+                        b_layout,
+                        c as *mut u32,
+                        len,
+                    ),
+                    DType::F64 => $fn_name_f64(
+                        a as *const f64,
+                        a_layout,
+                        b as *const f64,
+                        b_layout,
+                        c as *mut u32,
+                        len,
+                    ),
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! define_cuda_op2_assign_func {
+    ($fn_name: ident, $fn_name_u32: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
+        unsafe fn $fn_name<T: Num>(
+            a: *mut T,
+            a_layout: CLayout,
+            b: *const T,
+            b_layout: CLayout,
+            len: i32,
+        ) {
+            unsafe {
+                match T::dtype() {
+                    DType::U32 => {
+                        $fn_name_u32(a as *mut u32, a_layout, b as *const u32, b_layout, len)
+                    }
+                    DType::F32 => {
+                        $fn_name_f32(a as *mut f32, a_layout, b as *const f32, b_layout, len)
+                    }
+                    DType::F64 => {
+                        $fn_name_f64(a as *mut f64, a_layout, b as *const f64, b_layout, len)
+                    }
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! define_cuda_float_op2_func {
     ($fn_name: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
         unsafe fn $fn_name<T: Float>(
@@ -463,13 +707,159 @@ macro_rules! define_cuda_float_op2_func {
     };
 }
 
+#[macro_export]
+macro_rules! define_cuda_reduce_func {
+    ($fn_name: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
+        unsafe fn $fn_name<T: Num>(a: *const T, a_layout: CLayout, b: *mut T, len: i32) {
+            unsafe {
+                match T::dtype() {
+                    DType::F32 => $fn_name_f32(a as *const f32, a_layout, b as *mut f32, len),
+                    DType::F64 => $fn_name_f64(a as *const f64, a_layout, b as *mut f64, len),
+                    _ => panic!(),
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! define_cuda_reduce_axis_func {
+    ($fn_name: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
+        unsafe fn $fn_name<T: Num>(
+            a: *const T,
+            a_layout: CLayout,
+            b: *mut T,
+            b_layout: CLayout,
+            axis: usize,
+            len: i32,
+        ) {
+            unsafe {
+                match T::dtype() {
+                    DType::F32 => $fn_name_f32(
+                        a as *const f32,
+                        a_layout,
+                        b as *mut f32,
+                        b_layout,
+                        axis,
+                        len,
+                    ),
+                    DType::F64 => $fn_name_f64(
+                        a as *const f64,
+                        a_layout,
+                        b as *mut f64,
+                        b_layout,
+                        axis,
+                        len,
+                    ),
+                    _ => panic!(),
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! define_cuda_reduce_cmp_axis_index_func {
+    ($fn_name: ident, $fn_name_f32: ident, $fn_name_f64: ident) => {
+        unsafe fn $fn_name<T: Num>(
+            a: *const T,
+            a_layout: CLayout,
+            b: *mut u32,
+            b_layout: CLayout,
+            axis: usize,
+            len: i32,
+        ) {
+            unsafe {
+                match T::dtype() {
+                    DType::F32 => $fn_name_f32(
+                        a as *const f32,
+                        a_layout,
+                        b as *mut u32,
+                        b_layout,
+                        axis,
+                        len,
+                    ),
+                    DType::F64 => $fn_name_f64(
+                        a as *const f64,
+                        a_layout,
+                        b as *mut u32,
+                        b_layout,
+                        axis,
+                        len,
+                    ),
+                    _ => panic!(),
+                }
+            }
+        }
+    };
+}
+
 define_cuda_op1_func!(cuda_neg, cuda_neg_float, cuda_neg_double);
 define_cuda_op2_func!(cuda_add, cuda_add_uint32_t, cuda_add_float, cuda_add_double);
 define_cuda_op2_func!(cuda_sub, cuda_sub_uint32_t, cuda_sub_float, cuda_sub_double);
 define_cuda_op2_func!(cuda_mul, cuda_mul_uint32_t, cuda_mul_float, cuda_mul_double);
 define_cuda_op2_func!(cuda_div, cuda_div_uint32_t, cuda_div_float, cuda_div_double);
+
+define_cuda_op2_assign_func!(
+    cuda_copy,
+    cuda_copy_uint32_t,
+    cuda_copy_float,
+    cuda_copy_double
+);
+
+define_cuda_op2_assign_func!(
+    cuda_add_assign,
+    cuda_add_assign_uint32_t,
+    cuda_add_assign_float,
+    cuda_add_assign_double
+);
+
+define_cuda_op2_assign_func!(
+    cuda_sub_assign,
+    cuda_sub_assign_uint32_t,
+    cuda_sub_assign_float,
+    cuda_sub_assign_double
+);
+
+define_cuda_op2_assign_func!(
+    cuda_mul_assign,
+    cuda_mul_assign_uint32_t,
+    cuda_mul_assign_float,
+    cuda_mul_assign_double
+);
+
+define_cuda_op2_assign_func!(
+    cuda_div_assign,
+    cuda_div_assign_uint32_t,
+    cuda_div_assign_float,
+    cuda_div_assign_double
+);
+
+define_cuda_op2_u32_func!(cuda_lt, cuda_lt_uint32_t, cuda_lt_float, cuda_lt_double);
+define_cuda_op2_u32_func!(cuda_le, cuda_le_uint32_t, cuda_le_float, cuda_le_double);
+define_cuda_op2_u32_func!(cuda_gt, cuda_gt_uint32_t, cuda_gt_float, cuda_gt_double);
+define_cuda_op2_u32_func!(cuda_ge, cuda_ge_uint32_t, cuda_ge_float, cuda_ge_double);
+define_cuda_op2_u32_func!(cuda_eq, cuda_eq_uint32_t, cuda_eq_float, cuda_eq_double);
+
 define_cuda_float_op2_func!(cuda_pow, cuda_pow_float, cuda_pow_double);
+define_cuda_op1_func!(cuda_exp, cuda_exp_float, cuda_exp_double);
 define_cuda_op1_func!(cuda_ln, cuda_ln_float, cuda_ln_double);
+define_cuda_op1_func!(cuda_sqrt, cuda_sqrt_float, cuda_sqrt_double);
+define_cuda_op1_func!(cuda_sin, cuda_sin_float, cuda_sin_double);
+define_cuda_op1_func!(cuda_cos, cuda_cos_float, cuda_cos_double);
+define_cuda_op1_func!(cuda_tanh, cuda_tanh_float, cuda_tanh_double);
+
+define_cuda_reduce_func!(cuda_sum, cuda_sum_float, cuda_sum_double);
+define_cuda_reduce_func!(cuda_max, cuda_max_float, cuda_max_double);
+
+define_cuda_reduce_axis_func!(cuda_sum_axis, cuda_sum_axis_float, cuda_sum_axis_double);
+define_cuda_reduce_axis_func!(cuda_max_axis, cuda_max_axis_float, cuda_max_axis_double);
+
+define_cuda_reduce_cmp_axis_index_func!(
+    cuda_argmax_axis,
+    cuda_argmax_axis_float,
+    cuda_argmax_axis_double
+);
 
 pub(crate) fn cuda_op1_func_call<T: Num>(
     storage: &Storage<T>,
@@ -491,25 +881,25 @@ pub(crate) fn cuda_op1_func_call<T: Num>(
     Ok(Storage::CudaStorage(output_data))
 }
 
-pub(crate) fn cuda_op2_func_call<T: Num>(
-    lhs_storage: &Storage<T>,
-    rhs_storage: &Storage<T>,
+pub(crate) fn cuda_op2_func_call<T1: Num, T2: Num>(
+    lhs_storage: &Storage<T1>,
+    rhs_storage: &Storage<T1>,
     lhs_layout: &Layout,
     rhs_layout: &Layout,
-    f: CudaOp2Func<T>,
-) -> Result<Storage<T>> {
+    f: CudaOp2Func<T1, T2>,
+) -> Result<Storage<T2>> {
     let lhs_data = lhs_storage.get_cuda_storage()?;
     let rhs_data = rhs_storage.get_cuda_storage()?;
     let lhs_clayout = layout_to_clayout(lhs_layout)?;
     let rhs_clayout = layout_to_clayout(rhs_layout)?;
     let output_data = unsafe {
-        let output_data = GPUBuffer::<T>::new(lhs_layout.len());
+        let output_data = GPUBuffer::<T2>::new(lhs_layout.len());
         f(
-            lhs_data.ptr() as *const T,
+            lhs_data.ptr() as *const T1,
             lhs_clayout,
-            rhs_data.ptr() as *mut T,
+            rhs_data.ptr() as *mut T1,
             rhs_clayout,
-            output_data.ptr() as *mut T,
+            output_data.ptr() as *mut T2,
             lhs_layout.len() as i32,
         );
         check_cuda_error();
@@ -518,14 +908,96 @@ pub(crate) fn cuda_op2_func_call<T: Num>(
     Ok(Storage::CudaStorage(output_data))
 }
 
-pub unsafe fn cuda_contiguous<T: Num>(a: *const T, a_layout: CLayout, b: *mut T, len: i32) {
+pub(crate) fn cuda_op2_assign_func_call<T: Num>(
+    lhs_storage: &mut Storage<T>,
+    rhs_storage: &Storage<T>,
+    lhs_layout: &Layout,
+    rhs_layout: &Layout,
+    f: CudaOp2AssignFunc<T>,
+) -> Result<()> {
+    let lhs_data = lhs_storage.get_cuda_storage()?;
+    let rhs_data = rhs_storage.get_cuda_storage()?;
+    let lhs_clayout = layout_to_clayout(lhs_layout)?;
+    let rhs_clayout = layout_to_clayout(rhs_layout)?;
     unsafe {
-        match T::dtype() {
-            DType::F32 => cuda_contiguous_float(a as *const f32, a_layout, b as *mut f32, len),
-            DType::F64 => cuda_contiguous_double(a as *const f64, a_layout, b as *mut f64, len),
-            _ => panic!(),
-        }
+        f(
+            lhs_data.ptr() as *mut T,
+            lhs_clayout,
+            rhs_data.ptr() as *const T,
+            rhs_clayout,
+            lhs_layout.len() as i32,
+        );
     }
+    check_cuda_error();
+    Ok(())
+}
+
+pub(crate) fn cuda_reduce_func_call<T: Num>(
+    storage: &Storage<T>,
+    layout: &Layout,
+    f: CudaReduceFunc<T>,
+) -> Result<Storage<T>> {
+    let input_data = storage.get_cuda_storage()?;
+    let output_data = unsafe {
+        let output_data = GPUBuffer::<T>::new(layout.len());
+        f(
+            input_data.ptr() as *const T,
+            layout_to_clayout(layout)?,
+            output_data.ptr() as *mut T,
+            layout.len() as i32,
+        );
+        check_cuda_error();
+        output_data
+    };
+    Ok(Storage::CudaStorage(output_data))
+}
+
+pub(crate) fn cuda_reduce_axis_func_call<T: Num>(
+    input_storage: &Storage<T>,
+    input_layout: &Layout,
+    output_layout: &Layout,
+    axis: usize,
+    f: CudaReduceAxisFunc<T>,
+) -> Result<Storage<T>> {
+    let input_data = input_storage.get_cuda_storage()?;
+    let output_data = unsafe {
+        let output_data = GPUBuffer::<T>::new(output_layout.len());
+        f(
+            input_data.ptr() as *const T,
+            layout_to_clayout(input_layout)?,
+            output_data.ptr() as *mut T,
+            layout_to_clayout(output_layout)?,
+            axis,
+            input_layout.len() as i32,
+        );
+        check_cuda_error();
+        output_data
+    };
+    Ok(Storage::CudaStorage(output_data))
+}
+
+pub(crate) fn cuda_reduce_cmp_axis_index_func_call<T: Num>(
+    input_storage: &Storage<T>,
+    input_layout: &Layout,
+    output_layout: &Layout,
+    axis: usize,
+    f: CudaReduceCmpAxisIndexFunc<T>,
+) -> Result<Storage<u32>> {
+    let input_data = input_storage.get_cuda_storage()?;
+    let output_data = unsafe {
+        let output_data = GPUBuffer::<u32>::new(output_layout.len());
+        f(
+            input_data.ptr() as *const T,
+            layout_to_clayout(input_layout)?,
+            output_data.ptr() as *mut u32,
+            layout_to_clayout(output_layout)?,
+            axis,
+            input_layout.len() as i32,
+        );
+        check_cuda_error();
+        output_data
+    };
+    Ok(Storage::CudaStorage(output_data))
 }
 
 fn layout_to_clayout(layout: &Layout) -> Result<CLayout> {
@@ -550,4 +1022,21 @@ fn layout_to_clayout(layout: &Layout) -> Result<CLayout> {
         storage_offset: layout.storage_offset(),
     };
     Ok(clayout)
+}
+
+fn slice_to_ndimarray(slice: &[usize]) -> Result<NDimArray> {
+    if slice.len() > MAX_NDIM {
+        return Err(Error::ArgumentsError {
+            msg: format!("Invalid ndim({})", slice.len()).to_string(),
+        });
+    }
+    let mut array = [0; MAX_NDIM];
+    for (i, dim) in slice.iter().enumerate() {
+        array[i] = *dim;
+    }
+    let ndimarray = NDimArray {
+        data: array,
+        ndim: slice.len(),
+    };
+    Ok(ndimarray)
 }

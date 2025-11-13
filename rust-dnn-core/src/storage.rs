@@ -57,7 +57,11 @@ impl<T: Num> Storage<T> {
         match self {
             Self::CpuStorage(cpu_storage) => Storage::CpuStorage(convert_vec::<T, T2>(cpu_storage)),
             #[cfg(feature = "cuda")]
-            Self::CudaStorage(cuda_storage) => todo!(),
+            Self::CudaStorage(cuda_storage) => {
+                let cuda_storage =
+                    GPUBuffer::<T2>::from_vec(&convert_vec::<T, T2>(&cuda_storage.to_vec()));
+                Storage::CudaStorage(cuda_storage)
+            }
         }
     }
 }
