@@ -209,7 +209,7 @@ impl Backend for CudaBackend {
         let lhs_data = lhs_storage.get_cuda_storage()?;
         let rhs_data = rhs_storage.get_cuda_storage()?;
         let output_data = unsafe {
-            let output_data = GPUBuffer::<T>::new(rhs_layout.len());
+            let output_data = GPUBuffer::<T>::new(lhs_rows * rhs_cols);
             cuda_matmul(
                 T::dtype() as i32,
                 lhs_data.ptr(),
