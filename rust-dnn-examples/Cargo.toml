@@ -16,5 +16,5 @@ path = "../rust-dnn-nn"
 path = "../rust-dnn-datasets"
 
 [features]
-default = []
+default = ["cuda"]
 cuda = [] 

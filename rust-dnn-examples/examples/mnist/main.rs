@@ -10,7 +10,7 @@ use rust_dnn_nn::{
     batch_iter::batch_iter,
     layer::{Layer, Linear},
     loss::cross_entropy,
-    optimizer::{Optimizer, SGD},
+    optimizer::{Adam, Optimizer, SGD},
 };
 
 struct Model<B: Backend, T: Float> {
@@ -59,7 +59,7 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
     let test_dataset = MNISTLoader::new("../datasets").load_test()?;
 
     let model = Model::<_, f32>::new(device)?;
-    let mut optimizer = SGD::new(0.1);
+    let mut optimizer = Adam::default();
 
     let batch_size = 100;
     let max_epochs = 1;

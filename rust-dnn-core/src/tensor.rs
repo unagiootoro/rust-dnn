@@ -280,6 +280,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.op2_impl(rhs, op, B::op_add)
     }
 
+    fn add_scalar_impl(&self, rhs: T) -> Result<Self> {
+        let rhs = Self::from_scalar(rhs, self.device);
+        self.add_impl(&rhs)
+    }
+
     pub fn add_assign(&self, rhs: &Tensor<B, T>) -> Result<()> {
         self.op2_inplace_impl(rhs, B::op_add_assign)
     }
@@ -291,6 +296,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             None
         };
         self.op2_impl(rhs, op, B::op_sub)
+    }
+
+    fn sub_scalar_impl(&self, rhs: T) -> Result<Self> {
+        let rhs = Self::from_scalar(rhs, self.device);
+        self.sub_impl(&rhs)
     }
 
     pub fn sub_assign(&self, rhs: &Tensor<B, T>) -> Result<()> {
@@ -306,6 +316,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.op2_impl(rhs, op, B::op_mul)
     }
 
+    fn mul_scalar_impl(&self, rhs: T) -> Result<Self> {
+        let rhs = Self::from_scalar(rhs, self.device);
+        self.mul_impl(&rhs)
+    }
+
     pub fn mul_assign(&self, rhs: &Tensor<B, T>) -> Result<()> {
         self.op2_inplace_impl(rhs, B::op_mul_assign)
     }
@@ -317,6 +332,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             None
         };
         self.op2_impl(rhs, op, B::op_div)
+    }
+
+    fn div_scalar_impl(&self, rhs: T) -> Result<Self> {
+        let rhs = Self::from_scalar(rhs, self.device);
+        self.div_impl(&rhs)
     }
 
     pub fn div_assign(&self, rhs: &Tensor<B, T>) -> Result<()> {
@@ -1926,7 +1946,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     ) -> Result<()> {
         let one = Tensor::from_scalar(T::from_f64(1.0), gy.device);
         let two = Tensor::from_scalar(T::from_f64(2.0), gy.device);
-        let gx = (gy * (one / two * x.sqrt())?)?;
+        let gx = (gy * (one / (two * x.sqrt())?)?)?;
         grads.add(x, gx)?;
         Ok(())
     }
@@ -1997,7 +2017,7 @@ macro_rules! ten {
 }
 
 macro_rules! define_op_arg2 {
-    ($op_name:ident, $fn_name:ident, $impl_fn_name:ident) => {
+    ($op_name:ident, $fn_name:ident, $impl_fn_name:ident, $scalar_impl_fn_name:ident) => {
         impl<B: Backend, T: Num> std::ops::$op_name<Tensor<B, T>> for Tensor<B, T> {
             type Output = Result<Tensor<B, T>>;
 
@@ -2045,13 +2065,29 @@ macro_rules! define_op_arg2 {
                 self.$impl_fn_name(&rhs)
             }
         }
+
+        impl<B: Backend, T: Num> std::ops::$op_name<T> for Tensor<B, T> {
+            type Output = Result<Tensor<B, T>>;
+
+            fn $fn_name(self, rhs: T) -> Result<Tensor<B, T>> {
+                self.$scalar_impl_fn_name(rhs)
+            }
+        }
+
+        impl<B: Backend, T: Num> std::ops::$op_name<T> for &Tensor<B, T> {
+            type Output = Result<Tensor<B, T>>;
+
+            fn $fn_name(self, rhs: T) -> Result<Tensor<B, T>> {
+                self.$scalar_impl_fn_name(rhs)
+            }
+        }
     };
 }
 
-define_op_arg2!(Add, add, add_impl);
-define_op_arg2!(Sub, sub, sub_impl);
-define_op_arg2!(Mul, mul, mul_impl);
-define_op_arg2!(Div, div, div_impl);
+define_op_arg2!(Add, add, add_impl, add_scalar_impl);
+define_op_arg2!(Sub, sub, sub_impl, sub_scalar_impl);
+define_op_arg2!(Mul, mul, mul_impl, mul_scalar_impl);
+define_op_arg2!(Div, div, div_impl, div_scalar_impl);
 
 impl<B: Backend, T: Float> ops::Neg for Tensor<B, T> {
     type Output = Tensor<B, T>;

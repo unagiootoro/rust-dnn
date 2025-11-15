@@ -561,6 +561,31 @@ define_test!(
     test_exp_backward_cuda
 );
 
+fn test_sqrt<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![4.0].to_device(device)?;
+    let y = x.sqrt();
+    assert_tensor(&y, &ten![2.0]);
+    Ok(())
+}
+
+define_test!(test_sqrt, test_sqrt_cpu, test_sqrt_cuda);
+
+fn test_sqrt_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![4.0].to_device(device)?.requires_grad();
+    let y = (x.sqrt() * ten![2.0].to_device(device)?)?;
+    assert_tensor(&y, &ten![4.0]);
+    let grads = y.backward()?;
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![0.5]);
+    Ok(())
+}
+
+define_test!(
+    test_sqrt_backward,
+    test_sqrt_backward_cpu,
+    test_sqrt_backward_cuda
+);
+
 fn test_ln<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![4.0].to_device(device)?;
     let y = x.ln();

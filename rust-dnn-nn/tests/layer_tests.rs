@@ -18,7 +18,11 @@ fn test_linear_forward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_linear_forward, test_linear_forward_cpu);
+define_test!(
+    test_linear_forward,
+    test_linear_forward_cpu,
+    test_linear_forward_cuda
+);
 
 fn test_linear_no_bias_forward<B: Backend>(device: Device<B>) -> Result<()> {
     let x: rust_dnn_core::tensor::Tensor<B, f64> = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
@@ -33,7 +37,11 @@ fn test_linear_no_bias_forward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_linear_no_bias_forward, test_linear_no_bias_forward_cpu);
+define_test!(
+    test_linear_no_bias_forward,
+    test_linear_no_bias_forward_cpu,
+    test_linear_no_bias_forward_cuda
+);
 
 fn test_linear_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
@@ -56,7 +64,11 @@ fn test_linear_backward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_linear_backward, test_linear_backward_cpu);
+define_test!(
+    test_linear_backward,
+    test_linear_backward_cpu,
+    test_linear_backward_cuda
+);
 
 fn test_linear_no_bias_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
@@ -78,5 +90,6 @@ fn test_linear_no_bias_backward<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(
     test_linear_no_bias_backward,
-    test_linear_no_bias_backward_cpu
+    test_linear_no_bias_backward_cpu,
+    test_linear_no_bias_backward_cuda
 );

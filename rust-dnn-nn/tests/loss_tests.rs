@@ -19,7 +19,11 @@ fn test_mean_squared_error<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_mean_squared_error, test_mean_squared_error_cpu);
+define_test!(
+    test_mean_squared_error,
+    test_mean_squared_error_cpu,
+    test_mean_squared_error_cuda
+);
 
 fn test_mean_squared_error_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?.requires_grad();
@@ -34,7 +38,8 @@ fn test_mean_squared_error_backward<B: Backend>(device: Device<B>) -> Result<()>
 
 define_test!(
     test_mean_squared_error_backward,
-    test_mean_squared_error_backward_cpu
+    test_mean_squared_error_backward_cpu,
+    test_mean_squared_error_backward_cuda
 );
 
 fn test_cross_entropy<B: Backend>(device: Device<B>) -> Result<()> {
@@ -45,7 +50,11 @@ fn test_cross_entropy<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_cross_entropy, test_cross_entropy_cpu);
+define_test!(
+    test_cross_entropy,
+    test_cross_entropy_cpu,
+    test_cross_entropy_cuda
+);
 
 fn test_cross_entropy_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0]].to_device(device)?.requires_grad();
@@ -58,4 +67,8 @@ fn test_cross_entropy_backward<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_cross_entropy_backward, test_cross_entropy_backward_cpu);
+define_test!(
+    test_cross_entropy_backward,
+    test_cross_entropy_backward_cpu,
+    test_cross_entropy_backward_cuda
+);
