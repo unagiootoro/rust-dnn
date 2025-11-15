@@ -1,8 +1,8 @@
 mod test_utils;
 
 use crate::test_utils::assert_tensor;
-use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten};
-use rust_dnn_nn::layer::Linear;
+use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor::Tensor};
+use rust_dnn_nn::layer::{BatchNorm1d, Linear};
 
 fn test_linear_forward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
@@ -92,4 +92,35 @@ define_test!(
     test_linear_no_bias_backward,
     test_linear_no_bias_backward_cpu,
     test_linear_no_bias_backward_cuda
+);
+
+fn test_batch_norm1d<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::from_vec(
+        vec![1.0, 5.0, 3.0, 2.0, 1.0, 6.0, 4.0, 2.0, 1.0, 3.0, 7.0, 8.0],
+        vec![4, 3],
+        device,
+    )?
+    .requires_grad();
+    let gamma = Tensor::from_vec(vec![1.0, 1.5, 2.0], vec![3], device)?.requires_grad();
+    let beta = Tensor::from_vec(vec![0.0, 0.5, -1.0], vec![3], device)?.requires_grad();
+    let mut batch_norm1d = BatchNorm1d::new(3, 0.9, 1e-7, device);
+    batch_norm1d.gamma().copy(&gamma)?;
+    batch_norm1d.beta().copy(&beta)?;
+    let y = batch_norm1d.forward(&x, true)?;
+    assert_tensor(
+        &y,
+        &ten![
+            [-1.3416, 1.2862, -2.1142],
+            [-0.4472, -1.2297, 0.1142],
+            [1.3416, -0.6007, -3.5997],
+            [0.4472, 2.5442, 1.5997,]
+        ],
+    );
+    Ok(())
+}
+
+define_test!(
+    test_batch_norm1d,
+    test_batch_norm1d_cpu,
+    test_batch_norm1d_cuda
 );
