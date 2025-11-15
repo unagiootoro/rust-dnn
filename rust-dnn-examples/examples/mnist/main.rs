@@ -8,7 +8,7 @@ use rust_dnn_datasets::mnist::MNISTLoader;
 use rust_dnn_examples::argv::get_argv;
 use rust_dnn_nn::{
     batch_iter::batch_iter,
-    layer::{Layer, Linear},
+    layer::{BatchNorm1d, Layer, Linear},
     loss::cross_entropy,
     optimizer::{Adam, Optimizer, SGD},
 };
@@ -17,6 +17,8 @@ struct Model<B: Backend, T: Float> {
     fc0: Linear<B, T>,
     fc1: Linear<B, T>,
     fc2: Linear<B, T>,
+    bn0: BatchNorm1d<B, T>,
+    bn1: BatchNorm1d<B, T>,
 }
 
 impl<B: Backend, T: Float> Model<B, T> {
@@ -24,7 +26,15 @@ impl<B: Backend, T: Float> Model<B, T> {
         let fc0 = Linear::new(784, 256, true, device)?;
         let fc1 = Linear::new(256, 256, true, device)?;
         let fc2 = Linear::new(256, 10, true, device)?;
-        Ok(Self { fc0, fc1, fc2 })
+        let bn0 = BatchNorm1d::new(256, T::from_f64(0.9), T::from_f64(1e-4), device);
+        let bn1 = BatchNorm1d::new(256, T::from_f64(0.9), T::from_f64(1e-4), device);
+        Ok(Self {
+            fc0,
+            fc1,
+            fc2,
+            bn0,
+            bn1,
+        })
     }
 }
 
@@ -34,15 +44,19 @@ impl<B: Backend, T: Float> Layer<B, T> for Model<B, T> {
         map.insert("fc0".to_string(), &self.fc0);
         map.insert("fc1".to_string(), &self.fc1);
         map.insert("fc2".to_string(), &self.fc2);
+        map.insert("bn0".to_string(), &self.bn0);
+        map.insert("bn1".to_string(), &self.bn1);
         map
     }
 }
 
 impl<B: Backend, T: Float> Model<B, T> {
-    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+    pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Result<Tensor<B, T>> {
         let x = self.fc0.forward(x)?;
+        let x = self.bn0.forward(&x, is_train)?;
         let x = x.relu();
         let x = self.fc1.forward(&x)?;
+        let x = self.bn1.forward(&x, is_train)?;
         let x = x.relu();
         let x = self.fc2.forward(&x)?;
         Ok(x)
@@ -58,7 +72,7 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
     let train_dataset = MNISTLoader::new("../datasets").load_train()?;
     let test_dataset = MNISTLoader::new("../datasets").load_test()?;
 
-    let model = Model::<_, f32>::new(device)?;
+    let mut model = Model::<_, f32>::new(device)?;
     let mut optimizer = Adam::default();
 
     let batch_size = 100;
@@ -73,7 +87,7 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
                 let images = images.to_device(device)?.to_dtype::<f32>()?;
                 let images = (images / ten![255.0].to_device(device)?)?;
                 let images = images.reshape(vec![100, 784])?;
-                let y = model.forward(&images)?;
+                let y = model.forward(&images, true)?;
                 let labels = labels.to_device(device)?;
                 let loss = cross_entropy(&y, &labels)?;
                 let grads = loss.backward()?;
@@ -89,7 +103,7 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
             let images = images.to_device(device)?.to_dtype::<f32>()?;
             let images = (images / ten![255.0].to_device(device)?)?;
             let images = images.reshape(vec![100, 784])?;
-            let y = model.forward(&images)?;
+            let y = model.forward(&images, false)?;
             let labels = labels.to_device(device)?;
             correct += accuracy(&y, &labels)?;
         }

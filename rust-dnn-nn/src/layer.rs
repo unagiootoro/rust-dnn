@@ -162,14 +162,14 @@ impl<B: Backend, T: Float> BatchNorm1d<B, T> {
     pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Result<Tensor<B, T>> {
         let y = if is_train {
             let (y, mean, var) = batch_norm(x, &self.gamma, &self.beta, 0, self.eps)?;
-
             let momentum = Tensor::from_scalar(self.momentum, x.device());
             let one = Tensor::from_scalar(T::one(), x.device());
-            let running_mean = ((&momentum * &self.running_mean)? + ((&one - &momentum)? * mean)?)?;
-            let running_var = ((&momentum * &self.running_var)? + ((&one - &momentum)? * var)?)?;
-
-            self.running_mean = running_mean;
-            self.running_var = running_var;
+            let running_mean =
+                ((&momentum * &self.running_mean)? + ((&one - &momentum)? * mean.detach())?)?;
+            let running_var =
+                ((&momentum * &self.running_var)? + ((&one - &momentum)? * var.detach())?)?;
+            self.running_mean.copy(&running_mean).unwrap();
+            self.running_var.copy(&running_var).unwrap();
             y
         } else {
             batch_norm_predict(
@@ -210,9 +210,9 @@ pub fn batch_norm<B: Backend, T: Float>(
     axis: usize,
     eps: T,
 ) -> Result<(Tensor<B, T>, Tensor<B, T>, Tensor<B, T>)> {
-    let mean = x.mean_axis(axis, true)?;
+    let mean = x.mean_axis(axis, false)?;
     let xc = (x - &mean)?;
-    let var = xc.pow_scalar(T::from_f64(2.0))?.mean_axis(axis, true)?;
+    let var = xc.pow_scalar(T::from_f64(2.0))?.mean_axis(axis, false)?;
     let std = (&var + eps)?.sqrt();
     let xn = (xc / std)?;
     let y = (gamma * xn + beta)?;
