@@ -1447,6 +1447,308 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         let eps = Tensor::from_scalar(T::from_f64(1e-7), self.device);
         Ok((self.softmax(axis)? + eps)?.ln())
     }
+
+    pub fn im2col(
+        &self,
+        out_h: usize,
+        out_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> Result<Self> {
+        let bsize = self.shape()[0];
+        let ch = self.shape()[1];
+        let img_h = self.shape()[2];
+        let img_w = self.shape()[3];
+
+        let input = self.contiguous();
+        let col = Tensor::zeros(vec![bsize, ch * fil_h * fil_w, out_h * out_w], self.device);
+        B::im2col(
+            &*input.storage.borrow(),
+            &mut *col.storage.borrow_mut(),
+            ch,
+            img_h,
+            img_w,
+            out_h,
+            out_w,
+            fil_h,
+            fil_w,
+            stride_h,
+            stride_w,
+        )?;
+
+        let col = col.with_op(Some(Op::Im2col {
+            x: self.clone(),
+            out_h,
+            out_w,
+            fil_h,
+            fil_w,
+            stride_h,
+            stride_w,
+        }));
+
+        Ok(col)
+    }
+
+    pub fn col2im(
+        &self,
+        img_shape: Vec<usize>,
+        in_h: usize,
+        in_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> Result<Self> {
+        let bsize = img_shape[0];
+        let ch = img_shape[1];
+        let img_h = img_shape[2];
+        let img_w = img_shape[3];
+
+        let input = self.contiguous();
+        let img = Tensor::zeros(img_shape.clone(), self.device);
+        B::col2im(
+            &*input.storage.borrow(),
+            &mut *img.storage.borrow_mut(),
+            &img_shape,
+            bsize,
+            ch,
+            img_h,
+            img_w,
+            in_h,
+            in_w,
+            fil_h,
+            fil_w,
+            stride_h,
+            stride_w,
+        )?;
+
+        let img = img.with_op(Some(Op::Col2im {
+            x: self.clone(),
+            in_h,
+            in_w,
+            fil_h,
+            fil_w,
+            stride_h,
+            stride_w,
+        }));
+
+        Ok(img)
+    }
+
+    pub fn zero_padding2d(&self, pad_h: usize, pad_w: usize) -> Result<Self> {
+        let bsize = self.shape()[0];
+        let ch = self.shape()[1];
+        let img_h = self.shape()[2];
+        let img_w = self.shape()[3];
+        let output = Tensor::zeros(vec![bsize, ch, img_h + pad_h, img_w + pad_w], self.device);
+        let i_begin = pad_h / 2;
+        let i_end = i_begin + img_h;
+        let j_begin = pad_w / 2;
+        let j_end = j_begin + img_w;
+        output.set_item(
+            &vec![(0, bsize), (0, ch), (i_begin, i_end), (j_begin, j_end)],
+            &self,
+        )?;
+        let output = output.with_op(Some(Op::ZeroPadding2d(self.clone(), pad_h, pad_w)));
+        Ok(output)
+    }
+
+    pub fn cropping2d(&self, pad_h: usize, pad_w: usize) -> Result<Self> {
+        let bsize = self.shape()[0];
+        let ch = self.shape()[1];
+        let img_h = self.shape()[2];
+        let img_w = self.shape()[3];
+        let i_begin = pad_h / 2;
+        let i_end = img_h - (pad_h as f64 / 2.0).round() as usize;
+        let j_begin = pad_w / 2;
+        let j_end = img_w - (pad_w as f64 / 2.0).round() as usize;
+        let output = self.get_item(vec![
+            (0, bsize),
+            (0, ch),
+            (i_begin, i_end),
+            (j_begin, j_end),
+        ])?;
+        Ok(output)
+    }
+
+    pub fn conv2d(
+        &self,
+        w: &Self,
+        b: Option<&Self>,
+        in_filters: usize,
+        out_filters: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+        padding: Option<(usize, usize)>,
+        auto_padding: bool,
+    ) -> Result<Self> {
+        let prev_h = self.shape()[2];
+        let prev_w = self.shape()[3];
+
+        let (pad_h, pad_w) = if let Some(padding) = &padding {
+            (padding.0, padding.1)
+        } else {
+            if auto_padding {
+                Self::compute_conv2d_padding_size(prev_h, prev_w, fil_h, fil_w, stride_h, stride_w)
+            } else {
+                (0, 0)
+            }
+        };
+
+        let x = if pad_h > 0 || pad_w > 0 {
+            self.zero_padding2d(pad_h, pad_w)?
+        } else {
+            self.clone()
+        };
+
+        let (out_h, out_w) = Self::compute_conv2d_out_size(
+            prev_h, prev_w, fil_h, fil_w, pad_h, pad_w, stride_h, stride_w,
+        );
+
+        let col = x.im2col(out_h, out_w, fil_h, fil_w, stride_h, stride_w)?;
+        let col = col.permuted_axes(&[0, 2, 1])?;
+        let col = col.reshape(vec![col.shape()[0] * col.shape()[1], col.shape()[2]])?;
+
+        let w = w.reshape(vec![
+            w.shape()[0],
+            w.shape()[1] * w.shape()[2] * w.shape()[3],
+        ])?;
+        let mut y = col.matmul(&w.reversed_axes()?)?;
+        if let Some(b) = b {
+            y = (y + b)?;
+        }
+
+        let target_shape = vec![x.shape()[0], y.shape()[1], out_h, out_w];
+        y.reshape(vec![x.shape()[0], out_h * out_w, y.shape()[1]])?
+            .permuted_axes(&[0, 2, 1])?
+            .reshape(target_shape)
+    }
+
+    fn compute_conv2d_out_size(
+        prev_h: usize,
+        prev_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        pad_h: usize,
+        pad_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> (usize, usize) {
+        let out_h = (prev_h + pad_h - fil_h) / stride_h + 1;
+        let out_w = (prev_w + pad_w - fil_w) / stride_w + 1;
+        (out_h, out_w)
+    }
+
+    fn compute_conv2d_padding_size(
+        prev_h: usize,
+        prev_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> (usize, usize) {
+        let out_h = prev_h / stride_h;
+        let out_w = prev_w / stride_w;
+        let pad_h = out_h * stride_h - prev_h + fil_h - stride_h;
+        let pad_w = out_w * stride_w - prev_w + fil_w - stride_w;
+        (pad_h, pad_w)
+    }
+
+    pub fn deconv2d(
+        &self,
+        w: &Self,
+        b: Option<&Self>,
+        in_filters: usize,
+        out_filters: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+        padding: Option<(usize, usize)>,
+        auto_padding: bool,
+    ) -> Result<Self> {
+        let bsize = self.shape()[0];
+        let prev_h = self.shape()[2];
+        let prev_w = self.shape()[3];
+
+        let (pad_h, pad_w) = if let Some(padding) = &padding {
+            (padding.0, padding.1)
+        } else {
+            if auto_padding {
+                Self::compute_deconv2d_padding_size(
+                    prev_h, prev_w, fil_h, fil_w, stride_h, stride_w,
+                )
+            } else {
+                (0, 0)
+            }
+        };
+
+        let (out_h, out_w) = Self::compute_deconv2d_out_size(
+            prev_h, prev_w, fil_h, fil_w, pad_h, pad_w, stride_h, stride_w,
+        );
+
+        let target_shape = vec![self.shape()[0], prev_h, prev_w, self.shape()[1]];
+        let x = self
+            .reshape(vec![self.shape()[0], self.shape()[1], prev_h * prev_w])?
+            .permuted_axes(&[0, 2, 1])?
+            .reshape(target_shape)?;
+
+        let x = x.reshape(vec![bsize * prev_h * prev_w, in_filters])?;
+        let w = w.reshape(vec![
+            w.shape()[0],
+            w.shape()[1] * w.shape()[2] * w.shape()[3],
+        ])?;
+        let col = x.matmul(&w)?;
+        let col = col.reshape(vec![bsize, prev_h * prev_w, out_filters * fil_h * fil_w])?;
+        let col = col.permuted_axes(&[0, 2, 1])?;
+        let img_shape = vec![bsize, out_filters, out_h + pad_h, out_w + pad_w];
+
+        let mut y = col.col2im(img_shape, prev_h, prev_w, fil_h, fil_w, stride_h, stride_w)?;
+        if let Some(b) = b {
+            y = (y + b.reshape(vec![1, b.shape()[0], 1, 1])?)?;
+        }
+
+        let output = if pad_h > 0 || pad_w > 0 {
+            y.cropping2d(pad_h, pad_w)?
+        } else {
+            y
+        };
+        Ok(output)
+    }
+
+    fn compute_deconv2d_out_size(
+        prev_h: usize,
+        prev_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        pad_h: usize,
+        pad_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> (usize, usize) {
+        let out_h = (prev_h - 1) * stride_h + fil_h - pad_h;
+        let out_w = (prev_w - 1) * stride_w + fil_w - pad_w;
+        (out_h, out_w)
+    }
+
+    fn compute_deconv2d_padding_size(
+        prev_h: usize,
+        prev_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> (usize, usize) {
+        let out_h = prev_h * stride_h;
+        let out_w = prev_w * stride_w;
+        let pad_h = (prev_h - 1) * stride_h + fil_h - out_h;
+        let pad_w = (prev_w - 1) * stride_w + fil_w - out_w;
+        (pad_h, pad_w)
+    }
 }
 
 impl<B: Backend, T: Float> Tensor<B, T> {
@@ -1547,6 +1849,15 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                     Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
                 }
                 Op::IndexSelect(x, _, _) => {
+                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
+                }
+                Op::Im2col { x, .. } => {
+                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
+                }
+                Op::Col2im { x, .. } => {
+                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
+                }
+                Op::ZeroPadding2d(x, _, _) => {
                     Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
                 }
             }
@@ -1660,6 +1971,35 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 }
                 Op::IndexSelect(x, index, axis) => {
                     Self::index_select_backward(&mut grads, &gy, &x, &index, axis)?;
+                }
+                Op::Im2col {
+                    x,
+                    out_h,
+                    out_w,
+                    fil_h,
+                    fil_w,
+                    stride_h,
+                    stride_w,
+                } => {
+                    Self::im2col_backward(
+                        &mut grads, &gy, &x, out_h, out_w, fil_h, fil_w, stride_h, stride_w,
+                    )?;
+                }
+                Op::Col2im {
+                    x,
+                    in_h,
+                    in_w,
+                    fil_h,
+                    fil_w,
+                    stride_h,
+                    stride_w,
+                } => {
+                    Self::col2im_backward(
+                        &mut grads, &gy, &x, in_h, in_w, fil_h, fil_w, stride_h, stride_w,
+                    )?;
+                }
+                Op::ZeroPadding2d(x, pad_h, pad_w) => {
+                    Self::zero_padding2d_backward(&mut grads, &gy, &x, pad_h, pad_w)?;
                 }
             }
             grads.remove(&node);
@@ -1989,6 +2329,58 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     ) -> Result<()> {
         let gx = Tensor::zeros(x.shape().to_vec(), gy.device);
         gx.index_add(axis, index, gy)?;
+        grads.add(x, gx)?;
+        Ok(())
+    }
+
+    fn im2col_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+        out_h: usize,
+        out_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> Result<()> {
+        let gx = gy.col2im(
+            x.shape().to_vec(),
+            out_h,
+            out_w,
+            fil_h,
+            fil_w,
+            stride_h,
+            stride_w,
+        )?;
+        grads.add(x, gx)?;
+        Ok(())
+    }
+
+    fn col2im_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+        in_h: usize,
+        in_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> Result<()> {
+        let gx = gy.im2col(in_h, in_w, fil_h, fil_w, stride_h, stride_w)?;
+        grads.add(x, gx)?;
+        Ok(())
+    }
+
+    fn zero_padding2d_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+        pad_h: usize,
+        pad_w: usize,
+    ) -> Result<()> {
+        let gx = gy.cropping2d(pad_h, pad_w)?;
         grads.add(x, gx)?;
         Ok(())
     }

@@ -537,6 +537,40 @@ impl Backend for CudaBackend {
             cuda_argmax_axis,
         )
     }
+
+    fn im2col<T: Float>(
+        img_storage: &Storage<T>,
+        col_storage: &mut Storage<T>,
+        ch: usize,
+        img_h: usize,
+        img_w: usize,
+        out_h: usize,
+        out_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn col2im<T: Float>(
+        col_storage: &Storage<T>,
+        img_storage: &mut Storage<T>,
+        img_shape: &Vec<usize>,
+        bsize: usize,
+        ch: usize,
+        img_h: usize,
+        img_w: usize,
+        out_h: usize,
+        out_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> Result<()> {
+        todo!()
+    }
 }
 
 #[macro_export]

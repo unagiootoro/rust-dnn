@@ -7,7 +7,7 @@ edition = "2024"
 libc = { version = "0.2" }
 
 [features]
-default = ["cuda"]
+default = []
 cuda = ["rust-dnn-cuda-kernel"] 
 
 [dependencies.rust-dnn-cuda-kernel]

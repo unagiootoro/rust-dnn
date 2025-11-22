@@ -26,4 +26,23 @@ pub enum Op<B: Backend, T: Num> {
     Ln(Tensor<B, T>),
     Gather(Tensor<B, T>, Tensor<B, u32>, usize),
     IndexSelect(Tensor<B, T>, Tensor<B, u32>, usize),
+    Im2col {
+        x: Tensor<B, T>,
+        out_h: usize,
+        out_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    },
+    Col2im {
+        x: Tensor<B, T>,
+        in_h: usize,
+        in_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    },
+    ZeroPadding2d(Tensor<B, T>, usize, usize),
 }

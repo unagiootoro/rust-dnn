@@ -437,6 +437,98 @@ impl Backend for CpuBackend {
             |a, b| *a += b,
         )
     }
+
+    fn im2col<T: Float>(
+        img_storage: &Storage<T>,
+        col_storage: &mut Storage<T>,
+        ch: usize,
+        img_h: usize,
+        img_w: usize,
+        out_h: usize,
+        out_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> Result<()> {
+        {
+            let img_data = img_storage.get_cpu_storage()?;
+            let col_data = col_storage.get_cpu_storage_mut()?;
+            let col_len = col_data.len();
+            col_data
+                .iter_mut()
+                .enumerate()
+                .for_each(|(col_idx, col_val)| {
+                    let n = col_idx / (ch * fil_h * fil_w * out_h * out_w);
+                    let m = col_idx / (fil_h * fil_w * out_h * out_w) % ch;
+                    let k = col_idx / (fil_w * out_h * out_w) % fil_h;
+                    let l = col_idx / (out_h * out_w) % fil_w;
+                    let i2 = col_idx / out_w % out_h;
+                    let j2 = col_idx % out_w;
+
+                    let i = i2 * stride_h;
+                    let j = j2 * stride_w;
+
+                    let mut img_idx = n * (ch * img_h * img_w);
+                    img_idx += m * (img_h * img_w);
+                    img_idx += (i + k) * img_w;
+                    img_idx += j + l;
+
+                    if col_idx < col_len && img_idx < img_data.len() {
+                        *col_val = img_data[img_idx];
+                    }
+                });
+        }
+
+        Ok(())
+    }
+
+    fn col2im<T: Float>(
+        col_storage: &Storage<T>,
+        img_storage: &mut Storage<T>,
+        img_shape: &Vec<usize>,
+        bsize: usize,
+        ch: usize,
+        img_h: usize,
+        img_w: usize,
+        out_h: usize,
+        out_w: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+    ) -> Result<()> {
+        {
+            let img_data = img_storage.get_cpu_storage_mut()?;
+            let col_data = col_storage.get_cpu_storage()?;
+
+            let len = bsize * ch * fil_h * fil_w * out_h * out_w;
+
+            // 単一バッファに直接 accumulate
+            for col_idx in 0..len {
+                let n = col_idx / (ch * fil_h * fil_w * out_h * out_w);
+                let m = col_idx / (fil_h * fil_w * out_h * out_w) % ch;
+                let k = col_idx / (fil_w * out_h * out_w) % fil_h;
+                let l = col_idx / (out_h * out_w) % fil_w;
+                let i2 = col_idx / out_w % out_h;
+                let j2 = col_idx % out_w;
+
+                let i = i2 * stride_h;
+                let j = j2 * stride_w;
+
+                let mut img_idx = n * (ch * img_h * img_w);
+                img_idx += m * (img_h * img_w);
+                img_idx += (i + k) * img_w;
+                img_idx += j + l;
+
+                if img_idx < img_data.len() && col_idx < col_data.len() {
+                    img_data[img_idx] += col_data[col_idx];
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 fn reduce<T: Num, F>(input_storage: &Storage<T>, input_layout: &Layout, f: F) -> Result<Storage<T>>
