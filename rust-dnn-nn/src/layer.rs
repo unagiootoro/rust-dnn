@@ -4,6 +4,7 @@ use rust_dnn_core::backend::Backend;
 use rust_dnn_core::device::Device;
 use rust_dnn_core::error::Result;
 use rust_dnn_core::float::Float;
+use rust_dnn_core::num::Num;
 use rust_dnn_core::tensor::Tensor;
 
 pub trait Layer<B: Backend, T: Float> {
@@ -117,6 +118,91 @@ pub fn linear<B: Backend, T: Float>(
         x.matmul(&weight.reversed_axes()?) + bias
     } else {
         x.matmul(&weight.reversed_axes()?)
+    }
+}
+
+pub struct Conv2D<B: Backend, T: Float> {
+    in_filters: usize,
+    out_filters: usize,
+    fil_h: usize,
+    fil_w: usize,
+    stride_h: usize,
+    stride_w: usize,
+    padding: Option<(usize, usize)>,
+    auto_padding: bool,
+    weight: Tensor<B, T>,
+    bias: Option<Tensor<B, T>>,
+}
+
+impl<B: Backend, T: Float> Conv2D<B, T> {
+    pub fn new(
+        in_filters: usize,
+        out_filters: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+        padding: Option<(usize, usize)>,
+        auto_padding: bool,
+        use_bias: bool,
+        device: Device<B>,
+    ) -> Self {
+        let scale = (1.0 / (fil_h * fil_w * in_filters) as f64).sqrt();
+        let weight = (Tensor::rand_norm(&[out_filters, in_filters, fil_h, fil_w], None, device)
+            * T::from_f64(scale))
+        .unwrap();
+        let weight = weight.requires_grad();
+        let bias = if use_bias {
+            Some(Tensor::zeros(vec![out_filters], device).requires_grad())
+        } else {
+            None
+        };
+        Self {
+            in_filters,
+            out_filters,
+            fil_h,
+            fil_w,
+            stride_h,
+            stride_w,
+            padding,
+            auto_padding,
+            weight,
+            bias,
+        }
+    }
+
+    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+        x.conv2d(
+            &self.weight,
+            self.bias.as_ref(),
+            self.in_filters,
+            self.out_filters,
+            self.fil_h,
+            self.fil_w,
+            self.stride_h,
+            self.stride_w,
+            self.padding,
+            self.auto_padding,
+        )
+    }
+
+    pub fn weight(&self) -> &Tensor<B, T> {
+        &self.weight
+    }
+
+    pub fn bias(&self) -> Option<&Tensor<B, T>> {
+        self.bias.as_ref()
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for Conv2D<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::<String, Tensor<B, T>>::new();
+        map.insert("weight".to_string(), self.weight.clone());
+        if let Some(bias) = self.bias.as_ref() {
+            map.insert("bias".to_string(), bias.clone());
+        };
+        map
     }
 }
 

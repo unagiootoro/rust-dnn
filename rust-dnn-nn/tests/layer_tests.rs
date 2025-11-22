@@ -2,7 +2,7 @@ mod test_utils;
 
 use crate::test_utils::{arange_with_shape, assert_tensor, assert_tensor_with_eps};
 use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor::Tensor};
-use rust_dnn_nn::layer::{BatchNorm1d, BatchNorm2d, Linear};
+use rust_dnn_nn::layer::{BatchNorm1d, BatchNorm2d, Conv2D, Linear};
 
 fn test_linear_forward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
@@ -93,6 +93,50 @@ define_test!(
     test_linear_no_bias_backward_cpu,
     test_linear_no_bias_backward_cuda
 );
+
+fn test_conv2d<B: Backend>(device: Device<B>) -> Result<()> {
+    let batch_size = 2;
+    let in_filters = 3;
+    let out_filters = 2;
+    let img_h = 4;
+    let img_w = 5;
+    let fil_h = 2;
+    let fil_w = 3;
+    let x = arange_with_shape::<_, f64>(&[batch_size, in_filters, img_h, img_w], device);
+    let w = arange_with_shape(&[out_filters, in_filters, fil_h, fil_w], device);
+    let b = arange_with_shape(&[out_filters], device);
+
+    let conv2d = Conv2D::new(
+        in_filters,
+        out_filters,
+        fil_h,
+        fil_w,
+        1,
+        1,
+        None,
+        false,
+        true,
+        device,
+    );
+
+    conv2d.weight().copy(&w)?;
+    conv2d.bias().unwrap().copy(&b)?;
+
+    let y = conv2d.forward(&x)?;
+    assert_eq!(y.shape(), &vec![batch_size, out_filters, 3, 3]);
+    assert_eq!(
+        y.to_vec(),
+        vec![
+            5115., 5268., 5421., 5880., 6033., 6186., 6645., 6798., 6951., 12730., 13207., 13684.,
+            15115., 15592., 16069., 17500., 17977., 18454., 14295., 14448., 14601., 15060., 15213.,
+            15366., 15825., 15978., 16131., 41350., 41827., 42304., 43735., 44212., 44689., 46120.,
+            46597., 47074.,
+        ]
+    );
+    Ok(())
+}
+
+define_test!(test_conv2d, test_conv2d_cpu, test_conv2d_cuda);
 
 fn test_batch_norm1d<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::from_vec(
