@@ -1135,11 +1135,15 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     fn matmul2d(&self, rhs: &Self) -> Result<Self> {
+        let lhs_rows = self.shape()[0];
+        let lhs_cols = self.shape()[1];
+        let rhs_rows = rhs.shape()[0];
+        let rhs_cols = rhs.shape()[1];
+        assert_eq!(lhs_cols, rhs_rows, "Incompatible matrix shapes");
+
         let lhs_storage = &*self.storage.borrow();
         let rhs_storage = &*rhs.storage.borrow();
         let output_storage = B::matmul(lhs_storage, &rhs_storage, &self.layout, &rhs.layout)?;
-        let lhs_rows = self.shape()[0];
-        let rhs_cols = rhs.shape()[1];
         let output_shape = vec![lhs_rows, rhs_cols];
         let output_stride = Self::compute_stride(&output_shape);
         let output_layout = Layout::new(output_shape, output_stride, 0);
@@ -1309,13 +1313,19 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn max_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, T>> {
-        let output = self.op_reduce_axis_impl(axis, keepdims, None, B::max_axis)?;
+        let output = self.op_reduce_axis_impl(axis, true, None, B::max_axis)?;
         let op = if self.is_requires_grad() {
             Some(Op::MaxAxis(self.clone(), output.detach()))
         } else {
             None
         };
-        Ok(output.with_op(op))
+        let output = output.with_op(op);
+        let output = if keepdims {
+            output
+        } else {
+            output.squeeze_axes(&[axis]).unwrap()
+        };
+        Ok(output)
     }
 
     pub fn argmax_axis(&self, axis: usize, keepdims: bool) -> Result<Tensor<B, u32>> {
@@ -1766,6 +1776,48 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         let pad_w = (prev_w - 1) * stride_w + fil_w - out_w;
         (pad_h, pad_w)
     }
+
+    pub fn max_pool2d(
+        &self,
+        pool_h: usize,
+        pool_w: usize,
+        strides: Option<(usize, usize)>,
+        padding: Option<(usize, usize)>,
+    ) -> Result<Self> {
+        let x = if let Some((pad_h, pad_w)) = padding {
+            self.zero_padding2d(pad_h, pad_w)?
+        } else {
+            self.clone()
+        };
+        let (stride_h, stride_w) = if let Some(strides) = strides {
+            strides
+        } else {
+            (pool_h, pool_w)
+        };
+
+        let input_shape = x.shape();
+        let batch_size = input_shape[0];
+        let ch = input_shape[1];
+        let prev_h = input_shape[2];
+        let prev_w = input_shape[3];
+
+        let (pad_h, pad_w) = if let Some(padding) = padding {
+            (padding.0, padding.1)
+        } else {
+            (0, 0)
+        };
+
+        let (out_h, out_w) = Self::compute_conv2d_out_size(
+            prev_h, prev_w, pool_h, pool_w, pad_h, pad_w, stride_h, stride_w,
+        );
+
+        let x = x.im2col(out_h, out_w, pool_h, pool_w, stride_h, stride_w)?;
+        let x = x.reshape(vec![batch_size, ch, pool_h * pool_w, out_h * out_w])?;
+        let output = x
+            .max_axis(2, false)?
+            .reshape(vec![batch_size, ch, out_h, out_w])?;
+        Ok(output)
+    }
 }
 
 impl<B: Backend, T: Float> Tensor<B, T> {
@@ -1778,7 +1830,12 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         nodes
     }
 
-    fn visit(node: &Tensor<B, T>, sorted: &mut Vec<Tensor<B, T>>, visiting: &mut HashSet<usize>, visited: &mut HashSet<usize>) {
+    fn visit(
+        node: &Tensor<B, T>,
+        sorted: &mut Vec<Tensor<B, T>>,
+        visiting: &mut HashSet<usize>,
+        visited: &mut HashSet<usize>,
+    ) {
         let Some(op) = node.op.clone() else {
             return;
         };
@@ -1813,9 +1870,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             Op::PermutedAxes(x, _) => {
                 vec![x]
             }
-            Op::Cat(xs, _, _) => {
-                xs
-            }
+            Op::Cat(xs, _, _) => xs,
             Op::GetItem(x, _) => {
                 vec![x]
             }

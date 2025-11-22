@@ -2360,3 +2360,62 @@ define_test!(
     test_deconv2d_backward_cpu,
     test_deconv2d_backward_cuda
 );
+
+fn test_max_pool2d<B: Backend>(device: Device<B>) -> Result<()> {
+    let batch_size = 2;
+    let img_ch = 3;
+    let img_h = 4;
+    let img_w = 5;
+    let fil_h = 2;
+    let fil_w = 3;
+    let x = arange_with_shape::<B, f64>(&[batch_size, img_ch, img_h, img_w], device);
+    let y = x.max_pool2d(fil_h, fil_w, None, None)?;
+    assert_eq!(y.shape(), &vec![batch_size, img_ch, 2, 1]);
+    assert_eq!(
+        y.to_vec(),
+        vec![7., 17., 27., 37., 47., 57., 67., 77., 87., 97., 107., 117.,]
+    );
+    Ok(())
+}
+
+define_test!(test_max_pool2d, test_max_pool2d_cpu, test_max_pool2d_cuda);
+
+fn test_max_pool2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let batch_size = 2;
+    let img_ch = 3;
+    let img_h = 4;
+    let img_w = 5;
+    let fil_h = 2;
+    let fil_w = 3;
+    let x =
+        arange_with_shape::<B, f64>(&[batch_size, img_ch, img_h, img_w], device).requires_grad();
+    let y = x.max_pool2d(fil_h, fil_w, None, None)?;
+    assert_eq!(y.shape(), &vec![batch_size, img_ch, 2, 1]);
+    assert_eq!(
+        y.to_vec(),
+        vec![7., 17., 27., 37., 47., 57., 67., 77., 87., 97., 107., 117.,]
+    );
+
+    let grads = y.backward()?;
+
+    let gx = grads.get(&x).unwrap();
+    assert_eq!(gx.shape(), &vec![batch_size, img_ch, img_h, img_w]);
+    assert_eq!(
+        gx.to_vec(),
+        vec![
+            0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.,
+            0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0.,
+            0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.,
+            0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1.,
+            0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0.,
+            0., 0., 0., 0., 0., 0., 0., 1., 0., 0.
+        ]
+    );
+    Ok(())
+}
+
+define_test!(
+    test_max_pool2d_backward,
+    test_max_pool2d_backward_cpu,
+    test_max_pool2d_backward_cuda
+);

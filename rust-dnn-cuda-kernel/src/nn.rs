@@ -1,11 +1,12 @@
-use std::ffi::c_float;
+use std::ffi::{c_float, c_void};
 
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn cuda_im2col(
-        img: *const c_float,
+        dtype: i32,
+        img: *const c_void,
         img_len: i32,
-        col: *mut c_float,
+        col: *mut c_void,
         col_len: i32,
         bsize: usize,
         ch: usize,
@@ -23,9 +24,10 @@ unsafe extern "C" {
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn cuda_col2im(
-        col: *const c_float,
+        dtype: i32,
+        col: *const c_void,
         col_len: i32,
-        img: *mut c_float,
+        img: *mut c_void,
         img_len: i32,
         bsize: usize,
         ch: usize,

@@ -5,6 +5,7 @@ use rust_dnn_cuda_kernel::clayout::{CLayout, MAX_NDIM, NDimArray};
 use rust_dnn_cuda_kernel::cuda::check_cuda_error;
 use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
 use rust_dnn_cuda_kernel::math::*;
+use rust_dnn_cuda_kernel::nn::{cuda_col2im, cuda_im2col};
 
 use crate::backend::Backend;
 use crate::dtype::DType;
@@ -551,7 +552,28 @@ impl Backend for CudaBackend {
         stride_h: usize,
         stride_w: usize,
     ) -> Result<()> {
-        todo!()
+        let img_data = img_storage.get_cuda_storage()?;
+        let col_data = col_storage.get_cuda_storage()?;
+        unsafe {
+            cuda_im2col(
+                T::dtype() as i32,
+                img_data.ptr(),
+                img_data.len() as i32,
+                col_data.ptr(),
+                col_data.len() as i32,
+                0,
+                ch,
+                img_h,
+                img_w,
+                out_h,
+                out_w,
+                fil_h,
+                fil_w,
+                stride_h,
+                stride_w,
+            );
+        }
+        Ok(())
     }
 
     fn col2im<T: Float>(
@@ -569,7 +591,28 @@ impl Backend for CudaBackend {
         stride_h: usize,
         stride_w: usize,
     ) -> Result<()> {
-        todo!()
+        let col_data = col_storage.get_cuda_storage()?;
+        let img_data = img_storage.get_cuda_storage()?;
+        unsafe {
+            cuda_col2im(
+                T::dtype() as i32,
+                col_data.ptr(),
+                col_data.len() as i32,
+                img_data.ptr(),
+                img_data.len() as i32,
+                bsize,
+                ch,
+                img_h,
+                img_w,
+                out_h,
+                out_w,
+                fil_h,
+                fil_w,
+                stride_h,
+                stride_w,
+            );
+        }
+        Ok(())
     }
 }
 
@@ -1002,7 +1045,7 @@ pub(crate) fn cuda_reduce_axis_func_call<T: Num>(
             output_data.ptr() as *mut T,
             layout_to_clayout(output_layout)?,
             axis,
-            input_layout.len() as i32,
+            output_layout.len() as i32,
         );
         check_cuda_error();
         output_data
