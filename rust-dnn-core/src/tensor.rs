@@ -1281,6 +1281,23 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             / Tensor::from_scalar(T::from_usize(self.shape()[axis]), self.device)
     }
 
+    pub fn mean_axes(&self, axes: &[usize], keepdims: bool) -> Result<Self> {
+        let mut x = self.clone();
+        for axis in axes {
+            x = x.mean_axis(*axis, true)?;
+        }
+        if !keepdims {
+            let mut new_shape = Vec::new();
+            for (i, dim) in x.shape().iter().enumerate() {
+                if !axes.contains(&i) {
+                    new_shape.push(*dim);
+                }
+            }
+            x = x.reshape(new_shape)?;
+        }
+        Ok(x)
+    }
+
     pub fn max(&self) -> Result<Tensor<B, T>> {
         let output = self.op_reduce_impl(None, B::max)?;
         let op = if self.is_requires_grad() {

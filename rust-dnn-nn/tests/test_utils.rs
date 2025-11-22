@@ -1,4 +1,4 @@
-use rust_dnn_core::{backend::Backend, num::Num, tensor::Tensor};
+use rust_dnn_core::{backend::Backend, device::Device, num::Num, tensor::Tensor};
 
 #[macro_export]
 macro_rules! define_test {
@@ -51,4 +51,14 @@ pub fn assert_tensor_with_eps<B1: Backend, B2: Backend, T: Num>(
             );
         }
     }
+}
+
+pub fn arange_with_shape<B: Backend, T: Num>(shape: &[usize], device: Device<B>) -> Tensor<B, T> {
+    let mut len = 1;
+    for dim in shape {
+        len *= *dim as isize;
+    }
+    Tensor::<B, T>::arange(0..len, device)
+        .reshape(shape.to_vec())
+        .unwrap()
 }

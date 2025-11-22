@@ -119,3 +119,234 @@ pub fn linear<B: Backend, T: Float>(
         x.matmul(&weight.reversed_axes()?)
     }
 }
+
+pub struct BatchNorm1d<B: Backend, T: Float> {
+    running_mean: Tensor<B, T>,
+    running_var: Tensor<B, T>,
+    gamma: Tensor<B, T>,
+    beta: Tensor<B, T>,
+    momentum: T,
+    eps: T,
+}
+
+impl<B, T> BatchNorm1d<B, T>
+where
+    B: Backend,
+    T: Float,
+{
+    pub fn new(num_features: usize, momentum: T, eps: T, device: Device<B>) -> Self {
+        let gamma = Tensor::ones(vec![num_features], device).requires_grad();
+        let beta = Tensor::zeros(vec![num_features], device).requires_grad();
+        let running_mean = Tensor::zeros(vec![num_features], device);
+        let running_var = Tensor::zeros(vec![num_features], device);
+        Self {
+            gamma,
+            beta,
+            running_mean,
+            running_var,
+            momentum,
+            eps,
+        }
+    }
+
+    pub fn gamma(&self) -> &Tensor<B, T> {
+        &self.gamma
+    }
+
+    pub fn beta(&self) -> &Tensor<B, T> {
+        &self.beta
+    }
+}
+
+impl<B: Backend, T: Float> BatchNorm1d<B, T> {
+    pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Result<Tensor<B, T>> {
+        let y = if is_train {
+            let (y, mean, var) = batch_norm(x, &self.gamma, &self.beta, 0, self.eps)?;
+            let momentum = Tensor::from_scalar(self.momentum, x.device());
+            let one = Tensor::from_scalar(T::one(), x.device());
+            let running_mean =
+                ((&momentum * &self.running_mean)? + ((&one - &momentum)? * mean.detach())?)?;
+            let running_var =
+                ((&momentum * &self.running_var)? + ((&one - &momentum)? * var.detach())?)?;
+            self.running_mean.copy(&running_mean).unwrap();
+            self.running_var.copy(&running_var).unwrap();
+            y
+        } else {
+            batch_norm_predict(
+                x,
+                &self.running_mean,
+                &self.running_var,
+                &self.gamma,
+                &self.beta,
+                self.eps,
+            )?
+        };
+        Ok(y)
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for BatchNorm1d<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::new();
+        map.insert("weight".to_string(), self.gamma.clone());
+        map.insert("bias".to_string(), self.beta.clone());
+        map.insert("running_mean".to_string(), self.running_mean.clone());
+        map.insert("running_var".to_string(), self.running_var.clone());
+        map
+    }
+
+    fn trainable_parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::new();
+        map.insert("weight".to_string(), self.gamma.clone());
+        map.insert("bias".to_string(), self.beta.clone());
+        map
+    }
+}
+
+pub struct BatchNorm2d<B: Backend, T: Float> {
+    running_mean: Tensor<B, T>,
+    running_var: Tensor<B, T>,
+    gamma: Tensor<B, T>,
+    beta: Tensor<B, T>,
+    momentum: T,
+    eps: T,
+}
+
+impl<B, T> BatchNorm2d<B, T>
+where
+    B: Backend,
+    T: Float,
+{
+    pub fn new(num_features: usize, momentum: T, eps: T, device: Device<B>) -> Self {
+        let gamma = Tensor::ones(vec![num_features], device).requires_grad();
+        let beta = Tensor::zeros(vec![num_features], device).requires_grad();
+        let running_mean = Tensor::zeros(vec![1, num_features, 1, 1], device);
+        let running_var = Tensor::zeros(vec![1, num_features, 1, 1], device);
+        Self {
+            gamma,
+            beta,
+            running_mean,
+            running_var,
+            momentum,
+            eps,
+        }
+    }
+
+    pub fn gamma(&self) -> &Tensor<B, T> {
+        &self.gamma
+    }
+
+    pub fn beta(&self) -> &Tensor<B, T> {
+        &self.beta
+    }
+}
+
+impl<B: Backend, T: Float> BatchNorm2d<B, T> {
+    pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Result<Tensor<B, T>> {
+        let y = if is_train {
+            let (y, mean, var) = batch_norm2d(x, &self.gamma, &self.beta, self.eps)?;
+            let momentum = Tensor::from_scalar(self.momentum, x.device());
+            let one = Tensor::from_scalar(T::one(), x.device());
+            let running_mean =
+                ((&momentum * &self.running_mean)? + ((&one - &momentum)? * mean.detach())?)?;
+            let running_var =
+                ((&momentum * &self.running_var)? + ((&one - &momentum)? * var.detach())?)?;
+            self.running_mean.copy(&running_mean).unwrap();
+            self.running_var.copy(&running_var).unwrap();
+            y
+        } else {
+            batch_norm_predict2d(
+                x,
+                &self.running_mean,
+                &self.running_var,
+                &self.gamma,
+                &self.beta,
+                self.eps,
+            )?
+        };
+        Ok(y)
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for BatchNorm2d<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::new();
+        map.insert("weight".to_string(), self.gamma.clone());
+        map.insert("bias".to_string(), self.beta.clone());
+        map.insert("running_mean".to_string(), self.running_mean.clone());
+        map.insert("running_var".to_string(), self.running_var.clone());
+        map
+    }
+
+    fn trainable_parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::new();
+        map.insert("weight".to_string(), self.gamma.clone());
+        map.insert("bias".to_string(), self.beta.clone());
+        map
+    }
+}
+
+pub fn batch_norm<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    gamma: &Tensor<B, T>,
+    beta: &Tensor<B, T>,
+    axis: usize,
+    eps: T,
+) -> Result<(Tensor<B, T>, Tensor<B, T>, Tensor<B, T>)> {
+    let mean = x.mean_axis(axis, false)?;
+    let xc = (x - &mean)?;
+    let var = xc.pow_scalar(T::from_f64(2.0))?.mean_axis(axis, false)?;
+    let std = (&var + eps)?.sqrt();
+    let xn = (xc / std)?;
+    let y = (gamma * xn + beta)?;
+    Ok((y, mean, var))
+}
+
+pub fn batch_norm2d<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    gamma: &Tensor<B, T>,
+    beta: &Tensor<B, T>,
+    eps: T,
+) -> Result<(Tensor<B, T>, Tensor<B, T>, Tensor<B, T>)> {
+    let gamma = gamma.reshape(vec![1, gamma.shape()[0], 1, 1])?;
+    let beta = beta.reshape(vec![1, beta.shape()[0], 1, 1])?;
+
+    let mean = x.mean_axes(&vec![0, 2, 3], true)?;
+    let xc = (x - &mean)?;
+    let var = xc
+        .pow_scalar(T::from_f64(2.0))?
+        .mean_axes(&vec![0, 2, 3], true)?;
+    let std = (&var + eps)?.sqrt();
+    let xn = (xc / std)?;
+    let y = (gamma * xn + beta)?;
+    Ok((y, mean, var))
+}
+
+pub fn batch_norm_predict<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    running_mean: &Tensor<B, T>,
+    running_var: &Tensor<B, T>,
+    gamma: &Tensor<B, T>,
+    beta: &Tensor<B, T>,
+    eps: T,
+) -> Result<Tensor<B, T>> {
+    let xc = (x - running_mean)?;
+    let xn = (xc / (running_var + eps)?.sqrt())?;
+    gamma * xn + beta
+}
+
+pub fn batch_norm_predict2d<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    running_mean: &Tensor<B, T>,
+    running_var: &Tensor<B, T>,
+    gamma: &Tensor<B, T>,
+    beta: &Tensor<B, T>,
+    eps: T,
+) -> Result<Tensor<B, T>> {
+    let gamma = gamma.reshape(vec![1, gamma.shape()[0], 1, 1])?;
+    let beta = beta.reshape(vec![1, beta.shape()[0], 1, 1])?;
+
+    let xc = (x - running_mean)?;
+    let xn = (xc / (running_var + eps)?.sqrt())?;
+    gamma * xn + beta
+}
