@@ -1753,129 +1753,121 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
 impl<B: Backend, T: Float> Tensor<B, T> {
     pub fn sorted_nodes(&self) -> Vec<Tensor<B, T>> {
-        let mut nodes: Vec<(usize, Tensor<B, T>)> = Vec::new();
-
-        let mut seen_set = HashSet::new();
-        let mut work_nodes = Vec::<(usize, Tensor<B, T>)>::new();
-        Self::add_work_node(0, self.clone(), &mut work_nodes, &mut seen_set);
-
-        while work_nodes.len() > 0 {
-            let (depth, op_tensor) = work_nodes.pop().unwrap();
-            if !op_tensor.is_requires_grad {
-                continue;
-            }
-            let Some(op) = op_tensor.op.clone() else {
-                continue;
-            };
-
-            nodes.push((depth, op_tensor));
-
-            match op {
-                Op::Reshape(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::BroadcastTo(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::PermutedAxes(x, _) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Cat(xs, _, _) => {
-                    for x in xs {
-                        Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                    }
-                }
-                Op::GetItem(x, _) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Contiguous(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Sum(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::SumAxis(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Max(x, _) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::MaxAxis(x, _) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Add(x1, x2) => {
-                    Self::add_work_node(depth + 1, x1.clone(), &mut work_nodes, &mut seen_set);
-                    Self::add_work_node(depth + 1, x2.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Sub(x1, x2) => {
-                    Self::add_work_node(depth + 1, x1.clone(), &mut work_nodes, &mut seen_set);
-                    Self::add_work_node(depth + 1, x2.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Mul(x1, x2) => {
-                    Self::add_work_node(depth + 1, x1.clone(), &mut work_nodes, &mut seen_set);
-                    Self::add_work_node(depth + 1, x2.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Div(x1, x2) => {
-                    Self::add_work_node(depth + 1, x1.clone(), &mut work_nodes, &mut seen_set);
-                    Self::add_work_node(depth + 1, x2.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Neg(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Matmul(x1, x2) => {
-                    Self::add_work_node(depth + 1, x1.clone(), &mut work_nodes, &mut seen_set);
-                    Self::add_work_node(depth + 1, x2.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Pow(x1, x2) => {
-                    Self::add_work_node(depth + 1, x1.clone(), &mut work_nodes, &mut seen_set);
-                    Self::add_work_node(depth + 1, x2.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Sin(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Cos(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Sqrt(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Exp(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Ln(x) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Gather(x, _, _) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::IndexSelect(x, _, _) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Im2col { x, .. } => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::Col2im { x, .. } => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-                Op::ZeroPadding2d(x, _, _) => {
-                    Self::add_work_node(depth + 1, x.clone(), &mut work_nodes, &mut seen_set);
-                }
-            }
-        }
-
-        nodes.sort_by(|a, b| a.0.cmp(&b.0));
-        nodes.into_iter().map(|a| a.1).collect()
+        let mut nodes: Vec<Tensor<B, T>> = Vec::new();
+        let mut visiting: HashSet<usize> = HashSet::new();
+        let mut visited: HashSet<usize> = HashSet::new();
+        Self::visit(self, &mut nodes, &mut visiting, &mut visited);
+        nodes.reverse();
+        nodes
     }
 
-    fn add_work_node(
-        depth: usize,
-        node: Tensor<B, T>,
-        work_nodes: &mut Vec<(usize, Tensor<B, T>)>,
-        seen_set: &mut HashSet<usize>,
-    ) {
-        if !seen_set.contains(&node.id()) {
-            seen_set.insert(node.id());
-            work_nodes.push((depth, node.clone()));
+    fn visit(node: &Tensor<B, T>, sorted: &mut Vec<Tensor<B, T>>, visiting: &mut HashSet<usize>, visited: &mut HashSet<usize>) {
+        let Some(op) = node.op.clone() else {
+            return;
+        };
+
+        if visited.contains(&node.id) {
+            return;
+        }
+
+        if visiting.contains(&node.id) {
+            panic!("Tensor graph loop detected. (node.id = {})", node.id);
+        }
+
+        visiting.insert(node.id);
+
+        for input in Self::get_op_inputs(op) {
+            Self::visit(&input, sorted, visiting, visited);
+        }
+
+        visiting.remove(&node.id);
+        visited.insert(node.id);
+        sorted.push(node.clone());
+    }
+
+    fn get_op_inputs(op: Op<B, T>) -> Vec<Tensor<B, T>> {
+        match op {
+            Op::Reshape(x) => {
+                vec![x]
+            }
+            Op::BroadcastTo(x) => {
+                vec![x]
+            }
+            Op::PermutedAxes(x, _) => {
+                vec![x]
+            }
+            Op::Cat(xs, _, _) => {
+                xs
+            }
+            Op::GetItem(x, _) => {
+                vec![x]
+            }
+            Op::Contiguous(x) => {
+                vec![x]
+            }
+            Op::Sum(x) => {
+                vec![x]
+            }
+            Op::SumAxis(x) => {
+                vec![x]
+            }
+            Op::Max(x, _) => {
+                vec![x]
+            }
+            Op::MaxAxis(x, _) => {
+                vec![x]
+            }
+            Op::Add(x1, x2) => {
+                vec![x1, x2]
+            }
+            Op::Sub(x1, x2) => {
+                vec![x1, x2]
+            }
+            Op::Mul(x1, x2) => {
+                vec![x1, x2]
+            }
+            Op::Div(x1, x2) => {
+                vec![x1, x2]
+            }
+            Op::Neg(x) => {
+                vec![x]
+            }
+            Op::Matmul(x1, x2) => {
+                vec![x1, x2]
+            }
+            Op::Pow(x1, x2) => {
+                vec![x1, x2]
+            }
+            Op::Sin(x) => {
+                vec![x]
+            }
+            Op::Cos(x) => {
+                vec![x]
+            }
+            Op::Sqrt(x) => {
+                vec![x]
+            }
+            Op::Exp(x) => {
+                vec![x]
+            }
+            Op::Ln(x) => {
+                vec![x]
+            }
+            Op::Gather(x, _, _) => {
+                vec![x]
+            }
+            Op::IndexSelect(x, _, _) => {
+                vec![x]
+            }
+            Op::Im2col { x, .. } => {
+                vec![x]
+            }
+            Op::Col2im { x, .. } => {
+                vec![x]
+            }
+            Op::ZeroPadding2d(x, _, _) => {
+                vec![x]
+            }
         }
     }
 
