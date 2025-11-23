@@ -230,6 +230,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.is_requires_grad
     }
 
+    pub fn dtype(&self) -> DType {
+        T::dtype()
+    }
+
     pub fn device(&self) -> Device<B> {
         self.device
     }
@@ -1054,6 +1058,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             None,
         );
         Ok(output)
+    }
+
+    pub unsafe fn reinterpret_cast_dtype<T2: Num>(self) -> Tensor<B, T2> {
+        unsafe { std::mem::transmute::<Self, Tensor<B, T2>>(self) }
     }
 
     fn broadcast_shape(a: &[usize], b: &[usize]) -> Result<Vec<usize>> {
