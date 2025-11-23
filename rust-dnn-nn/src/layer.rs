@@ -206,6 +206,91 @@ impl<B: Backend, T: Float> Layer<B, T> for Conv2D<B, T> {
     }
 }
 
+pub struct Deconv2D<B: Backend, T: Float> {
+    in_filters: usize,
+    out_filters: usize,
+    fil_h: usize,
+    fil_w: usize,
+    stride_h: usize,
+    stride_w: usize,
+    padding: Option<(usize, usize)>,
+    auto_padding: bool,
+    weight: Tensor<B, T>,
+    bias: Option<Tensor<B, T>>,
+}
+
+impl<B: Backend, T: Float> Deconv2D<B, T> {
+    pub fn new(
+        in_filters: usize,
+        out_filters: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+        padding: Option<(usize, usize)>,
+        auto_padding: bool,
+        use_bias: bool,
+        device: Device<B>,
+    ) -> Self {
+        let scale = (1.0 / (fil_h * fil_w * in_filters) as f64).sqrt();
+        let weight = (Tensor::rand_norm(&[in_filters, out_filters, fil_h, fil_w], None, device)
+            * T::from_f64(scale))
+        .unwrap();
+        let weight = weight.requires_grad();
+        let bias = if use_bias {
+            Some(Tensor::zeros(vec![out_filters], device).requires_grad())
+        } else {
+            None
+        };
+        Self {
+            in_filters,
+            out_filters,
+            fil_h,
+            fil_w,
+            stride_h,
+            stride_w,
+            padding,
+            auto_padding,
+            weight,
+            bias,
+        }
+    }
+
+    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+        x.deconv2d(
+            &self.weight,
+            self.bias.as_ref(),
+            self.in_filters,
+            self.out_filters,
+            self.fil_h,
+            self.fil_w,
+            self.stride_h,
+            self.stride_w,
+            self.padding,
+            self.auto_padding,
+        )
+    }
+
+    pub fn weight(&self) -> &Tensor<B, T> {
+        &self.weight
+    }
+
+    pub fn bias(&self) -> Option<&Tensor<B, T>> {
+        self.bias.as_ref()
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for Deconv2D<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::<String, Tensor<B, T>>::new();
+        map.insert("weight".to_string(), self.weight.clone());
+        if let Some(bias) = self.bias.as_ref() {
+            map.insert("bias".to_string(), bias.clone());
+        };
+        map
+    }
+}
+
 pub struct BatchNorm1d<B: Backend, T: Float> {
     running_mean: Tensor<B, T>,
     running_var: Tensor<B, T>,

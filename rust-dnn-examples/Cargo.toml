@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 rand = "*"
+image = "*"
 
 [dependencies.rust-dnn-core]
 path = "../rust-dnn-core"
@@ -19,5 +20,5 @@ path = "../rust-dnn-datasets"
 path = "../rust-dnn-safetensors"
 
 [features]
-default = []
+default = ["cuda"]
 cuda = [] 

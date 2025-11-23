@@ -7,7 +7,7 @@ edition = "2024"
 rand = "*"
 
 [features]
-default = []
+default = ["cuda"]
 cuda = [] 
 
 [dependencies.rust-dnn-core]

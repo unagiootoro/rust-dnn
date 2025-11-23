@@ -2,7 +2,7 @@ mod test_utils;
 
 use crate::test_utils::{arange_with_shape, assert_tensor, assert_tensor_with_eps};
 use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor::Tensor};
-use rust_dnn_nn::layer::{BatchNorm1d, BatchNorm2d, Conv2D, Linear};
+use rust_dnn_nn::layer::{BatchNorm1d, BatchNorm2d, Conv2D, Deconv2D, Linear};
 
 fn test_linear_forward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
@@ -137,6 +137,56 @@ fn test_conv2d<B: Backend>(device: Device<B>) -> Result<()> {
 }
 
 define_test!(test_conv2d, test_conv2d_cpu, test_conv2d_cuda);
+
+fn test_deconv2d<B: Backend>(device: Device<B>) -> Result<()> {
+    let batch_size = 2;
+    let in_filters = 2;
+    let out_filters = 3;
+    let img_h = 3;
+    let img_w = 3;
+    let fil_h = 2;
+    let fil_w = 3;
+    let x = arange_with_shape::<_, f64>(&[batch_size, in_filters, img_h, img_w], device);
+    let w = arange_with_shape(&[in_filters, out_filters, fil_h, fil_w], device);
+    let b = arange_with_shape(&[out_filters], device);
+
+    let deconv2d = Deconv2D::new(
+        in_filters,
+        out_filters,
+        fil_h,
+        fil_w,
+        1,
+        1,
+        None,
+        false,
+        true,
+        device,
+    );
+
+    deconv2d.weight().copy(&w)?;
+    deconv2d.bias().unwrap().copy(&b)?;
+
+    let y = deconv2d.forward(&x)?;
+    assert_eq!(y.shape(), &vec![batch_size, out_filters, 4, 5]);
+    assert_eq!(
+        y.to_vec(),
+        vec![
+            162., 351., 569., 413., 224., 405., 876., 1417., 1024., 553., 531., 1140., 1831.,
+            1312., 703., 333., 711., 1136., 809., 431., 217., 472., 768., 558., 303., 550., 1189.,
+            1922., 1385., 746., 748., 1597., 2552., 1817., 968., 460., 976., 1551., 1098., 582.,
+            272., 593., 967., 703., 382., 695., 1502., 2427., 1746., 939., 965., 2054., 3273.,
+            2322., 1233., 587., 1241., 1966., 1387., 733., 486., 1035., 1649., 1169., 620., 1161.,
+            2460., 3901., 2752., 1453., 1287., 2724., 4315., 3040., 1603., 765., 1611., 2540.,
+            1781., 935., 757., 1588., 2496., 1746., 915., 1738., 3637., 5702., 3977., 2078., 1936.,
+            4045., 6332., 4409., 2300., 1108., 2308., 3603., 2502., 1302., 1028., 2141., 3343.,
+            2323., 1210., 2315., 4814., 7503., 5202., 2703., 2585., 5366., 8349., 5778., 2997.,
+            1451., 3005., 4666., 3223., 1669.,
+        ]
+    );
+    Ok(())
+}
+
+define_test!(test_deconv2d, test_deconv2d_cpu, test_deconv2d_cuda);
 
 fn test_batch_norm1d<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::from_vec(
