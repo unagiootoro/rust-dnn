@@ -18,7 +18,7 @@ use rust_dnn_datasets::mnist::MNISTLoader;
 use rust_dnn_examples::argv::get_argv;
 use rust_dnn_nn::{
     batch_iter::batch_iter,
-    layer::{BatchNorm1d, BatchNorm2d, Conv2D, Deconv2D, Layer, Linear},
+    layer::{BatchNorm1d, BatchNorm2d, Conv2D, Deconv2D, Layer, LayerNorm, Linear},
     loss::{cross_entropy, mean_squared_error},
     optimizer::{Adam, Optimizer, SGD},
 };
@@ -51,10 +51,10 @@ struct Encoder<B: Backend, T: Float> {
     fc0: Linear<B, T>,
     fc1_0: Linear<B, T>,
     fc1_1: Linear<B, T>,
-    // ln0: LayerNorm<B, T>,
-    // ln1: LayerNorm<B, T>,
-    // ln2: LayerNorm<B, T>,
-    // ln3: LayerNorm<B, T>,
+    ln0: LayerNorm<B, T>,
+    ln1: LayerNorm<B, T>,
+    ln2: LayerNorm<B, T>,
+    ln3: LayerNorm<B, T>,
 }
 
 impl<B: Backend, T: Float> Encoder<B, T> {
@@ -65,10 +65,10 @@ impl<B: Backend, T: Float> Encoder<B, T> {
         let fc0 = Linear::new(128 * 7 * 7, 1024, true, device)?;
         let fc1_0 = Linear::new(1024, z_dim, true, device)?;
         let fc1_1 = Linear::new(1024, z_dim, true, device)?;
-        // let ln0 = LayerNorm::new(vec![32, 28, 28], 1e-4);
-        // let ln1 = LayerNorm::new(vec![64, 14, 14], 1e-4);
-        // let ln2 = LayerNorm::new(vec![128, 7, 7], 1e-4);
-        // let ln3 = LayerNorm::new(vec![1024], 1e-4);
+        let ln0 = LayerNorm::new(vec![32, 28, 28], T::from_f32(1e-4), true, device);
+        let ln1 = LayerNorm::new(vec![64, 14, 14], T::from_f32(1e-4), true, device);
+        let ln2 = LayerNorm::new(vec![128, 7, 7], T::from_f32(1e-4), true, device);
+        let ln3 = LayerNorm::new(vec![1024], T::from_f32(1e-4), true, device);
         let encoder = Self {
             cv0,
             cv1,
@@ -76,30 +76,30 @@ impl<B: Backend, T: Float> Encoder<B, T> {
             fc0,
             fc1_0,
             fc1_1,
-            // ln0,
-            // ln1,
-            // ln2,
-            // ln3,
+            ln0,
+            ln1,
+            ln2,
+            ln3,
         };
         Ok(encoder)
     }
 
     pub fn forward(&self, x: &Tensor<B, T>) -> Result<(Tensor<B, T>, Tensor<B, T>)> {
         let x = self.cv0.forward(x)?;
-        // let x = self.ln0.forward(&x);
+        let x = self.ln0.forward(&x)?;
         let x = x.relu();
 
         let x = self.cv1.forward(&x)?;
-        // let x = self.ln1.forward(&x);
+        let x = self.ln1.forward(&x)?;
         let x = x.relu();
 
         let x = self.cv2.forward(&x)?;
-        // let x = self.ln2.forward(&x);
+        let x = self.ln2.forward(&x)?;
         let x = x.relu();
 
         let x = flatten_except_batch(&x)?;
         let x = self.fc0.forward(&x)?;
-        // let x = self.ln3.forward(&x);
+        let x = self.ln3.forward(&x)?;
         let x = x.relu();
 
         let z_mean = self.fc1_0.forward(&x)?;
@@ -118,10 +118,10 @@ impl<B: Backend, T: Float> Layer<B, T> for Encoder<B, T> {
         map.insert("fc0".to_string(), &self.fc0);
         map.insert("fc1_0".to_string(), &self.fc1_0);
         map.insert("fc1_1".to_string(), &self.fc1_1);
-        // map.insert("ln0".to_string(), &self.ln0);
-        // map.insert("ln1".to_string(), &self.ln1);
-        // map.insert("ln2".to_string(), &self.ln2);
-        // map.insert("ln3".to_string(), &self.ln3);
+        map.insert("ln0".to_string(), &self.ln0);
+        map.insert("ln1".to_string(), &self.ln1);
+        map.insert("ln2".to_string(), &self.ln2);
+        map.insert("ln3".to_string(), &self.ln3);
         map
     }
 }
@@ -132,10 +132,10 @@ struct Decoder<B: Backend, T: Float> {
     dcv0: Deconv2D<B, T>,
     dcv1: Deconv2D<B, T>,
     cv0: Conv2D<B, T>,
-    // ln0: LayerNorm<B, T>,
-    // ln1: LayerNorm<B, T>,
-    // ln2: LayerNorm<B, T>,
-    // ln3: LayerNorm<B, T>,
+    ln0: LayerNorm<B, T>,
+    ln1: LayerNorm<B, T>,
+    ln2: LayerNorm<B, T>,
+    ln3: LayerNorm<B, T>,
 }
 
 impl<B: Backend, T: Float> Decoder<B, T> {
@@ -145,40 +145,40 @@ impl<B: Backend, T: Float> Decoder<B, T> {
         let dcv0 = Deconv2D::new(128, 64, 2, 2, 2, 2, None, true, true, device);
         let dcv1 = Deconv2D::new(64, 32, 2, 2, 2, 2, None, true, true, device);
         let cv0 = Conv2D::new(32, 1, 3, 3, 1, 1, None, true, true, device);
-        // let ln0 = LayerNorm::new(vec![1024], 1e-4);
-        // let ln1 = LayerNorm::new(vec![128 * 7 * 7], 1e-4);
-        // let ln2 = LayerNorm::new(vec![64, 14, 14], 1e-4);
-        // let ln3 = LayerNorm::new(vec![32, 28, 28], 1e-4);
+        let ln0 = LayerNorm::new(vec![1024], T::from_f32(1e-4), true, device);
+        let ln1 = LayerNorm::new(vec![128 * 7 * 7], T::from_f32(1e-4), true, device);
+        let ln2 = LayerNorm::new(vec![64, 14, 14], T::from_f32(1e-4), true, device);
+        let ln3 = LayerNorm::new(vec![32, 28, 28], T::from_f32(1e-4), true, device);
         let decoder = Self {
             fc0,
             fc1,
             dcv0,
             dcv1,
             cv0,
-            // ln0,
-            // ln1,
-            // ln2,
-            // ln3,
+            ln0,
+            ln1,
+            ln2,
+            ln3,
         };
         Ok(decoder)
     }
 
     pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
         let x = self.fc0.forward(x)?;
-        // let x = self.ln0.forward(&x);
+        let x = self.ln0.forward(&x)?;
         let x = x.relu();
 
         let x = self.fc1.forward(&x)?;
-        // let x = self.ln1.forward(&x);
+        let x = self.ln1.forward(&x)?;
         let x = x.relu();
 
         let x = reshape_except_batch(&x, vec![128, 7, 7])?;
         let x = self.dcv0.forward(&x)?;
-        // let x = self.ln2.forward(&x);
+        let x = self.ln2.forward(&x)?;
         let x = x.relu();
 
         let x = self.dcv1.forward(&x)?;
-        // let x = self.ln3.forward(&x);
+        let x = self.ln3.forward(&x)?;
         let x = x.relu();
 
         let x = self.cv0.forward(&x)?;
@@ -195,10 +195,10 @@ impl<B: Backend, T: Float> Layer<B, T> for Decoder<B, T> {
         map.insert("dcv0".to_string(), &self.dcv0);
         map.insert("dcv1".to_string(), &self.dcv1);
         map.insert("cv0".to_string(), &self.cv0);
-        // map.insert("ln0".to_string(), &self.ln0);
-        // map.insert("ln1".to_string(), &self.ln1);
-        // map.insert("ln2".to_string(), &self.ln2);
-        // map.insert("ln3".to_string(), &self.ln3);
+        map.insert("ln0".to_string(), &self.ln0);
+        map.insert("ln1".to_string(), &self.ln1);
+        map.insert("ln2".to_string(), &self.ln2);
+        map.insert("ln3".to_string(), &self.ln3);
         map
     }
 }
@@ -249,18 +249,20 @@ fn vae_loss<B: Backend, T: Float>(
     //     * ((1.0 + (z_sigma.pow(2.0).ln()) - z_mean.pow(2.0) - z_sigma.pow(2.0)).sum_axis(1, false))
     //         .mean_axis(0, false);
 
-    let half = Tensor::from_scalar(T::from_f64(0.5), x.device());
-    let one = Tensor::from_scalar(T::from_f64(1.0), x.device());
+    // let half = Tensor::from_scalar(T::from_f64(0.5), x.device());
+    // let one = Tensor::from_scalar(T::from_f64(1.0), x.device());
 
-    let a = z_sigma.pow_scalar(T::from_f64(2.0))?.ln();
-    let b = z_mean.pow_scalar(T::from_f64(2.0))?;
-    let c = z_sigma.pow_scalar(T::from_f64(2.0))?;
+    // let a = z_sigma.pow_scalar(T::from_f64(2.0))?.ln();
+    // let b = z_mean.pow_scalar(T::from_f64(2.0))?;
+    // let c = z_sigma.pow_scalar(T::from_f64(2.0))?;
 
-    let d = (one + a - b - c)?;
+    // let d = (one + a - b - c)?;
 
-    let kl = (-half * d.sum_axis(1, false)?.mean_axis(0, false)?)?;
+    // let kl = (-half * d.sum_axis(1, false)?.mean_axis(0, false)?)?;
 
-    mean_squared_error(x, t)? + kl
+    // mean_squared_error(x, t)? + kl
+
+    mean_squared_error(x, t)
 }
 
 fn run<B: Backend>(device: Device<B>) -> Result<()> {
