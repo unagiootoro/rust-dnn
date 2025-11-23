@@ -521,3 +521,80 @@ pub fn batch_norm_predict2d<B: Backend, T: Float>(
     let xn = (xc / (running_var + eps)?.sqrt())?;
     gamma * xn + beta
 }
+
+pub struct LayerNorm<B: Backend, T: Float> {
+    pub gamma: Tensor<B, T>,
+    pub beta: Option<Tensor<B, T>>,
+    normalize_shape: Vec<usize>,
+    eps: T,
+}
+
+impl<B: Backend, T: Float> LayerNorm<B, T> {
+    pub fn new(normalize_shape: Vec<usize>, eps: T, use_bias: bool, device: Device<B>) -> Self {
+        let gamma = Tensor::ones(normalize_shape.clone(), device).requires_grad();
+        let beta = if use_bias {
+            let beta = Tensor::zeros(normalize_shape.clone(), device).requires_grad();
+            Some(beta)
+        } else {
+            None
+        };
+        Self {
+            gamma,
+            beta,
+            normalize_shape,
+            eps,
+        }
+    }
+
+    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+        let y = if let Some(beta) = self.beta.as_ref() {
+            layer_norm(x, &self.gamma, Some(&beta), &self.normalize_shape, self.eps)?
+        } else {
+            layer_norm(&x, &self.gamma, None, &self.normalize_shape, self.eps)?
+        };
+        Ok(y)
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for LayerNorm<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::new();
+        map.insert("weight".to_string(), self.gamma.clone());
+        if let Some(beta) = self.beta.as_ref() {
+            map.insert("bias".to_string(), beta.clone());
+        };
+        map
+    }
+}
+
+pub fn layer_norm<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    gamma: &Tensor<B, T>,
+    beta: Option<&Tensor<B, T>>,
+    normalize_shape: &[usize],
+    eps: T,
+) -> Result<Tensor<B, T>> {
+    let mut axes = Vec::new();
+    for i in 0..normalize_shape.len() {
+        let axis = i + (x.ndim() - normalize_shape.len());
+        if x.shape()[axis] != normalize_shape[i] {
+            panic!(
+                "x.shape = {:?}, normalize_shape.shape = {:?}",
+                x.shape(),
+                normalize_shape
+            );
+        }
+        axes.push(axis);
+    }
+
+    let mean = x.mean_axes(&axes, true)?;
+    let xc = (x - &mean)?;
+    let var = xc.pow_scalar(T::from_f64(2.0))?.mean_axes(&axes, true)?;
+    let std = (&var + eps)?.sqrt();
+    let xn = (xc / std)?;
+    let mut y = (gamma * xn)?;
+    if let Some(beta) = beta {
+        y = (y + beta)?;
+    }
+    Ok(y)
+}
