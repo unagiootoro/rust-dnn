@@ -598,3 +598,85 @@ pub fn layer_norm<B: Backend, T: Float>(
     }
     Ok(y)
 }
+
+pub struct GroupNorm<B: Backend, T: Float> {
+    num_groups: usize,
+    gamma: Tensor<B, T>,
+    beta: Option<Tensor<B, T>>,
+    eps: T,
+}
+
+impl<B: Backend, T: Float> GroupNorm<B, T> {
+    pub fn new(
+        num_groups: usize,
+        num_channels: usize,
+        eps: T,
+        use_bias: bool,
+        device: Device<B>,
+    ) -> Self {
+        let gamma = Tensor::ones(vec![num_channels], device).requires_grad();
+        let beta = if use_bias {
+            let beta = Tensor::zeros(vec![num_channels], device).requires_grad();
+            Some(beta)
+        } else {
+            None
+        };
+        Self {
+            num_groups,
+            gamma,
+            beta,
+            eps,
+        }
+    }
+
+    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+        let y = if let Some(beta) = self.beta.as_ref() {
+            group_norm(x, &self.gamma, Some(&beta), self.num_groups, self.eps)?
+        } else {
+            group_norm(&x, &self.gamma, None, self.num_groups, self.eps)?
+        };
+        Ok(y)
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for GroupNorm<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::new();
+        map.insert("weight".to_string(), self.gamma.clone());
+        if let Some(beta) = self.beta.as_ref() {
+            map.insert("bias".to_string(), beta.clone());
+        };
+        map
+    }
+}
+
+pub fn group_norm<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    gamma: &Tensor<B, T>,
+    beta: Option<&Tensor<B, T>>,
+    num_groups: usize,
+    eps: T,
+) -> Result<Tensor<B, T>> {
+    let n = x.shape()[0];
+    let c = x.shape()[1];
+    let h = x.shape()[2];
+    let w = x.shape()[3];
+
+    let x = x.reshape(vec![n, num_groups, c / num_groups, h, w])?;
+    let mean = x.mean_axes(&[2, 3, 4], true)?;
+    let xc = (x - &mean)?;
+    let var = xc
+        .pow_scalar(T::from_f64(2.0))?
+        .mean_axes(&[2, 3, 4], true)?;
+    let std = (&var + eps)?.sqrt();
+    let xn = (xc / std)?;
+
+    let xn = xn.reshape(vec![n, c, h, w])?;
+    let gamma = gamma.reshape(vec![1, c, 1, 1])?;
+    if let Some(beta) = beta {
+        let beta = beta.reshape(vec![1, c, 1, 1])?;
+        gamma * xn + beta
+    } else {
+        gamma * xn
+    }
+}
