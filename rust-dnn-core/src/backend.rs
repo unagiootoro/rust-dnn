@@ -117,6 +117,7 @@ pub trait Backend: Clone + Copy {
     ) -> Result<Storage<T>>;
     fn sin<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn cos<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
+    fn tanh<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;

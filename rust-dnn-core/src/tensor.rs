@@ -1423,7 +1423,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     pub fn sin(&self) -> Self {
         let op = if self.is_requires_grad() {
-            Some(Op::Sqrt(self.clone()))
+            Some(Op::Sin(self.clone()))
         } else {
             None
         };
@@ -1432,11 +1432,20 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     pub fn cos(&self) -> Self {
         let op = if self.is_requires_grad() {
-            Some(Op::Sqrt(self.clone()))
+            Some(Op::Cos(self.clone()))
         } else {
             None
         };
         self.op1_impl(op, B::cos)
+    }
+
+    pub fn tanh(&self) -> Self {
+        let op = if self.is_requires_grad() {
+            Some(Op::Tanh(self.clone()))
+        } else {
+            None
+        };
+        self.op1_impl(op, B::tanh)
     }
 
     pub fn sqrt(&self) -> Self {
@@ -1924,6 +1933,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             Op::Cos(x) => {
                 vec![x]
             }
+            Op::Tanh(x) => {
+                vec![x]
+            }
             Op::Sqrt(x) => {
                 vec![x]
             }
@@ -2028,6 +2040,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 }
                 Op::Cos(x) => {
                     Self::cos_backward(&mut grads, &gy, &x)?;
+                }
+                Op::Tanh(x) => {
+                    Self::tanh_backward(&mut grads, &gy, &x)?;
                 }
                 Op::Sqrt(x) => {
                     Self::sqrt_backward(&mut grads, &gy, &x)?;
@@ -2347,6 +2362,18 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         x: &Tensor<B, T>,
     ) -> Result<()> {
         let gx = (gy * -x.sin())?;
+        grads.add(x, gx)?;
+        Ok(())
+    }
+
+    fn tanh_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x: &Tensor<B, T>,
+    ) -> Result<()> {
+        let y = x.tanh();
+        let one = Tensor::from_scalar(T::from_f64(1.0), gy.device);
+        let gx = (gy * (one - y.pow_scalar(T::from_f64(2.0))?)?)?;
         grads.add(x, gx)?;
         Ok(())
     }

@@ -206,6 +206,91 @@ impl<B: Backend, T: Float> Layer<B, T> for Conv2D<B, T> {
     }
 }
 
+pub struct Deconv2D<B: Backend, T: Float> {
+    in_filters: usize,
+    out_filters: usize,
+    fil_h: usize,
+    fil_w: usize,
+    stride_h: usize,
+    stride_w: usize,
+    padding: Option<(usize, usize)>,
+    auto_padding: bool,
+    weight: Tensor<B, T>,
+    bias: Option<Tensor<B, T>>,
+}
+
+impl<B: Backend, T: Float> Deconv2D<B, T> {
+    pub fn new(
+        in_filters: usize,
+        out_filters: usize,
+        fil_h: usize,
+        fil_w: usize,
+        stride_h: usize,
+        stride_w: usize,
+        padding: Option<(usize, usize)>,
+        auto_padding: bool,
+        use_bias: bool,
+        device: Device<B>,
+    ) -> Self {
+        let scale = (1.0 / (fil_h * fil_w * in_filters) as f64).sqrt();
+        let weight = (Tensor::rand_norm(&[in_filters, out_filters, fil_h, fil_w], None, device)
+            * T::from_f64(scale))
+        .unwrap();
+        let weight = weight.requires_grad();
+        let bias = if use_bias {
+            Some(Tensor::zeros(vec![out_filters], device).requires_grad())
+        } else {
+            None
+        };
+        Self {
+            in_filters,
+            out_filters,
+            fil_h,
+            fil_w,
+            stride_h,
+            stride_w,
+            padding,
+            auto_padding,
+            weight,
+            bias,
+        }
+    }
+
+    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+        x.deconv2d(
+            &self.weight,
+            self.bias.as_ref(),
+            self.in_filters,
+            self.out_filters,
+            self.fil_h,
+            self.fil_w,
+            self.stride_h,
+            self.stride_w,
+            self.padding,
+            self.auto_padding,
+        )
+    }
+
+    pub fn weight(&self) -> &Tensor<B, T> {
+        &self.weight
+    }
+
+    pub fn bias(&self) -> Option<&Tensor<B, T>> {
+        self.bias.as_ref()
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for Deconv2D<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::<String, Tensor<B, T>>::new();
+        map.insert("weight".to_string(), self.weight.clone());
+        if let Some(bias) = self.bias.as_ref() {
+            map.insert("bias".to_string(), bias.clone());
+        };
+        map
+    }
+}
+
 pub struct BatchNorm1d<B: Backend, T: Float> {
     running_mean: Tensor<B, T>,
     running_var: Tensor<B, T>,
@@ -435,4 +520,81 @@ pub fn batch_norm_predict2d<B: Backend, T: Float>(
     let xc = (x - running_mean)?;
     let xn = (xc / (running_var + eps)?.sqrt())?;
     gamma * xn + beta
+}
+
+pub struct LayerNorm<B: Backend, T: Float> {
+    pub gamma: Tensor<B, T>,
+    pub beta: Option<Tensor<B, T>>,
+    normalize_shape: Vec<usize>,
+    eps: T,
+}
+
+impl<B: Backend, T: Float> LayerNorm<B, T> {
+    pub fn new(normalize_shape: Vec<usize>, eps: T, use_bias: bool, device: Device<B>) -> Self {
+        let gamma = Tensor::ones(normalize_shape.clone(), device).requires_grad();
+        let beta = if use_bias {
+            let beta = Tensor::zeros(normalize_shape.clone(), device).requires_grad();
+            Some(beta)
+        } else {
+            None
+        };
+        Self {
+            gamma,
+            beta,
+            normalize_shape,
+            eps,
+        }
+    }
+
+    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+        let y = if let Some(beta) = self.beta.as_ref() {
+            layer_norm(x, &self.gamma, Some(&beta), &self.normalize_shape, self.eps)?
+        } else {
+            layer_norm(&x, &self.gamma, None, &self.normalize_shape, self.eps)?
+        };
+        Ok(y)
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for LayerNorm<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::new();
+        map.insert("weight".to_string(), self.gamma.clone());
+        if let Some(beta) = self.beta.as_ref() {
+            map.insert("bias".to_string(), beta.clone());
+        };
+        map
+    }
+}
+
+pub fn layer_norm<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    gamma: &Tensor<B, T>,
+    beta: Option<&Tensor<B, T>>,
+    normalize_shape: &[usize],
+    eps: T,
+) -> Result<Tensor<B, T>> {
+    let mut axes = Vec::new();
+    for i in 0..normalize_shape.len() {
+        let axis = i + (x.ndim() - normalize_shape.len());
+        if x.shape()[axis] != normalize_shape[i] {
+            panic!(
+                "x.shape = {:?}, normalize_shape.shape = {:?}",
+                x.shape(),
+                normalize_shape
+            );
+        }
+        axes.push(axis);
+    }
+
+    let mean = x.mean_axes(&axes, true)?;
+    let xc = (x - &mean)?;
+    let var = xc.pow_scalar(T::from_f64(2.0))?.mean_axes(&axes, true)?;
+    let std = (&var + eps)?.sqrt();
+    let xn = (xc / std)?;
+    let mut y = (gamma * xn)?;
+    if let Some(beta) = beta {
+        y = (y + beta)?;
+    }
+    Ok(y)
 }

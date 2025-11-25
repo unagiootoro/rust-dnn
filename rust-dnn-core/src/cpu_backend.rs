@@ -255,6 +255,10 @@ impl Backend for CpuBackend {
         map_arg1::<T, _>(storage, layout, |a| a.cos())
     }
 
+    fn tanh<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        map_arg1::<T, _>(storage, layout, |a| a.tanh())
+    }
+
     fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         map_arg1::<T, _>(storage, layout, |a| a.sqrt())
     }

@@ -190,6 +190,10 @@ impl Backend for CudaBackend {
         cuda_op1_func_call(storage, layout, cuda_cos)
     }
 
+    fn tanh<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        cuda_op1_func_call(storage, layout, cuda_tanh)
+    }
+
     fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         cuda_op1_func_call(storage, layout, cuda_sqrt)
     }

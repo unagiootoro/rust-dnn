@@ -21,6 +21,7 @@ pub enum Op<B: Backend, T: Num> {
     Pow(Tensor<B, T>, Tensor<B, T>),
     Sin(Tensor<B, T>),
     Cos(Tensor<B, T>),
+    Tanh(Tensor<B, T>),
     Sqrt(Tensor<B, T>),
     Exp(Tensor<B, T>),
     Ln(Tensor<B, T>),
