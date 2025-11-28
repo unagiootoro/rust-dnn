@@ -1536,6 +1536,50 @@ define_test!(
     test_relu_backward_cuda
 );
 
+fn test_dropout_train<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0].to_device(device)?;
+    let y = x.dropout(0.5, true, Some(838861));
+    assert_tensor(&y, &ten![2.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+    Ok(())
+}
+
+define_test!(
+    test_dropout_train,
+    test_dropout_train_cpu,
+    test_dropout_train_cuda
+);
+
+fn test_dropout_test<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0].to_device(device)?;
+    let y = x.dropout(0.5, false, Some(838861));
+    assert_tensor(&y, &ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    Ok(())
+}
+
+define_test!(
+    test_dropout_test,
+    test_dropout_test_cpu,
+    test_dropout_test_cuda
+);
+
+fn test_dropout_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        .to_device(device)?
+        .requires_grad();
+    let y = x.dropout(0.5, true, Some(838861));
+    assert_tensor(&y, &ten![2.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+    let grads = y.backward()?;
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![2.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+    Ok(())
+}
+
+define_test!(
+    test_dropout_backward,
+    test_dropout_backward_cpu,
+    test_dropout_backward_cuda
+);
+
 fn test_softmax<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?;
     let y = x.softmax(0)?;

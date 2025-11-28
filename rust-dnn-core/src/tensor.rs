@@ -1481,6 +1481,18 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         (self * mask).unwrap()
     }
 
+    pub fn dropout(&self, dropout_ratio: f64, is_train: bool, seed: Option<u64>) -> Self {
+        if is_train {
+            let scale = 1.0 - dropout_ratio;
+            let rand = Tensor::<B, T>::rand_uniform(self.shape(), seed, self.device);
+            let dropout_ratio = Tensor::from_scalar(T::from_f64(dropout_ratio), self.device);
+            let mask = dropout_ratio.ge(&rand).unwrap().to_dtype::<T>().unwrap();
+            ((self * mask).unwrap() / T::from_f64(scale)).unwrap()
+        } else {
+            self.clone()
+        }
+    }
+
     pub fn softmax(&self, axis: usize) -> Result<Self> {
         let x_stable = (self - self.max_axis(axis, true)?)?;
         let x_stable_exp = x_stable.exp();
