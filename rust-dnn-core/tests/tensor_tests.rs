@@ -611,6 +611,52 @@ define_test!(
     test_ln_backward_cuda
 );
 
+fn test_tril<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![3, 3], 2.0, device);
+    let y = x.tril()?;
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 0.0, 0.0],
+        [2.0, 2.0, 0.0],
+        [2.0, 2.0, 2.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_tril, test_tril_cpu, test_tril_cuda);
+
+fn test_tril2<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![4, 3], 2.0, device);
+    let y = x.tril()?;
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 0.0, 0.0],
+        [2.0, 2.0, 0.0],
+        [2.0, 2.0, 2.0],
+        [2.0, 2.0, 2.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_tril2, test_tril2_cpu, test_tril2_cuda);
+
+fn test_tril3<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![3, 4], 2.0, device);
+    let y = x.tril()?;
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 0.0, 0.0, 0.0],
+        [2.0, 2.0, 0.0, 0.0],
+        [2.0, 2.0, 2.0, 0.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_tril3, test_tril3_cpu, test_tril3_cuda);
+
 fn test_gather<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
         [1.0, 2.0, 3.0, 4.0],
@@ -1235,6 +1281,39 @@ define_test!(
     test_broadcast_to_backward,
     test_broadcast_to_backward_cpu,
     test_broadcast_to_backward_cuda
+);
+
+fn test_masked_fill<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![4], 1.0, device);
+    let mask = Tensor::<B, u32>::from_vec(vec![0, 1, 0, 1], vec![4], device)?;
+    let y = x.masked_fill(&mask, 2.0)?;
+    assert_tensor(&y, &ten![1.0, 2.0, 1.0, 2.0].to_device(device)?);
+    Ok(())
+}
+
+define_test!(
+    test_masked_fill,
+    test_masked_fill_cpu,
+    test_masked_fill_cuda
+);
+
+fn test_masked_fill_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![4], 1.0, device).requires_grad();
+    let mask = Tensor::<B, u32>::from_vec(vec![0, 1, 0, 1], vec![4], device)?;
+    let y = x.masked_fill(&mask, 2.0)?;
+    assert_tensor(&y, &ten![1.0, 2.0, 1.0, 2.0].to_device(device)?);
+
+    let y2 = (y * ten![3.0].to_device(device)?)?;
+    let grads = y2.backward()?;
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![3.0, 0.0, 3.0, 0.0]);
+    Ok(())
+}
+
+define_test!(
+    test_masked_fill_backward,
+    test_masked_fill_backward_cpu,
+    test_masked_fill_backward_cuda
 );
 
 fn test_sum_to<B: Backend>(device: Device<B>) -> Result<()> {

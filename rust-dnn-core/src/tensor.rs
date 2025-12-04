@@ -908,6 +908,29 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Ok(output)
     }
 
+    pub fn masked_fill(&self, mask: &Tensor<B, u32>, value: T) -> Result<Tensor<B, T>> {
+        let mask_f32 = mask.to_dtype::<f32>()?;
+        let reverse_mask = (-mask_f32 + 1.0)?;
+        let reverse_mask = reverse_mask.to_dtype::<T>()?;
+        let a = (self * reverse_mask)?;
+        let value = Tensor::from_scalar(value, self.device());
+        let mask2 = mask.to_dtype::<T>()?;
+        let b = (mask2 * value)?;
+        a + b
+    }
+
+    pub fn tril(&self) -> Result<Self> {
+        let mask = Tensor::zeros(self.shape().to_vec(), self.device);
+        let rows = self.shape()[0];
+        let cols = self.shape()[1];
+        let one = Tensor::ones(vec![1], self.device);
+        for i in 0..rows {
+            let col_end = (i + 1).min(cols);
+            mask.set_item(&vec![(i, i + 1), (0, col_end)], &one)?;
+        }
+        self * &mask
+    }
+
     fn compute_broadcast_stride(
         original_shape: &[usize],
         original_strides: &[usize],
