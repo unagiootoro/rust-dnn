@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 rand = "*"
+image = "*"
 
 [dependencies.rust-dnn-core]
 path = "../rust-dnn-core"
