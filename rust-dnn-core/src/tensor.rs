@@ -1504,6 +1504,16 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         (self * mask).unwrap()
     }
 
+    pub fn leaky_relu(&self, alpha: f64) -> Self {
+        let zero = Tensor::zeros(vec![1], self.device);
+        let lhs = self.gt(&zero).unwrap().to_dtype::<T>().unwrap();
+        let rhs = (self.le(&zero).unwrap().to_dtype::<T>().unwrap()
+            * Tensor::from_scalar(T::from_f64(alpha), self.device()))
+        .unwrap();
+        let mask = (lhs + rhs).unwrap();
+        (self * mask).unwrap()
+    }
+
     pub fn dropout(&self, dropout_ratio: f64, is_train: bool, seed: Option<u64>) -> Self {
         if is_train {
             let scale = 1.0 - dropout_ratio;

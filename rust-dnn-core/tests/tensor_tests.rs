@@ -1615,6 +1615,31 @@ define_test!(
     test_relu_backward_cuda
 );
 
+fn test_leaky_relu<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-2.0, 0.0, 2.0].to_device(device)?.requires_grad();
+    let y = x.leaky_relu(0.2);
+    assert_tensor(&y, &ten![-0.4, 0.0, 2.0]);
+    Ok(())
+}
+
+define_test!(test_leaky_relu, test_leaky_relu_cpu, test_leaky_relu_cuda);
+
+fn test_leaky_relu_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-2.0, 0.0, 2.0].to_device(device)?.requires_grad();
+    let y = x.leaky_relu(0.2);
+    assert_tensor(&y, &ten![-0.4, 0.0, 2.0]);
+    let grads = y.backward()?;
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(gx, &ten![0.2, 0.2, 1.0]);
+    Ok(())
+}
+
+define_test!(
+    test_leaky_relu_backward,
+    test_leaky_relu_backward_cpu,
+    test_leaky_relu_backward_cuda
+);
+
 fn test_dropout_train<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0].to_device(device)?;
     let y = x.dropout(0.5, true, Some(838861));
