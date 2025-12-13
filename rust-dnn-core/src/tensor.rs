@@ -244,7 +244,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             self.layout.clone(),
             self.device.clone(),
             self.dtype,
-            true,
+            op.is_some(),
             op,
         )
     }
@@ -415,7 +415,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             layout,
             self.device.clone(),
             self.dtype,
-            self.is_requires_grad() || rhs.is_requires_grad(),
+            op.is_some(),
             op,
         );
         Ok(output)
@@ -1183,7 +1183,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             output_layout,
             self.device,
             self.dtype,
-            self.is_requires_grad() || rhs.is_requires_grad(),
+            false,
             None,
         );
         Ok(output)
@@ -1496,6 +1496,11 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             None
         };
         self.op1_impl(op, B::ln)
+    }
+
+    pub fn sigmoid(&self) -> Self {
+        let one = Tensor::from_scalar(T::one(), self.device);
+        (&one / (&one + (-self).exp()).unwrap()).unwrap()
     }
 
     pub fn relu(&self) -> Self {

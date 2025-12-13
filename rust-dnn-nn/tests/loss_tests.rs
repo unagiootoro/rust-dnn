@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor::Tensor};
 use rust_dnn_nn::{
     layer::linear,
-    loss::{cross_entropy, mean_squared_error},
+    loss::{cross_entropy, mean_squared_error, sigmoid_cross_entropy},
     optimizer::{Optimizer, SGD},
 };
 
@@ -71,4 +71,36 @@ define_test!(
     test_cross_entropy_backward,
     test_cross_entropy_backward_cpu,
     test_cross_entropy_backward_cuda
+);
+
+fn test_sigmoid_cross_entropy<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.5, 0.0, -0.5];
+    let t = ten![1.0, 0.0, 1.0];
+    let y = sigmoid_cross_entropy(&x, &t)?;
+    assert_tensor(&y, &ten![0.7137670516967773]);
+    Ok(())
+}
+
+define_test!(
+    test_sigmoid_cross_entropy,
+    test_sigmoid_cross_entropy_cpu,
+    test_sigmoid_cross_entropy_cuda
+);
+
+fn test_sigmoid_cross_entropy_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.5, 0.0, -0.5].requires_grad();
+    let t = ten![1.0, 0.0, 1.0].requires_grad();
+    let y = sigmoid_cross_entropy(&x, &t)?;
+    assert_tensor(&y, &ten![0.7137670516967773]);
+
+    let grads = y.backward()?;
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![-0.1258, 0.1667, -0.2075]);
+    Ok(())
+}
+
+define_test!(
+    test_sigmoid_cross_entropy_backward,
+    test_sigmoid_cross_entropy_backward_cpu,
+    test_sigmoid_cross_entropy_backward_cuda
 );

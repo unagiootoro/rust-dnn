@@ -1590,6 +1590,35 @@ define_test!(
     test_contiguous_backward_cuda
 );
 
+fn test_sigmoid<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let y = x.sigmoid();
+    assert_tensor(&y, &ten![0.2689414213699951, 0.5, 0.7310585786300049]);
+    Ok(())
+}
+
+define_test!(test_sigmoid, test_sigmoid_cpu, test_sigmoid_cuda);
+
+fn test_sigmoid_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-1.0, 0.0, 1.0].to_device(device)?.requires_grad();
+    let y = x.sigmoid();
+    assert_tensor(&y, &ten![0.2689414213699951, 0.5, 0.7310585786300049]);
+    assert!(x.is_requires_grad());
+    assert!(y.is_requires_grad());
+
+    let grads = y.backward()?;
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![0.19661193324148185, 0.25, 0.19661193324148188]);
+
+    Ok(())
+}
+
+define_test!(
+    test_sigmoid_backward,
+    test_sigmoid_backward_cpu,
+    test_sigmoid_backward_cuda
+);
+
 fn test_relu<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![-1.0, 0.0, 1.0].to_device(device)?;
     let y = x.relu();

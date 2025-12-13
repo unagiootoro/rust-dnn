@@ -19,3 +19,16 @@ pub fn cross_entropy<B: Backend, T: Float>(
     let output = -x.gather(&index, 1)?.mean_axis(0, false)?.sum()?;
     Ok(output)
 }
+
+pub fn sigmoid_cross_entropy<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    y: &Tensor<B, T>,
+) -> Result<Tensor<B, T>> {
+    let x = x.sigmoid();
+    let eps = Tensor::from_scalar(T::from_f64(1e-7), x.device());
+    let one = Tensor::from_scalar(T::one(), x.device());
+    let output = -(y * ((&x + &eps)?.ln()) + ((&one - y)? * (&one - &x + &eps)?.ln())?)?
+        .mean_axis(0, false)?
+        .sum()?;
+    Ok(output)
+}
