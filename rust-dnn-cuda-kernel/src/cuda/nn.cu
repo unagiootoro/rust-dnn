@@ -81,7 +81,8 @@ __device__ void cuda_col2im_kernel(
                 col_idx += (j / stride_w);
 
                 if (col_idx < col_len && img_idx < img_len) {
-                    img[img_idx] += col[col_idx];
+                    // img[img_idx] += col[col_idx];
+                    atomicAdd(&img[img_idx], col[col_idx]);
                 }
             }
         }
