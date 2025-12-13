@@ -88,6 +88,22 @@ impl<B: Backend, T: Float> MultiHeadAttention<B, T> {
         let y = y.reshape(vec![b, t, c])?;
         Ok(y)
     }
+
+    pub fn q_proj(&self) -> &Linear<B, T> {
+        &self.q_proj
+    }
+
+    pub fn k_proj(&self) -> &Linear<B, T> {
+        &self.k_proj
+    }
+
+    pub fn v_proj(&self) -> &Linear<B, T> {
+        &self.v_proj
+    }
+
+    pub fn out_proj(&self) -> &Linear<B, T> {
+        &self.out_proj
+    }
 }
 
 impl<B: Backend, T: Float> Layer<B, T> for MultiHeadAttention<B, T> {
