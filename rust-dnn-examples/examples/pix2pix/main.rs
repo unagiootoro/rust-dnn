@@ -452,39 +452,32 @@ fn test<B: Backend>(epoch: usize, device: Device<B>) -> Result<()> {
     let test_dataset = CIFAR10Loader::new("../datasets").load_test()?;
 
     let (imgs, _) = batch_iter(&test_dataset, 100, true, None).next().unwrap();
-    for i in 0..100 {
-        let imgs = imgs.get_item(vec![(i, i + 1), (0, 3), (0, 32), (0, 32)])?;
-        let imgs = imgs.to_device(device)?.to_dtype::<f32>()?;
-        let imgs = ((imgs / ten![127.5].to_device(device)?)? - ten![1.0].to_device(device)?)?;
-        let r = imgs.get_item(vec![(0, imgs.shape()[0]), (0, 1), (0, 32), (0, 32)])?;
-        let g = imgs.get_item(vec![(0, imgs.shape()[0]), (1, 2), (0, 32), (0, 32)])?;
-        let b = imgs.get_item(vec![(0, imgs.shape()[0]), (2, 3), (0, 32), (0, 32)])?;
-        let grayscale_imgs = ((r + g + b)? / ten![3.0].to_device(device)?)?;
-        let color_imgs = model.forward(&grayscale_imgs, false)?;
+    let imgs = imgs.to_device(device)?.to_dtype::<f32>()?;
+    let imgs = ((imgs / ten![127.5].to_device(device)?)? - ten![1.0].to_device(device)?)?;
+    let r = imgs.get_item(vec![(0, imgs.shape()[0]), (0, 1), (0, 32), (0, 32)])?;
+    let g = imgs.get_item(vec![(0, imgs.shape()[0]), (1, 2), (0, 32), (0, 32)])?;
+    let b = imgs.get_item(vec![(0, imgs.shape()[0]), (2, 3), (0, 32), (0, 32)])?;
+    let grayscale_imgs = ((r + g + b)? / ten![3.0].to_device(device)?)?;
+    let color_imgs = model.forward(&grayscale_imgs, false)?;
+    let result = ((color_imgs + 1.0)? * 127.5)?;
+    let result = result.reshape(vec![10, 10, 3, 32, 32])?;
+    let result = result
+        .permuted_axes(&[0, 3, 1, 4, 2])?
+        .reshape(vec![320, 320, 3])?;
 
-        let img = color_imgs.reshape(vec![
-            color_imgs.shape()[1],
-            color_imgs.shape()[2],
-            color_imgs.shape()[3],
-        ])?;
-        let img = img.permuted_axes(&[1, 2, 0])?;
-
-        let mut pixel_data = Vec::new();
-        for value in img.to_vec() {
-            pixel_data.push(((value + 1.0) * 127.5) as u8);
-        }
-
-        let img: RgbImage =
-            ImageBuffer::from_raw(32, 32, pixel_data).expect("Invalid image buffer");
-        img.save(format!("../exclude/out/img_{}.png", i))
-            .expect("Failed to save PNG");
+    let mut pixel_data = Vec::new();
+    for value in result.to_vec() {
+        pixel_data.push(value as u8);
     }
+
+    let img: RgbImage = ImageBuffer::from_raw(320, 320, pixel_data).expect("Invalid image buffer");
+    img.save("../exclude/img.png").expect("Failed to save PNG");
 
     Ok(())
 }
 
 fn run<B: Backend>(device: Device<B>) -> Result<()> {
-    train(device)?;
+    // train(device)?;
     test(0, device)?;
     Ok(())
 }
