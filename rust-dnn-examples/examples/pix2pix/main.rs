@@ -2,12 +2,7 @@ use std::{collections::HashMap, f32, fs};
 
 use image::{ImageBuffer, RgbImage};
 use rust_dnn_core::{
-    backend::Backend,
-    device::{self, Device},
-    error::Result,
-    float::Float,
-    ten,
-    tensor::Tensor,
+    backend::Backend, device::Device, error::Result, float::Float, ten, tensor::Tensor,
 };
 use rust_dnn_datasets::cifar10::CIFAR10Loader;
 use rust_dnn_examples::argv::get_argv;
@@ -477,7 +472,7 @@ fn test<B: Backend>(epoch: usize, device: Device<B>) -> Result<()> {
 }
 
 fn run<B: Backend>(device: Device<B>) -> Result<()> {
-    // train(device)?;
+    train(device)?;
     test(0, device)?;
     Ok(())
 }
