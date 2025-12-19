@@ -130,15 +130,30 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn fill(shape: Vec<usize>, value: T, device: Device<B>) -> Self {
-        let mut data = Vec::new();
-        for _ in 0..Self::compute_len(&shape) {
-            data.push(value);
-        }
         let stride = Self::compute_stride(&shape);
         let storage = match *device.info() {
-            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            DeviceInfo::Cpu => {
+                let mut data = Vec::new();
+                for _ in 0..Self::compute_len(&shape) {
+                    data.push(value);
+                }
+                Storage::CpuStorage(data)
+            }
             #[cfg(feature = "cuda")]
-            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+            DeviceInfo::Cuda => {
+                let len = Self::compute_len(&shape);
+                match T::dtype() {
+                    DType::U32 => {
+                        Storage::CudaStorage(GPUBuffer::from_fill_u32(len, value.as_u32()))
+                    }
+                    DType::F32 => {
+                        Storage::CudaStorage(GPUBuffer::from_fill_f32(len, value.as_f32()))
+                    }
+                    DType::F64 => {
+                        Storage::CudaStorage(GPUBuffer::from_fill_f64(len, value.as_f64()))
+                    }
+                }
+            }
         };
         let layout = Layout::new(shape, stride, 0);
         Self::new(

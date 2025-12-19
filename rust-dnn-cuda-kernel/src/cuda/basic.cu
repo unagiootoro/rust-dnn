@@ -208,10 +208,11 @@ __device__ void cuda_index_add_kernel(
     }
 }
 
-__global__ void fill_kernel(float* a, float value, int len) {
+template <typename T>
+__device__ void cuda_fill_kernel(T* output_data, T value, int len) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < len) {
-        a[idx] = value;
+        output_data[idx] = value;
     }
 }
 
@@ -467,8 +468,26 @@ extern "C" void cuda_index_add(
     }
 }
 
-extern "C" void cuda_fill(float* a, float value, int len) {
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    fill_kernel<<<blocks, threads>>>(a, value, len);
+#define DEFINE_CUDA_FILL_KERNEL(type) \
+__global__ void cuda_fill_kernel_##type( \
+    type* output_data, type value, int len \
+) { \
+    cuda_fill_kernel<type>(output_data, value, len); \
 }
+
+DEFINE_CUDA_FILL_KERNEL(uint32_t)
+DEFINE_CUDA_FILL_KERNEL(float)
+DEFINE_CUDA_FILL_KERNEL(double)
+
+#define DEFINE_EXTERN_CUDA_FILL(type) \
+extern "C" void cuda_fill_##type( \
+    type* output_data, type value, int len \
+) { \
+    int threads = 256; \
+    int blocks = (len + threads - 1) / threads; \
+    cuda_fill_kernel_##type<<<blocks, threads>>>(output_data, value, len); \
+}
+
+DEFINE_EXTERN_CUDA_FILL(uint32_t)
+DEFINE_EXTERN_CUDA_FILL(float)
+DEFINE_EXTERN_CUDA_FILL(double)

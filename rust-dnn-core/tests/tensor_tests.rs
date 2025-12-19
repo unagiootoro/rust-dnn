@@ -5,6 +5,14 @@ use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor
 
 use crate::test_utils::{arange_with_shape, assert_tensor};
 
+fn test_fill<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![3], 1.0, device);
+    assert_eq!(x.to_vec(), vec![1.0, 1.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_fill, test_fill_cpu, test_fill_cuda);
+
 fn test_to_vec<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?;
     assert_eq!(x.to_vec(), vec![0.0, 1.0, 2.0]);

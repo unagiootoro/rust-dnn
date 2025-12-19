@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 
 use crate::{
-    basic::cuda_fill,
+    basic::{cuda_fill_double, cuda_fill_float, cuda_fill_uint32_t},
     cuda::{
         CUDA_MEMCPY_DEVICE_TO_DEVICE, CUDA_MEMCPY_DEVICE_TO_HOST, CUDA_MEMCPY_HOST_TO_DEVICE,
         check_cuda_error, cudaDeviceSynchronize, cudaFree, cudaMalloc, cudaMemcpy,
@@ -73,9 +73,23 @@ impl RawGpuBuffer {
         assert_eq!(result, 0, "cudaMemcpy (H2D) failed");
     }
 
-    pub fn fill(&mut self, value: f32, len: usize) {
+    pub fn fill_u32(&mut self, value: u32, len: usize) {
         unsafe {
-            cuda_fill(self.ptr as *mut f32, value, len as i32);
+            cuda_fill_uint32_t(self.ptr as *mut u32, value, len as i32);
+        }
+        check_cuda_error();
+    }
+
+    pub fn fill_f32(&mut self, value: f32, len: usize) {
+        unsafe {
+            cuda_fill_float(self.ptr as *mut f32, value, len as i32);
+        }
+        check_cuda_error();
+    }
+
+    pub fn fill_f64(&mut self, value: f64, len: usize) {
+        unsafe {
+            cuda_fill_double(self.ptr as *mut f64, value, len as i32);
         }
         check_cuda_error();
     }

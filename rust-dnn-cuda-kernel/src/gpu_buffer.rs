@@ -25,9 +25,21 @@ impl<T> GPUBuffer<T> {
         })
     }
 
-    pub fn from_fill(len: usize, value: f32) -> Self {
+    pub fn from_fill_u32(len: usize, value: u32) -> Self {
         let mut gpu_buffer = unsafe { GPUBuffer::new(len) };
-        gpu_buffer.fill(value);
+        gpu_buffer.fill_u32(value);
+        gpu_buffer
+    }
+
+    pub fn from_fill_f32(len: usize, value: f32) -> Self {
+        let mut gpu_buffer = unsafe { GPUBuffer::new(len) };
+        gpu_buffer.fill_f32(value);
+        gpu_buffer
+    }
+
+    pub fn from_fill_f64(len: usize, value: f64) -> Self {
+        let mut gpu_buffer = unsafe { GPUBuffer::new(len) };
+        gpu_buffer.fill_f64(value);
         gpu_buffer
     }
 
@@ -63,8 +75,25 @@ impl<T> GPUBuffer<T> {
             .set_data(Self::cast_slice(&data));
     }
 
-    pub fn fill(&mut self, value: f32) {
-        self.memory_block.borrow_mut().buffer.fill(value, self.len);
+    pub fn fill_u32(&mut self, value: u32) {
+        self.memory_block
+            .borrow_mut()
+            .buffer
+            .fill_u32(value, self.len);
+    }
+
+    pub fn fill_f32(&mut self, value: f32) {
+        self.memory_block
+            .borrow_mut()
+            .buffer
+            .fill_f32(value, self.len);
+    }
+
+    pub fn fill_f64(&mut self, value: f64) {
+        self.memory_block
+            .borrow_mut()
+            .buffer
+            .fill_f64(value, self.len);
     }
 
     pub fn ptr(&self) -> *mut c_void {

@@ -1,4 +1,4 @@
-use libc::{c_double, size_t};
+use libc::{c_double, size_t, uint32_t};
 use std::ffi::{c_float, c_void};
 
 use crate::clayout::{CLayout, NDimArray};
@@ -379,5 +379,13 @@ unsafe extern "C" {
 }
 
 unsafe extern "C" {
-    pub fn cuda_fill(a: *mut c_float, value: f32, len: i32);
+    pub fn cuda_fill_uint32_t(output_data: *mut u32, value: u32, len: i32);
+}
+
+unsafe extern "C" {
+    pub fn cuda_fill_float(output_data: *mut f32, value: f32, len: i32);
+}
+
+unsafe extern "C" {
+    pub fn cuda_fill_double(output_data: *mut f64, value: f64, len: i32);
 }
