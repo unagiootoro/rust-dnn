@@ -7,6 +7,8 @@ use rust_dnn_core::float::Float;
 use rust_dnn_core::num::Num;
 use rust_dnn_core::tensor::Tensor;
 
+use crate::sequential::SequentialItem;
+
 pub trait Layer<B: Backend, T: Float> {
     fn layers_map(&self) -> HashMap<String, &dyn Layer<B, T>> {
         HashMap::new()
@@ -71,6 +73,12 @@ impl<B: Backend, T: Float> Layer<B, T> for Linear<B, T> {
             map.insert("bias".to_string(), bias.clone());
         };
         map
+    }
+}
+
+impl<B: Backend, T: Float> SequentialItem<B, T> for Linear<B, T> {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T>{
+        Linear::<B, T>::forward(self, &x)
     }
 }
 
