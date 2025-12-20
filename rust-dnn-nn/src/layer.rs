@@ -456,7 +456,7 @@ pub fn batch_norm<B: Backend, T: Float>(
     x: &Tensor<B, T>,
     gamma: &Tensor<B, T>,
     beta: &Tensor<B, T>,
-    axis: usize,
+    axis: isize,
     eps: f64,
 ) -> (Tensor<B, T>, Tensor<B, T>, Tensor<B, T>) {
     let mean = x.mean_axis(axis, false);
@@ -576,7 +576,7 @@ pub fn layer_norm<B: Backend, T: Float>(
                 normalize_shape
             );
         }
-        axes.push(axis);
+        axes.push(axis as isize);
     }
 
     let mean = x.mean_axes(&axes, true);

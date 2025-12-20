@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     collections::HashSet,
     f64::consts::PI,
+    fmt::Arguments,
     marker::PhantomData,
     ops::{self, Deref, Range},
     rc::Rc,
@@ -75,6 +76,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn from_vec(data: Vec<T>, shape: Vec<usize>, device: Device<B>) -> Self {
+        assert!(shape.len() > 0);
+
         let len = Self::compute_len(&shape);
         if data.len() != len {
             panic!(
@@ -208,6 +211,51 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         strides
     }
 
+    fn axis_isize_to_usize(axis: isize, ndim: usize) -> Result<usize> {
+        if axis >= ndim as isize {
+            return Err(Error::ArgumentsError {
+                msg: format!("Invalud axis(axis = {}, ndim = {})", axis, ndim),
+            });
+        }
+
+        if axis >= 0 {
+            Ok(axis as usize)
+        } else {
+            let usize_axis = ((ndim as isize) + axis) as usize;
+            if usize_axis >= ndim {
+                return Err(Error::ArgumentsError {
+                    msg: format!("Invalud axis(axis = {}, ndim = {})", axis, ndim),
+                });
+            }
+            Ok(usize_axis)
+        }
+    }
+
+    fn validate_axis(axis: isize, ndim: usize) -> Result<()> {
+        Self::axis_isize_to_usize(axis, ndim)?;
+        Ok(())
+    }
+
+    fn unsqueeze_axis_isize_to_usize(axis: isize, ndim: usize) -> Result<usize> {
+        if axis > ndim as isize {
+            return Err(Error::ArgumentsError {
+                msg: format!("Invalud axis(axis = {}, ndim = {})", axis, ndim),
+            });
+        }
+
+        if axis >= 0 {
+            Ok(axis as usize)
+        } else {
+            let usize_axis = (((ndim + 1) as isize) + axis) as usize;
+            if usize_axis > ndim {
+                return Err(Error::ArgumentsError {
+                    msg: format!("Invalud axis(axis = {}, ndim = {})", axis, ndim),
+                });
+            }
+            Ok(usize_axis)
+        }
+    }
+
     pub fn to_vec(&self) -> Vec<T> {
         let x = self.contiguous();
         let storage = &*x.storage.borrow();
@@ -230,6 +278,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
 
     pub fn len(&self) -> usize {
         self.layout.len()
+    }
+
+    pub fn size(&self, axis: isize) -> usize {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed size");
+        self.layout.shape()[axis]
     }
 
     pub fn ndim(&self) -> usize {
@@ -485,6 +538,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn reshape(&self, shape: Vec<usize>) -> Self {
+        assert!(shape.len() > 0);
+
         let output_len = Self::compute_len(&shape);
         if self.len() != output_len {
             panic!(
@@ -520,18 +575,24 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                 shape.push(*dim);
             }
         }
+
+        if shape.len() == 0 {
+            shape.push(1);
+        }
+
         self.reshape(shape)
     }
 
-    pub fn squeeze_axes(&self, axes: &[usize]) -> Self {
+    pub fn squeeze_axes(&self, axes: &[isize]) -> Self {
+        let mut axes2 = Vec::new();
         for axis in axes {
-            if *axis > self.ndim() {
-                panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim());
-            }
+            let axis = Self::axis_isize_to_usize(*axis, self.ndim()).expect("Failed squeeze_axes");
+            axes2.push(axis);
         }
+
         let mut shape = Vec::new();
         for (axis, dim) in self.shape().iter().enumerate() {
-            if axes.contains(&axis) {
+            if axes2.contains(&axis) {
                 if *dim != 1 {
                     panic!("Dim is not 1(dim = {}, axis = {})", dim, axis);
                 }
@@ -539,19 +600,23 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                 shape.push(self.shape()[axis]);
             }
         }
+
+        if shape.len() == 0 {
+            shape.push(1);
+        }
+
         self.reshape(shape)
     }
 
-    pub fn unsqueeze(&self, axis: usize) -> Self {
-        if axis > self.ndim() {
-            panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim());
-        }
+    pub fn unsqueeze(&self, axis: isize) -> Self {
+        let axis =
+            Self::unsqueeze_axis_isize_to_usize(axis, self.ndim()).expect("Failed unsqueeze");
         let mut shape = self.shape().to_vec();
         shape.insert(axis, 1);
         self.reshape(shape)
     }
 
-    pub fn permuted_axes(&self, axes: &[usize]) -> Self {
+    pub fn permuted_axes(&self, axes: &[isize]) -> Self {
         if self.ndim() != axes.len() {
             panic!(
                 "Mismatch dims(self.ndim() = {}, axes.len() = {})",
@@ -559,15 +624,22 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                 axes.len()
             );
         }
+
+        let mut axes2 = Vec::new();
+        for axis in axes {
+            let axis = Self::axis_isize_to_usize(*axis, self.ndim()).expect("Failed permuted_axes");
+            axes2.push(axis);
+        }
+
         let mut new_shape = Vec::new();
         let mut new_stride = Vec::new();
-        for axis in axes {
+        for axis in &axes2 {
             new_shape.push(self.shape()[*axis]);
             new_stride.push(self.stride()[*axis]);
         }
         let layout = Layout::new(new_shape, new_stride, self.storage_offset());
         let op = if self.is_requires_grad {
-            Some(Op::PermutedAxes(self.clone(), axes.to_vec()))
+            Some(Op::PermutedAxes(self.clone(), axes2.to_vec()))
         } else {
             None
         };
@@ -584,7 +656,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     pub fn reversed_axes(&self) -> Self {
         let mut axes = Vec::new();
         for axis in (0..self.ndim()).rev() {
-            axes.push(axis);
+            axes.push(axis as isize);
         }
         self.permuted_axes(&axes)
     }
@@ -622,10 +694,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         x.copy(src)
     }
 
-    pub fn select(&self, axis: usize, index: usize) -> Self {
-        if axis > self.ndim() {
-            panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim());
-        }
+    pub fn select(&self, axis: isize, index: usize) -> Self {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed select");
         let mut ranges = Vec::new();
         for (i, dim) in self.shape().iter().enumerate() {
             if i == axis {
@@ -642,11 +712,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                 ranges.push((0, *dim));
             }
         }
-        self.get_item(ranges).squeeze_axes(&[axis])
+        self.get_item(ranges).squeeze_axes(&[axis as isize])
     }
 
     pub fn narrow(&self, axis: usize, start: usize, length: usize) -> Self {
-        if axis > self.ndim() {
+        if axis >= self.ndim() {
             panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim());
         }
         let mut ranges = Vec::new();
@@ -817,7 +887,9 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         .expect("Failed index_set_impl")
     }
 
-    pub fn cat(tensors: &[Self], axis: usize) -> Self {
+    pub fn cat(tensors: &[Self], axis: isize) -> Self {
+        let axis = Self::axis_isize_to_usize(axis, tensors[0].ndim()).expect("cat");
+
         let mut split_sections = Vec::new();
 
         let mut output_shape = Vec::new();
@@ -1218,11 +1290,13 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     fn matmul2d(&self, rhs: &Self) -> Self {
-        if B::is_cublas_supported() && self.dtype() == DType::F32 {
-            self.matmul2d_cublas(rhs)
-        } else {
-            self.matmul2d_basic(rhs)
-        }
+        // TODO: cublas版は期待値と一致しないので暫定無効
+        // if B::is_cublas_supported() && self.dtype() == DType::F32 {
+        //     self.matmul2d_cublas(rhs)
+        // } else {
+        //     self.matmul2d_basic(rhs)
+        // }
+        self.matmul2d_basic(rhs)
     }
 
     pub fn matmul(&self, rhs: &Self) -> Self {
@@ -1315,7 +1389,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             let mut result = self.clone();
             for i in 0..self.ndim() {
                 if self.shape()[i] > 1 && shape2[i] == 1 {
-                    result = result.sum_axis(i, true);
+                    result = result.sum_axis(i as isize, true);
                 }
             }
             result.reshape(shape.to_vec())
@@ -1332,7 +1406,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op_reduce_impl(op, B::sum)
     }
 
-    pub fn sum_axis(&self, axis: usize, keepdims: bool) -> Self {
+    pub fn sum_axis(&self, axis: isize, keepdims: bool) -> Self {
         let op = if self.is_requires_grad() {
             Some(Op::SumAxis(self.clone()))
         } else {
@@ -1345,11 +1419,11 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.sum() / self.len() as f64
     }
 
-    pub fn mean_axis(&self, axis: usize, keepdims: bool) -> Self {
-        self.sum_axis(axis, keepdims) / self.shape()[axis] as f64
+    pub fn mean_axis(&self, axis: isize, keepdims: bool) -> Self {
+        self.sum_axis(axis, keepdims) / self.size(axis) as f64
     }
 
-    pub fn mean_axes(&self, axes: &[usize], keepdims: bool) -> Self {
+    pub fn mean_axes(&self, axes: &[isize], keepdims: bool) -> Self {
         let mut x = self.clone();
         for axis in axes {
             x = x.mean_axis(*axis, true);
@@ -1357,7 +1431,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         if !keepdims {
             let mut new_shape = Vec::new();
             for (i, dim) in x.shape().iter().enumerate() {
-                if !axes.contains(&i) {
+                if !axes.contains(&(i as isize)) {
                     new_shape.push(*dim);
                 }
             }
@@ -1376,7 +1450,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         output.with_op(op)
     }
 
-    pub fn max_axis(&self, axis: usize, keepdims: bool) -> Self {
+    pub fn max_axis(&self, axis: isize, keepdims: bool) -> Self {
         let output = self.op_reduce_axis_impl(axis, true, None, B::max_axis);
         let op = if self.is_requires_grad() {
             Some(Op::MaxAxis(self.clone(), output.detach()))
@@ -1391,8 +1465,54 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         }
     }
 
-    pub fn argmax_axis(&self, axis: usize, keepdims: bool) -> Tensor<B, u32> {
+    pub fn argmax_axis(&self, axis: isize, keepdims: bool) -> Tensor<B, u32> {
         self.op_reduce_axis_impl(axis, keepdims, None, B::argmax_axis)
+    }
+
+    pub fn cumsum(&self, axis: isize) -> Self {
+        Self::validate_axis(axis, self.ndim()).expect("cumsum");
+
+        let mut y_list = Vec::new();
+        let dim = self.size(axis);
+        let mut t = self.select(axis, 0);
+        y_list.push(t.clone());
+        for i in 1..dim {
+            let v = self.select(axis, i);
+            t = t + v;
+            y_list.push(t.clone());
+        }
+        Tensor::cat(&y_list, axis)
+    }
+
+    pub fn cumprod(&self, axis: isize) -> Self {
+        Self::validate_axis(axis, self.ndim()).expect("cumprod");
+
+        let mut y_list = Vec::new();
+        let dim = self.size(axis);
+        let mut t = self.select(axis, 0);
+        y_list.push(t.clone());
+        for i in 1..dim {
+            let v = self.select(axis, i);
+            t = t * v;
+            y_list.push(t.clone());
+        }
+        Tensor::cat(&y_list, axis)
+    }
+
+    pub fn multinomial(&self, num_samples: usize, seed: Option<u64>) -> Tensor<B, u32> {
+        let mut probs = self / self.sum_axis(-1, true);
+        let mut cdf = probs.cumsum(-1);
+
+        if probs.ndim() == 1 {
+            probs = probs.unsqueeze(0);
+            cdf = cdf.unsqueeze(0)
+        }
+
+        let batch_size = probs.size(0);
+        let r = Tensor::rand_uniform(&[batch_size, num_samples], seed, self.device());
+        let x = r.unsqueeze(-1).gt(&cdf.unsqueeze(1)).to_dtype::<T>();
+        let samples = x.sum_axis(-1, false);
+        samples.to_dtype::<u32>().squeeze()
     }
 
     fn op_reduce_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Self
@@ -1413,7 +1533,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn op_reduce_axis_impl<T2: Num, F>(
         &self,
-        axis: usize,
+        axis: isize,
         keepdims: bool,
         op: Option<Op<B, T2>>,
         f: F,
@@ -1421,6 +1541,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     where
         F: for<'a> Fn(&'a Storage<T>, &'a Layout, &'a Layout, usize) -> Result<Storage<T2>>,
     {
+        let axis =
+            Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed op_reduce_axis_impl");
+
         let mut output_shape = Vec::new();
         for i in 0..self.ndim() {
             if i == axis {
@@ -1458,7 +1581,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         if keepdims {
             output
         } else {
-            output.squeeze_axes(&[axis])
+            output.squeeze_axes(&[axis as isize])
         }
     }
 
@@ -1567,13 +1690,13 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         }
     }
 
-    pub fn softmax(&self, axis: usize) -> Self {
+    pub fn softmax(&self, axis: isize) -> Self {
         let x_stable = self - self.max_axis(axis, true);
         let x_stable_exp = x_stable.exp();
         &x_stable_exp / &x_stable_exp.sum_axis(axis, true)
     }
 
-    pub fn log_softmax(&self, axis: usize) -> Self {
+    pub fn log_softmax(&self, axis: isize) -> Self {
         (self.softmax(axis) + 1e-7).ln()
     }
 
@@ -2204,7 +2327,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         let mut inv_axes = Vec::new();
         for i in 0..gy.ndim() {
             let position = axes.iter().position(|&axis| axis == i).unwrap();
-            inv_axes.push(position);
+            inv_axes.push(position as isize);
         }
         let gx = gy.permuted_axes(&inv_axes);
         grads.add(x, gx);
@@ -2327,11 +2450,11 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             let mut axes = Vec::new();
             for axis in 0..x1.ndim() {
                 if axis == x1.ndim() - 1 {
-                    axes.push(axis - 1);
+                    axes.push(axis as isize - 1);
                 } else if axis == x1.ndim() - 2 {
-                    axes.push(axis + 1);
+                    axes.push(axis as isize + 1);
                 } else {
-                    axes.push(axis);
+                    axes.push(axis as isize);
                 }
             }
             let x1_t = x1.permuted_axes(&axes);
@@ -2348,11 +2471,11 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             let mut axes = Vec::new();
             for axis in 0..x0.ndim() {
                 if axis == x0.ndim() - 1 {
-                    axes.push(axis - 1);
+                    axes.push(axis as isize - 1);
                 } else if axis == x0.ndim() - 2 {
-                    axes.push(axis + 1);
+                    axes.push(axis as isize + 1);
                 } else {
-                    axes.push(axis);
+                    axes.push(axis as isize);
                 }
             }
             let x0_t = x0.permuted_axes(&axes);

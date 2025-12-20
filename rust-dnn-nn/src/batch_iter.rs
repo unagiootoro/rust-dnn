@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, marker::PhantomData};
 
 use rand::prelude::*;
 use rand::seq::SliceRandom;
@@ -7,21 +7,21 @@ use std::array;
 
 use rust_dnn_core::{backend::Backend, device::Device, num::Num, ten, tensor::Tensor};
 
-pub fn batch_iter<'a, T: Batchable>(
+pub fn batch_iter<'a, S, T: Batchable<S>>(
     tensors: &'a T,
     batch_size: usize,
     shuffle: bool,
     seed: Option<[u8; 32]>,
-) -> BatchIter<'a, T> {
+) -> BatchIter<'a, S, T> {
     BatchIter::new(tensors, batch_size, shuffle, seed)
 }
 
-pub trait Batchable {
-    fn get_batch(&self, index: &[u32]) -> Self;
+pub trait Batchable<T> {
+    fn get_batch(&self, index: &[u32]) -> T;
     fn batch_size(&self) -> usize;
 }
 
-impl<B: Backend, T: Num> Batchable for (Tensor<B, T>,) {
+impl<B: Backend, T: Num> Batchable<Self> for (Tensor<B, T>,) {
     fn get_batch(&self, index: &[u32]) -> Self {
         let index0 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.0.device());
         (self.0.index_select(0, &index0),)
@@ -32,7 +32,9 @@ impl<B: Backend, T: Num> Batchable for (Tensor<B, T>,) {
     }
 }
 
-impl<B1: Backend, B2: Backend, T1: Num, T2: Num> Batchable for (Tensor<B1, T1>, Tensor<B2, T2>) {
+impl<B1: Backend, B2: Backend, T1: Num, T2: Num> Batchable<Self>
+    for (Tensor<B1, T1>, Tensor<B2, T2>)
+{
     fn get_batch(&self, index: &[u32]) -> Self {
         let index0 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.0.device());
         let index1 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.1.device());
@@ -47,7 +49,7 @@ impl<B1: Backend, B2: Backend, T1: Num, T2: Num> Batchable for (Tensor<B1, T1>, 
     }
 }
 
-impl<B: Backend, T: Num, const N: usize> Batchable for [Tensor<B, T>; N] {
+impl<B: Backend, T: Num, const N: usize> Batchable<Self> for [Tensor<B, T>; N] {
     fn get_batch(&self, index: &[u32]) -> Self {
         let index = Tensor::from_vec(index.to_vec(), vec![index.len()], self[0].device());
         array::from_fn(|i| self[i].index_select(0, &index))
@@ -58,13 +60,14 @@ impl<B: Backend, T: Num, const N: usize> Batchable for [Tensor<B, T>; N] {
     }
 }
 
-pub struct BatchIter<'a, T: Batchable> {
+pub struct BatchIter<'a, S, T: Batchable<S>> {
     tensors: &'a T,
     batch_size: usize,
     indices: VecDeque<u32>,
+    marker: PhantomData<S>,
 }
 
-impl<'a, T: Batchable> BatchIter<'a, T> {
+impl<'a, S, T: Batchable<S>> BatchIter<'a, S, T> {
     pub fn new(tensors: &'a T, batch_size: usize, shuffle: bool, seed: Option<[u8; 32]>) -> Self {
         let num_records = tensors.batch_size();
         let mut indices = (0..num_records).map(|i| i as u32).collect::<Vec<u32>>();
@@ -79,12 +82,13 @@ impl<'a, T: Batchable> BatchIter<'a, T> {
             tensors,
             batch_size,
             indices,
+            marker: PhantomData,
         }
     }
 }
 
-impl<'a, T: Batchable> Iterator for BatchIter<'a, T> {
-    type Item = T;
+impl<'a, S, T: Batchable<S>> Iterator for BatchIter<'a, S, T> {
+    type Item = S;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.indices.len() > 0 {

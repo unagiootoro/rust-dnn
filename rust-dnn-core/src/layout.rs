@@ -8,6 +8,9 @@ pub struct Layout {
 
 impl Layout {
     pub fn new(shape: Vec<usize>, stride: Vec<usize>, storage_offset: usize) -> Self {
+        assert!(shape.len() > 0);
+        assert!(shape.len() == stride.len());
+
         let len = Self::compute_len(&shape);
         Self {
             shape,

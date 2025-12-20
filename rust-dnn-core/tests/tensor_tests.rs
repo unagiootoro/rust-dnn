@@ -1566,6 +1566,15 @@ define_test!(
     test_argmax_axis_keepdims_true_cuda
 );
 
+fn test_multinomial<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.1, 0.2, 0.7].to_device(device)?;
+    let y = x.multinomial(10, Some(838861));
+    assert_tensor(&y, &ten![1, 2, 2, 2, 2, 2, 2, 0, 2, 2]);
+    Ok(())
+}
+
+define_test!(test_multinomial, test_multinomial_cpu, test_multinomial_cuda);
+
 fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
     let x = x.broadcast_to(vec![2, 3]);
