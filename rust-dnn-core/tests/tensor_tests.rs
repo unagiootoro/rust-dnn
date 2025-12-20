@@ -2,7 +2,7 @@ mod test_utils;
 
 use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor::Tensor};
 
-use crate::test_utils::{arange_with_shape, assert_tensor};
+use crate::test_utils::{arange_with_shape, assert_tensor, assert_tensor_with_eps};
 
 fn test_fill<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::fill(vec![3], 1.0, device);
@@ -1674,6 +1674,56 @@ define_test!(
     test_leaky_relu_backward,
     test_leaky_relu_backward_cpu,
     test_leaky_relu_backward_cuda
+);
+
+fn test_silu<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-2.0, 0.0, 2.0].to_device(device)?.requires_grad();
+    let y = x.silu();
+    assert_tensor(&y, &ten![-0.2384058386, 0.0000000000, 1.7615940571]);
+    Ok(())
+}
+
+define_test!(test_silu, test_silu_cpu, test_silu_cuda);
+
+fn test_silu_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-2.0, 0.0, 2.0].to_device(device)?.requires_grad();
+    let y = x.silu();
+    assert_tensor(&y, &ten![-0.2384058386, 0.0000000000, 1.7615940571]);
+    let grads = y.backward();
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(gx, &ten![-0.0907842517, 0.5000000000, 1.0907843113]);
+    Ok(())
+}
+
+define_test!(
+    test_silu_backward,
+    test_silu_backward_cpu,
+    test_silu_backward_cuda
+);
+
+fn test_gelu<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-2.0, 0.0, 2.0].to_device(device)?.requires_grad();
+    let y = x.gelu();
+    assert_tensor(&y, &ten![-0.0455000997, 0.0000000000, 1.9544999599]);
+    Ok(())
+}
+
+define_test!(test_gelu, test_gelu_cpu, test_gelu_cuda);
+
+fn test_gelu_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-2.0, 0.0, 2.0].to_device(device)?.requires_grad();
+    let y = x.gelu();
+    assert_tensor(&y, &ten![-0.0455000997, 0.0000000000, 1.9544999599]);
+    let grads = y.backward();
+    let gx = grads.get(&x).unwrap();
+    assert_tensor_with_eps(gx, &ten![-0.0852318704, 0.5000000000, 1.0852319002], 1e-3);
+    Ok(())
+}
+
+define_test!(
+    test_gelu_backward,
+    test_gelu_backward_cpu,
+    test_gelu_backward_cuda
 );
 
 fn test_dropout_train<B: Backend>(device: Device<B>) -> Result<()> {

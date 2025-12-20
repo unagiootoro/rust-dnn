@@ -1546,6 +1546,15 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self * mask
     }
 
+    pub fn silu(&self) -> Self {
+        let sig = 1.0 / (1.0 + (-self).exp());
+        self * sig
+    }
+
+    pub fn gelu(&self) -> Self {
+        0.5 * self * (1.0 + ((2.0 / PI).sqrt() * (self + 0.044715 * self.pow_scalar(3.0))).tanh())
+    }
+
     pub fn dropout(&self, dropout_ratio: f64, is_train: bool, seed: Option<u64>) -> Self {
         if is_train {
             let scale = 1.0 - dropout_ratio;
