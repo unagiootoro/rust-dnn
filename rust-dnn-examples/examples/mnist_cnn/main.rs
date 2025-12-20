@@ -26,8 +26,8 @@ impl<B: Backend, T: Float> Model<B, T> {
         let cv0 = Conv2D::new(1, 16, 3, 3, 1, 1, None, true, true, device);
         let cv1 = Conv2D::new(16, 32, 3, 3, 1, 1, None, true, true, device);
         let fc0 = Linear::new(32 * 14 * 14, 10, true, device);
-        let bn0 = BatchNorm2d::new(16, T::from_f64(0.9), T::from_f64(1e-4), device);
-        let bn1 = BatchNorm2d::new(32, T::from_f64(0.9), T::from_f64(1e-4), device);
+        let bn0 = BatchNorm2d::new(16, 0.9, 1e-4, device);
+        let bn1 = BatchNorm2d::new(32, 0.9, 1e-4, device);
         Ok(Self {
             cv0,
             cv1,

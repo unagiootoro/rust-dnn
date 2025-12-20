@@ -3,8 +3,6 @@ use std::ops::Neg;
 use crate::num::Num;
 
 pub trait Float: Num + Neg<Output = Self> {
-    fn from_f64(n: f64) -> Self;
-    fn from_f32(n: f32) -> Self;
     fn powf(self, rhs: Self) -> Self;
     fn exp(self) -> Self;
     fn ln(self) -> Self;
@@ -15,14 +13,6 @@ pub trait Float: Num + Neg<Output = Self> {
 }
 
 impl Float for f32 {
-    fn from_f64(n: f64) -> Self {
-        n as Self
-    }
-
-    fn from_f32(n: f32) -> Self {
-        n
-    }
-
     fn powf(self, rhs: Self) -> Self {
         self.powf(rhs)
     }
@@ -53,14 +43,6 @@ impl Float for f32 {
 }
 
 impl Float for f64 {
-    fn from_f64(n: f64) -> Self {
-        n
-    }
-
-    fn from_f32(n: f32) -> Self {
-        n as Self
-    }
-
     fn powf(self, rhs: Self) -> Self {
         self.powf(rhs)
     }

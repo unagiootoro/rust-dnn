@@ -50,8 +50,7 @@ impl SGD {
 
 impl<B: Backend, T: Float> Optimizer<B, T> for SGD {
     fn update_parameter(&mut self, _name: &str, parameter: &mut Tensor<B, T>, grad: &Tensor<B, T>) {
-        let lr = Tensor::from_scalar(T::from_f64(self.lr), grad.device());
-        parameter.sub_assign(&(lr * grad));
+        parameter.sub_assign(&(self.lr * grad));
     }
 
     fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
@@ -60,43 +59,38 @@ impl<B: Backend, T: Float> Optimizer<B, T> for SGD {
 }
 
 pub struct Adam<B: Backend, T: Float> {
-    alpha: T,
-    beta1: T,
-    beta2: T,
-    eps: T,
-    t: T,
-    lr: T,
+    alpha: f64,
+    beta1: f64,
+    beta2: f64,
+    eps: f64,
+    t: f64,
+    lr: f64,
     m: HashMap<String, Tensor<B, T>>,
     v: HashMap<String, Tensor<B, T>>,
 }
 
 impl<B: Backend, T: Float> Adam<B, T> {
-    pub fn new(alpha: T, beta1: T, beta2: T, eps: T) -> Self {
+    pub fn new(alpha: f64, beta1: f64, beta2: f64, eps: f64) -> Self {
         Self {
             alpha,
             beta1,
             beta2,
             eps,
-            t: T::zero(),
-            lr: T::zero(),
+            t: 0.0,
+            lr: 0.0,
             m: HashMap::new(),
             v: HashMap::new(),
         }
     }
 
     pub fn default() -> Self {
-        Self::new(
-            T::from_f64(1e-3),
-            T::from_f64(0.9),
-            T::from_f64(0.999),
-            T::from_f64(1e-8),
-        )
+        Self::new(1e-3, 0.9, 0.999, 1e-8)
     }
 }
 
 impl<B: Backend, T: Float> Optimizer<B, T> for Adam<B, T> {
     fn prepare_update_parameters(&mut self) {
-        self.t += T::from_f64(1.0);
+        self.t += 1.0;
         // alpha (lr) はそのまま。バイアス補正は後で step_size に入れる
     }
 
@@ -114,16 +108,16 @@ impl<B: Backend, T: Float> Optimizer<B, T> for Adam<B, T> {
             .or_insert_with(|| Tensor::zeros(parameter.shape().to_vec(), parameter.device()));
 
         // 1次モーメント更新: m = beta1 * m + (1 - beta1) * grad
-        let new_m = (m.clone() * self.beta1) + (grad * (T::from_f64(1.0) - self.beta1));
+        let new_m = (m.clone() * self.beta1) + (grad * (1.0 - self.beta1));
 
         // 2次モーメント更新: v = beta2 * v + (1 - beta2) * grad^2
         // let grad_sq = &grad * &grad;
-        let grad_sq = grad.pow_scalar(T::from_f64(2.0));
-        let new_v = (v.clone() * self.beta2) + (&grad_sq * (T::from_f64(1.0) - self.beta2));
+        let grad_sq = grad.pow_scalar(2.0);
+        let new_v = (v.clone() * self.beta2) + (&grad_sq * (1.0 - self.beta2));
 
         // バイアス補正項
-        let bias_correction1 = T::from_f64(1.0) - self.beta1.powf(self.t);
-        let bias_correction2 = T::from_f64(1.0) - self.beta2.powf(self.t);
+        let bias_correction1 = 1.0 - self.beta1.powf(self.t);
+        let bias_correction2 = 1.0 - self.beta2.powf(self.t);
 
         // ステップサイズ
         let step_size = self.alpha / bias_correction1;

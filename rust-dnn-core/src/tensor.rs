@@ -365,20 +365,40 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.op2_impl(rhs, None, B::eq)
     }
 
+    pub fn eq_scalar(&self, rhs: f64) -> Tensor<B, u32> {
+        self.op2_impl_scalar(rhs, None, B::eq)
+    }
+
     pub fn lt(&self, rhs: &Tensor<B, T>) -> Tensor<B, u32> {
         self.op2_impl(rhs, None, B::lt)
+    }
+
+    pub fn lt_scalar(&self, rhs: f64) -> Tensor<B, u32> {
+        self.op2_impl_scalar(rhs, None, B::lt)
     }
 
     pub fn le(&self, rhs: &Tensor<B, T>) -> Tensor<B, u32> {
         self.op2_impl(rhs, None, B::le)
     }
 
+    pub fn le_scalar(&self, rhs: f64) -> Tensor<B, u32> {
+        self.op2_impl_scalar(rhs, None, B::le)
+    }
+
     pub fn gt(&self, rhs: &Tensor<B, T>) -> Tensor<B, u32> {
         self.op2_impl(rhs, None, B::gt)
     }
 
+    pub fn gt_scalar(&self, rhs: f64) -> Tensor<B, u32> {
+        self.op2_impl_scalar(rhs, None, B::gt)
+    }
+
     pub fn ge(&self, rhs: &Tensor<B, T>) -> Tensor<B, u32> {
         self.op2_impl(rhs, None, B::ge)
+    }
+
+    pub fn ge_scalar(&self, rhs: f64) -> Tensor<B, u32> {
+        self.op2_impl_scalar(rhs, None, B::ge)
     }
 
     fn op1_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Self
@@ -429,6 +449,19 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             op.is_some(),
             op,
         )
+    }
+
+    fn op2_impl_scalar<T2: Num, F>(&self, rhs: f64, op: Option<Op<B, T2>>, f: F) -> Tensor<B, T2>
+    where
+        F: for<'a> Fn(
+            &'a Storage<T>,
+            &'a Storage<T>,
+            &'a Layout,
+            &'a Layout,
+        ) -> Result<Storage<T2>>,
+    {
+        let rhs = Tensor::from_scalar(T::from_f64(rhs), self.device);
+        self.op2_impl(&rhs, op, f)
     }
 
     fn op2_inplace_impl<F>(&self, rhs: &Tensor<B, T>, f: F)
@@ -1093,9 +1126,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     pub fn rand_norm(shape: &[usize], seed: Option<u64>, device: Device<B>) -> Self {
         let u1 = Self::rand_uniform(shape, seed, device);
         let u2 = Self::rand_uniform(shape, seed, device);
-        let two = Tensor::from_scalar(T::from_f64(2.0), device);
-        let pi = Tensor::from_scalar(T::from_f64(PI), device);
-        (-&two * u1.ln()).sqrt() * (&two * pi * u2).cos()
+        (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).cos()
     }
 
     pub fn rand_uniform(shape: &[usize], seed: Option<u64>, device: Device<B>) -> Self {
@@ -1312,12 +1343,11 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn mean(&self) -> Self {
-        self.sum() / Tensor::from_scalar(T::from_usize(self.len()), self.device)
+        self.sum() / self.len() as f64
     }
 
     pub fn mean_axis(&self, axis: usize, keepdims: bool) -> Self {
-        self.sum_axis(axis, keepdims)
-            / Tensor::from_scalar(T::from_usize(self.shape()[axis]), self.device)
+        self.sum_axis(axis, keepdims) / self.shape()[axis] as f64
     }
 
     pub fn mean_axes(&self, axes: &[usize], keepdims: bool) -> Self {
@@ -1442,8 +1472,8 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op2_impl(rhs, op, B::pow)
     }
 
-    pub fn pow_scalar(&self, rhs: T) -> Self {
-        let scalar = Tensor::from_scalar(rhs, self.device);
+    pub fn pow_scalar(&self, rhs: f64) -> Self {
+        let scalar = Tensor::from_scalar(T::from_f64(rhs), self.device);
         self.pow(&scalar)
     }
 
@@ -1502,21 +1532,17 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn sigmoid(&self) -> Self {
-        let one = Tensor::from_scalar(T::one(), self.device);
-        &one / (&one + (-self).exp())
+        1.0 / (1.0 + (-self).exp())
     }
 
     pub fn relu(&self) -> Self {
-        let zero = Tensor::zeros(vec![1], self.device);
-        let mask = self.gt(&zero).to_dtype::<T>().unwrap();
+        let mask = self.gt_scalar(0.0).to_dtype::<T>().unwrap();
         self * mask
     }
 
     pub fn leaky_relu(&self, alpha: f64) -> Self {
-        let zero = Tensor::zeros(vec![1], self.device);
-        let lhs = self.gt(&zero).to_dtype::<T>().unwrap();
-        let rhs = self.le(&zero).to_dtype::<T>().unwrap()
-            * Tensor::from_scalar(T::from_f64(alpha), self.device());
+        let lhs = self.gt_scalar(0.0).to_dtype::<T>().unwrap();
+        let rhs = self.le_scalar(0.0).to_dtype::<T>().unwrap() * alpha;
         let mask = lhs + rhs;
         self * mask
     }
@@ -1527,7 +1553,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             let rand = Tensor::<B, T>::rand_uniform(self.shape(), seed, self.device);
             let dropout_ratio = Tensor::from_scalar(T::from_f64(dropout_ratio), self.device);
             let mask = dropout_ratio.ge(&rand).to_dtype::<T>().unwrap();
-            (self * mask) / T::from_f64(scale)
+            (self * mask) / scale
         } else {
             self.clone()
         }
@@ -1540,8 +1566,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn log_softmax(&self, axis: usize) -> Self {
-        let eps = Tensor::from_scalar(T::from_f64(1e-7), self.device);
-        (self.softmax(axis) + eps).ln()
+        (self.softmax(axis) + 1e-7).ln()
     }
 
     pub fn im2col(
@@ -2279,7 +2304,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         x2: &Tensor<B, T>,
     ) {
         let gx1 = (gy / x2).sum_to(x1.shape());
-        let gx2 = (gy * (-x1 / x2.pow_scalar(T::from_f32(2.0)))).sum_to(x2.shape());
+        let gx2 = (gy * (-x1 / x2.pow_scalar(2.0))).sum_to(x2.shape());
         grads.add(x1, gx1);
         grads.add(x2, gx2);
     }
@@ -2341,8 +2366,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         x1: &Tensor<B, T>,
         x2: &Tensor<B, T>,
     ) {
-        let one = Tensor::ones(vec![1], gy.device);
-        let gx1 = (x2 * x1.pow(&(x2 - one)) * gy).sum_to(x1.shape());
+        let gx1 = (x2 * x1.pow(&(x2 - 1.0)) * gy).sum_to(x1.shape());
         let gx2 = (gy * x1.ln()).sum_to(x2.shape());
         grads.add(x1, gx1);
         grads.add(x2, gx2);
@@ -2365,15 +2389,12 @@ impl<B: Backend, T: Float> Tensor<B, T> {
 
     fn tanh_backward(grads: &mut Gradients<B, T>, gy: &Tensor<B, T>, x: &Tensor<B, T>) {
         let y = x.tanh();
-        let one = Tensor::from_scalar(T::from_f64(1.0), gy.device);
-        let gx = gy * (one - y.pow_scalar(T::from_f64(2.0)));
+        let gx = gy * (1.0 - y.pow_scalar(2.0));
         grads.add(x, gx);
     }
 
     fn sqrt_backward(grads: &mut Gradients<B, T>, gy: &Tensor<B, T>, x: &Tensor<B, T>) {
-        let one = Tensor::from_scalar(T::from_f64(1.0), gy.device);
-        let two = Tensor::from_scalar(T::from_f64(2.0), gy.device);
-        let gx = gy * (one / (two * x.sqrt()));
+        let gx = gy * (1.0 / (2.0 * x.sqrt()));
         grads.add(x, gx);
     }
 
@@ -2517,19 +2538,37 @@ macro_rules! define_op_arg2 {
             }
         }
 
-        impl<B: Backend, T: Num> std::ops::$op_name<T> for Tensor<B, T> {
+        impl<B: Backend, T: Num> std::ops::$op_name<f64> for Tensor<B, T> {
             type Output = Tensor<B, T>;
 
-            fn $fn_name(self, rhs: T) -> Tensor<B, T> {
-                self.$scalar_impl_fn_name(rhs)
+            fn $fn_name(self, rhs: f64) -> Tensor<B, T> {
+                self.$scalar_impl_fn_name(T::from_f64(rhs))
             }
         }
 
-        impl<B: Backend, T: Num> std::ops::$op_name<T> for &Tensor<B, T> {
+        impl<B: Backend, T: Num> std::ops::$op_name<f64> for &Tensor<B, T> {
             type Output = Tensor<B, T>;
 
-            fn $fn_name(self, rhs: T) -> Tensor<B, T> {
-                self.$scalar_impl_fn_name(rhs)
+            fn $fn_name(self, rhs: f64) -> Tensor<B, T> {
+                self.$scalar_impl_fn_name(T::from_f64(rhs))
+            }
+        }
+
+        impl<B: Backend, T: Float> std::ops::$op_name<Tensor<B, T>> for f64 {
+            type Output = Tensor<B, T>;
+
+            fn $fn_name(self, rhs: Tensor<B, T>) -> Tensor<B, T> {
+                let lhs = Tensor::<B, T>::from_scalar(T::from_f64(self), rhs.device());
+                lhs.$impl_fn_name(&rhs)
+            }
+        }
+
+        impl<B: Backend, T: Float> std::ops::$op_name<&Tensor<B, T>> for f64 {
+            type Output = Tensor<B, T>;
+
+            fn $fn_name(self, rhs: &Tensor<B, T>) -> Tensor<B, T> {
+                let lhs = Tensor::<B, T>::from_scalar(T::from_f64(self), rhs.device());
+                lhs.$impl_fn_name(&rhs)
             }
         }
     };

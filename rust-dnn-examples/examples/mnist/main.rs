@@ -26,8 +26,8 @@ impl<B: Backend, T: Float> Model<B, T> {
         let fc0 = Linear::new(784, 256, true, device);
         let fc1 = Linear::new(256, 256, true, device);
         let fc2 = Linear::new(256, 10, true, device);
-        let bn0 = BatchNorm1d::new(256, T::from_f64(0.9), T::from_f64(1e-4), device);
-        let bn1 = BatchNorm1d::new(256, T::from_f64(0.9), T::from_f64(1e-4), device);
+        let bn0 = BatchNorm1d::new(256, 0.9, 1e-4, device);
+        let bn1 = BatchNorm1d::new(256, 0.9, 1e-4, device);
         Ok(Self {
             fc0,
             fc1,

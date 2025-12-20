@@ -65,10 +65,10 @@ impl<B: Backend, T: Float> Encoder<B, T> {
         let fc0 = Linear::new(128 * 7 * 7, 1024, true, device);
         let fc1_0 = Linear::new(1024, z_dim, true, device);
         let fc1_1 = Linear::new(1024, z_dim, true, device);
-        let ln0 = LayerNorm::new(vec![32, 28, 28], T::from_f32(1e-4), true, device);
-        let ln1 = LayerNorm::new(vec![64, 14, 14], T::from_f32(1e-4), true, device);
-        let ln2 = LayerNorm::new(vec![128, 7, 7], T::from_f32(1e-4), true, device);
-        let ln3 = LayerNorm::new(vec![1024], T::from_f32(1e-4), true, device);
+        let ln0 = LayerNorm::new(vec![32, 28, 28], 1e-4, true, device);
+        let ln1 = LayerNorm::new(vec![64, 14, 14], 1e-4, true, device);
+        let ln2 = LayerNorm::new(vec![128, 7, 7], 1e-4, true, device);
+        let ln3 = LayerNorm::new(vec![1024], 1e-4, true, device);
         let encoder = Self {
             cv0,
             cv1,
@@ -145,10 +145,10 @@ impl<B: Backend, T: Float> Decoder<B, T> {
         let dcv0 = Deconv2D::new(128, 64, 2, 2, 2, 2, None, true, true, device);
         let dcv1 = Deconv2D::new(64, 32, 2, 2, 2, 2, None, true, true, device);
         let cv0 = Conv2D::new(32, 1, 3, 3, 1, 1, None, true, true, device);
-        let ln0 = LayerNorm::new(vec![1024], T::from_f32(1e-4), true, device);
-        let ln1 = LayerNorm::new(vec![128 * 7 * 7], T::from_f32(1e-4), true, device);
-        let ln2 = LayerNorm::new(vec![64, 14, 14], T::from_f32(1e-4), true, device);
-        let ln3 = LayerNorm::new(vec![32, 28, 28], T::from_f32(1e-4), true, device);
+        let ln0 = LayerNorm::new(vec![1024], 1e-4, true, device);
+        let ln1 = LayerNorm::new(vec![128 * 7 * 7], 1e-4, true, device);
+        let ln2 = LayerNorm::new(vec![64, 14, 14], 1e-4, true, device);
+        let ln3 = LayerNorm::new(vec![32, 28, 28], 1e-4, true, device);
         let decoder = Self {
             fc0,
             fc1,
@@ -246,17 +246,10 @@ fn vae_loss<B: Backend, T: Float>(
     t: &Tensor<B, T>,
 ) -> Result<Tensor<B, T>> {
     // kl = -0.5 * Σ(1 + log(σ^2) - μ^2 - σ^2)
-    let half = Tensor::from_scalar(T::from_f64(0.5), x.device());
-    let one = Tensor::from_scalar(T::from_f64(1.0), x.device());
-
-    let a = z_sigma.pow_scalar(T::from_f64(2.0)).ln();
-    let b = z_mean.pow_scalar(T::from_f64(2.0));
-    let c = z_sigma.pow_scalar(T::from_f64(2.0));
-
-    let d = one + a - b - c;
-
-    let kl = -half * d.sum_axis(1, false).mean_axis(0, false);
-
+    let kl = -0.5
+        * (1.0 + z_sigma.pow_scalar(2.0).ln() - z_mean.pow_scalar(2.0) - z_sigma.pow_scalar(2.0))
+            .sum_axis(1, false)
+            .mean_axis(0, false);
     Ok(mean_squared_error(x, t)? + kl)
 }
 

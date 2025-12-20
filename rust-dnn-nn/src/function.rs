@@ -11,13 +11,11 @@ pub fn scaled_dot_product_attention<B: Backend, T: Float>(
     is_train: bool,
     seed: Option<u64>,
 ) -> Tensor<B, T> {
-    let rhs = k.permuted_axes(&[0, 1, 3, 2])
-        / Tensor::from_scalar(T::from_f64((q.shape()[3] as f64).sqrt()), q.device());
+    let rhs = k.permuted_axes(&[0, 1, 3, 2]) / (q.shape()[3] as f64).sqrt();
     let scores = q.matmul(&rhs);
 
     let scores = if let Some(attn_mask) = attn_mask {
-        let zero = Tensor::from_scalar(T::zero(), q.device());
-        scores.masked_fill(&attn_mask.eq(&zero), -T::max_value())
+        scores.masked_fill(&attn_mask.eq_scalar(0.0), -T::max_value())
     } else {
         scores
     };

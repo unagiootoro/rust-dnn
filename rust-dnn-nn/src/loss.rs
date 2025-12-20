@@ -5,8 +5,7 @@ pub fn mean_squared_error<B: Backend, T: Float>(
     y: &Tensor<B, T>,
 ) -> Result<Tensor<B, T>> {
     let diff = x - y;
-    let output = diff.pow_scalar(T::from_f64(2.0)).sum()
-        / Tensor::from_scalar(T::from_usize(diff.len()), x.device());
+    let output = diff.pow_scalar(2.0).sum() / diff.len() as f64;
     Ok(output)
 }
 
@@ -25,9 +24,8 @@ pub fn sigmoid_cross_entropy<B: Backend, T: Float>(
     y: &Tensor<B, T>,
 ) -> Result<Tensor<B, T>> {
     let x = x.sigmoid();
-    let eps = Tensor::from_scalar(T::from_f64(1e-7), x.device());
-    let one = Tensor::from_scalar(T::one(), x.device());
-    let output = -(y * ((&x + &eps).ln()) + ((&one - y) * (&one - &x + &eps).ln()))
+    let eps = 1e-7;
+    let output = -(y * ((&x + eps).ln()) + ((1.0 - y) * (1.0 - &x + eps).ln()))
         .mean_axis(0, false)
         .sum();
     Ok(output)

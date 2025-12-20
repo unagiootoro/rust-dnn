@@ -688,7 +688,7 @@ fn test_gather_backward<B: Backend>(device: Device<B>) -> Result<()> {
     .to_device(device)?
     .requires_grad();
     let index = ten![[0, 1], [2, 3], [1, 3]].to_device(device)?;
-    let y = x.gather(&index, 1) * Tensor::from_scalar(2.0, device);
+    let y = x.gather(&index, 1) * 2.0;
     assert_tensor(&y, &ten![[2.0, 4.0], [14.0, 16.0], [20.0, 24.0]]);
     let grads = y.backward();
     let gx = grads.get(&x).unwrap();
@@ -1468,7 +1468,7 @@ fn test_max_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x.max() * Tensor::from_scalar(2.0, device);
+    let y = x.max() * 2.0;
     assert_tensor(&y, &ten![8.0]);
     let grads = y.backward();
     let gx = grads.get(&x).unwrap();
@@ -1495,7 +1495,7 @@ fn test_max_axis_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x.max_axis(0, false) * Tensor::from_scalar(2.0, device);
+    let y = x.max_axis(0, false) * 2.0;
     assert_tensor(&y, &ten![4.0, 8.0, -2.0]);
     let grads = y.backward();
     let gx = grads.get(&x).unwrap();
@@ -1526,7 +1526,7 @@ fn test_max_axis_backward_keepdims_true<B: Backend>(device: Device<B>) -> Result
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x.max_axis(0, true) * Tensor::from_scalar(2.0, device);
+    let y = x.max_axis(0, true) * 2.0;
     assert_tensor(&y, &ten![[4.0, 8.0, -2.0]]);
     let grads = y.backward();
     let gx = grads.get(&x).unwrap();
