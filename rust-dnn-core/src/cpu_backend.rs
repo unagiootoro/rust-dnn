@@ -288,6 +288,29 @@ impl Backend for CpuBackend {
         }
     }
 
+    fn is_cublas_supported() -> bool {
+        false
+    }
+
+    fn cublas_sgemm<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        panic!("CPU Backend is CuBLAS not supported.");
+    }
+
+    fn cublas_sgemm_batched<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+        batch_size: usize,
+    ) -> Result<Storage<T>> {
+        panic!("CPU Backend is CuBLAS not supported.");
+    }
+
     fn gather<T: Num>(
         input_storage: &Storage<T>,
         index_storage: &Storage<u32>,

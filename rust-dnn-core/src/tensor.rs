@@ -1180,7 +1180,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op1_impl(op, B::op_neg)
     }
 
-    fn matmul2d(&self, rhs: &Self) -> Result<Self> {
+    fn matmul2d_basic(&self, rhs: &Self) -> Result<Self> {
         let lhs_rows = self.shape()[0];
         let lhs_cols = self.shape()[1];
         let rhs_rows = rhs.shape()[0];
@@ -1202,6 +1202,42 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             None,
         );
         Ok(output)
+    }
+
+    fn matmul2d_cublas(&self, rhs: &Self) -> Result<Self> {
+        let lhs = self.contiguous();
+        let rhs = rhs.contiguous();
+
+        let lhs_rows = lhs.shape()[0];
+        let lhs_cols = lhs.shape()[1];
+        let rhs_rows = rhs.shape()[0];
+        let rhs_cols = rhs.shape()[1];
+        assert_eq!(lhs_cols, rhs_rows, "Incompatible matrix shapes");
+
+        let lhs_storage = &*lhs.storage.borrow();
+        let rhs_storage = &*rhs.storage.borrow();
+        let output_storage = B::cublas_sgemm(lhs_storage, &rhs_storage, &lhs.layout, &rhs.layout)?;
+        let output_shape = vec![rhs_cols, lhs_rows];
+        let output_stride = Self::compute_stride(&output_shape);
+        let output_layout = Layout::new(output_shape, output_stride, 0);
+        let output = Self::new(
+            Rc::new(RefCell::new(output_storage)),
+            output_layout,
+            lhs.device,
+            lhs.dtype,
+            false,
+            None,
+        );
+        let output = output.reversed_axes().unwrap().contiguous();
+        Ok(output)
+    }
+
+    fn matmul2d(&self, rhs: &Self) -> Result<Self> {
+        if B::is_cublas_supported() && self.dtype() == DType::F32 {
+            self.matmul2d_cublas(rhs)
+        } else {
+            self.matmul2d_basic(rhs)
+        }
     }
 
     pub fn matmul(&self, rhs: &Self) -> Result<Self> {

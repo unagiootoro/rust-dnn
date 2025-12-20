@@ -127,6 +127,20 @@ pub trait Backend: Clone + Copy {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>>;
+    fn is_cublas_supported() -> bool;
+    fn cublas_sgemm<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>>;
+    fn cublas_sgemm_batched<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+        batch_size: usize,
+    ) -> Result<Storage<T>>;
     fn gather<T: Num>(
         input_storage: &Storage<T>,
         index_storage: &Storage<u32>,

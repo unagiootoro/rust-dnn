@@ -1,7 +1,12 @@
-use std::ffi::c_float;
+use std::ffi::{c_float, c_void};
+use std::ptr;
 
+use libc::c_int;
 use rust_dnn_cuda_kernel::basic::*;
 use rust_dnn_cuda_kernel::clayout::{CLayout, MAX_NDIM, NDimArray};
+use rust_dnn_cuda_kernel::cublas::{
+    CUBLAS_HANDLE, CUBLAS_OP_T, cublasCreate_v2, cublasSgemm_v2, cublasSgemmStridedBatched,
+};
 use rust_dnn_cuda_kernel::cuda::check_cuda_error;
 use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
 use rust_dnn_cuda_kernel::math::*;
@@ -227,6 +232,161 @@ impl Backend for CudaBackend {
             check_cuda_error();
             output_data
         };
+        Ok(Storage::CudaStorage(output_data))
+    }
+
+    fn is_cublas_supported() -> bool {
+        true
+    }
+
+    fn cublas_sgemm<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        let a_rows = lhs_layout.shape()[0];
+        let a_cols = lhs_layout.shape()[1];
+        let b_cols = rhs_layout.shape()[1];
+
+        let a_data = lhs_storage.get_cuda_storage()?;
+        let b_data = rhs_storage.get_cuda_storage()?;
+
+        let output_len = a_rows * b_cols;
+        let output_data = unsafe { GPUBuffer::<T>::new(output_len) };
+
+        let m = a_rows;
+        let n = b_cols;
+        let k = a_cols;
+
+        let handle = if let Some(handle) = CUBLAS_HANDLE.with(|handle| *handle.borrow()) {
+            handle
+        } else {
+            let mut handle: *mut c_void = ptr::null_mut();
+            unsafe {
+                cublasCreate_v2(&mut handle);
+            };
+            CUBLAS_HANDLE.with(|h| *h.borrow_mut() = Some(handle));
+            handle
+        };
+
+        let alpha: f32 = 1.0;
+        let beta: f32 = 0.0;
+
+        unsafe {
+            cublasSgemm_v2(
+                handle,
+                CUBLAS_OP_T, // ← A を転置（行優先→列優先の意味）
+                CUBLAS_OP_T, // ← B も転置
+                m as c_int,  // rows of op(A) = a_rows
+                n as c_int,  // cols of op(B) = b_cols
+                k as c_int,  // cols of op(A) = a_cols
+                &alpha,
+                a_data.ptr() as *const f32,
+                k as c_int, // lda = cols of A in row-major
+                b_data.ptr() as *const f32,
+                n as c_int, // ldb = cols of B in row-major
+                &beta,
+                output_data.ptr() as *mut f32,
+                m as c_int, // ldc = cols of C in row-major
+            );
+        }
+
+        // let mut out = Tensor::new(
+        //     None,
+        //     vec![b_cols, a_rows],
+        //     None,
+        //     Rc::new(RefCell::new(TensorStorage::GpuStorage(result))),
+        //     false,
+        // );
+        // let out = out.reversed_axes();
+        // let mut out = out.contiguous();
+        // out.set_requires_grad(a.is_requires_grad() || b.is_requires_grad());
+        // out
+
+        Ok(Storage::CudaStorage(output_data))
+    }
+
+    fn cublas_sgemm_batched<T: Float>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+        batch_size: usize,
+    ) -> Result<Storage<T>> {
+        let a_rows = lhs_layout.shape()[0];
+        let a_cols = lhs_layout.shape()[1];
+        let b_cols = rhs_layout.shape()[1];
+
+        let a_data = lhs_storage.get_cuda_storage()?;
+        let b_data = rhs_storage.get_cuda_storage()?;
+
+        let output_len = batch_size * a_rows * b_cols;
+        let output_data = unsafe { GPUBuffer::<T>::new(output_len) };
+
+        let m = a_rows;
+        let n = b_cols;
+        let k = a_cols;
+
+        let handle = if let Some(handle) = CUBLAS_HANDLE.with(|handle| *handle.borrow()) {
+            handle
+        } else {
+            let mut handle: *mut c_void = ptr::null_mut();
+            unsafe {
+                cublasCreate_v2(&mut handle);
+            };
+            CUBLAS_HANDLE.with(|h| *h.borrow_mut() = Some(handle));
+            handle
+        };
+
+        let alpha: f32 = 1.0;
+        let beta: f32 = 0.0;
+        let stride_a: i64 = (m * k) as i64; // A の1バッチ分の要素数
+        let stride_b: i64 = (k * n) as i64; // B の1バッチ分の要素数
+        let stride_c: i64 = (m * n) as i64; // C の1バッチ分の要素数
+
+        unsafe {
+            let a_ptr = (a_data.ptr() as *const f32).offset(lhs_layout.storage_offset() as isize);
+            let b_ptr = (b_data.ptr() as *const f32).offset(rhs_layout.storage_offset() as isize);
+            cublasSgemmStridedBatched(
+                handle,
+                CUBLAS_OP_T, // ← A を転置（行優先→列優先の意味）
+                CUBLAS_OP_T, // ← B も転置
+                m as c_int,  // rows of op(A) = a_rows
+                n as c_int,  // cols of op(B) = b_cols
+                k as c_int,  // cols of op(A) = a_cols
+                &alpha,
+                a_ptr,
+                k as c_int, // lda = cols of A in row-major
+                stride_a,
+                b_ptr,
+                n as c_int, // ldb = cols of B in row-major
+                stride_b,
+                &beta,
+                output_data.ptr() as *mut f32,
+                m as c_int, // ldc = cols of C in row-major
+                stride_c,
+                batch_size as i32,
+            );
+        }
+
+        // let out = Tensor::new(
+        //     None,
+        //     vec![batch_size, b_cols, a_rows],
+        //     None,
+        //     Rc::new(RefCell::new(TensorStorage::GpuStorage(result))),
+        //     a.is_requires_grad() || b.is_requires_grad(),
+        // );
+        // let out = out.permuted_axes(vec![0, 2, 1]);
+        // let out = out.contiguous();
+
+        // let mut out_shape = batch_a_shape;
+        // out_shape.push(a.shape()[1]);
+        // out_shape.push(b.shape()[2]);
+        // let mut out = out.reshape(out_shape);
+        // out.set_requires_grad(a.is_requires_grad() || b.is_requires_grad());
+        // out
+
         Ok(Storage::CudaStorage(output_data))
     }
 
