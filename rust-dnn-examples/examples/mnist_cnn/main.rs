@@ -69,7 +69,7 @@ impl<B: Backend, T: Float> Model<B, T> {
 }
 
 fn accuracy<B: Backend, T: Float>(x: &Tensor<B, T>, t: &Tensor<B, u32>) -> Result<usize> {
-    let correct = x.argmax_axis(1, false).eq(t).to_dtype::<T>()?.sum();
+    let correct = x.argmax_axis(1, false).eq(t).to_dtype::<T>().sum();
     Ok(correct.to_vec()[0].as_usize())
 }
 
@@ -89,7 +89,7 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
             for (iter, (images, labels)) in
                 batch_iter(&train_dataset, batch_size, true, None).enumerate()
             {
-                let images = images.to_device(device)?.to_dtype::<f32>()?;
+                let images = images.to_device(device)?.to_dtype::<f32>();
                 let images = images / ten![255.0].to_device(device)?;
                 let images = images.reshape(vec![100, 1, 28, 28]);
                 let y = model.forward(&images, true)?;
@@ -105,7 +105,7 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
     {
         let mut correct = 0;
         for (images, labels) in batch_iter(&test_dataset, batch_size, false, None) {
-            let images = images.to_device(device)?.to_dtype::<f32>()?;
+            let images = images.to_device(device)?.to_dtype::<f32>();
             let images = images / ten![255.0].to_device(device)?;
             let images = images.reshape(vec![100, 1, 28, 28]);
             let y = model.forward(&images, false)?;

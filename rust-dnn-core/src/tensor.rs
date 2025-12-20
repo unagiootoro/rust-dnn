@@ -913,12 +913,12 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn masked_fill(&self, mask: &Tensor<B, u32>, value: T) -> Tensor<B, T> {
-        let mask_f32 = mask.to_dtype::<f32>().unwrap();
+        let mask_f32 = mask.to_dtype::<f32>();
         let reverse_mask = -mask_f32 + 1.0;
-        let reverse_mask = reverse_mask.to_dtype::<T>().unwrap();
+        let reverse_mask = reverse_mask.to_dtype::<T>();
         let a = self * reverse_mask;
         let value = Tensor::from_scalar(value, self.device());
-        let mask2 = mask.to_dtype::<T>().unwrap();
+        let mask2 = mask.to_dtype::<T>();
         let b = mask2 * value;
         a + b
     }
@@ -1074,17 +1074,16 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         unsafe { std::mem::transmute::<Self, Tensor<B2, T>>(self) }
     }
 
-    pub fn to_dtype<T2: Num>(&self) -> Result<Tensor<B, T2>> {
+    pub fn to_dtype<T2: Num>(&self) -> Tensor<B, T2> {
         let storage = self.storage.borrow().to_dtype();
-        let output = Tensor::new(
+        Tensor::new(
             Rc::new(RefCell::new(storage)),
             self.layout.clone(),
             self.device.clone(),
             self.dtype,
             self.is_requires_grad,
             None,
-        );
-        Ok(output)
+        )
     }
 
     pub unsafe fn reinterpret_cast_dtype<T2: Num>(self) -> Tensor<B, T2> {
@@ -1536,13 +1535,13 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn relu(&self) -> Self {
-        let mask = self.gt_scalar(0.0).to_dtype::<T>().unwrap();
+        let mask = self.gt_scalar(0.0).to_dtype::<T>();
         self * mask
     }
 
     pub fn leaky_relu(&self, alpha: f64) -> Self {
-        let lhs = self.gt_scalar(0.0).to_dtype::<T>().unwrap();
-        let rhs = self.le_scalar(0.0).to_dtype::<T>().unwrap() * alpha;
+        let lhs = self.gt_scalar(0.0).to_dtype::<T>();
+        let rhs = self.le_scalar(0.0).to_dtype::<T>() * alpha;
         let mask = lhs + rhs;
         self * mask
     }
@@ -1552,7 +1551,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             let scale = 1.0 - dropout_ratio;
             let rand = Tensor::<B, T>::rand_uniform(self.shape(), seed, self.device);
             let dropout_ratio = Tensor::from_scalar(T::from_f64(dropout_ratio), self.device);
-            let mask = dropout_ratio.ge(&rand).to_dtype::<T>().unwrap();
+            let mask = dropout_ratio.ge(&rand).to_dtype::<T>();
             (self * mask) / scale
         } else {
             self.clone()
@@ -2246,7 +2245,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         y: &Tensor<B, T>,
     ) {
         let mask = x.eq(&y);
-        let gx = gy * mask.to_dtype::<T>().unwrap();
+        let gx = gy * mask.to_dtype::<T>();
         grads.add(x, gx);
     }
 
@@ -2257,7 +2256,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         y: &Tensor<B, T>,
     ) {
         let mask = x.eq(&y);
-        let gx = gy * mask.to_dtype::<T>().unwrap();
+        let gx = gy * mask.to_dtype::<T>();
         grads.add(x, gx);
     }
 

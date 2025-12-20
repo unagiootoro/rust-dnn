@@ -187,7 +187,7 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
             for (iter, (images, _)) in
                 batch_iter(&train_dataset, batch_size, true, None).enumerate()
             {
-                let images = images.to_device(device)?.to_dtype::<f32>()?;
+                let images = images.to_device(device)?.to_dtype::<f32>();
                 let images =
                     ((images / ten![127.5].to_device(device)?) - ten![1.0].to_device(device)?);
                 let images = images.reshape(vec![100, 1, 28, 28]);

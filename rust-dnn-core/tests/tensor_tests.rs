@@ -22,7 +22,7 @@ define_test!(test_to_vec, test_to_vec_cpu, test_to_vec_cuda);
 
 fn test_to_dtype<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?;
-    let y = x.to_dtype::<u32>()?;
+    let y = x.to_dtype::<u32>();
     assert_eq!(y.to_vec(), vec![0, 1, 2]);
     Ok(())
 }

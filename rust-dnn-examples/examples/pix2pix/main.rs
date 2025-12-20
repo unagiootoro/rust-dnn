@@ -397,7 +397,7 @@ fn train<B: Backend>(device: Device<B>) -> Result<()> {
         println!("epoch = {}", epoch);
 
         for (iter, (imgs, _)) in batch_iter(&train_dataset, batch_size, true, None).enumerate() {
-            let imgs = imgs.to_device(device)?.to_dtype::<f32>()?;
+            let imgs = imgs.to_device(device)?.to_dtype::<f32>();
             let imgs = (imgs / ten![127.5].to_device(device)?) - ten![1.0].to_device(device)?;
 
             let r = imgs.get_item(vec![(0, imgs.shape()[0]), (0, 1), (0, 32), (0, 32)]);
@@ -447,7 +447,7 @@ fn test<B: Backend>(epoch: usize, device: Device<B>) -> Result<()> {
     let test_dataset = CIFAR10Loader::new("../datasets").load_test()?;
 
     let (imgs, _) = batch_iter(&test_dataset, 100, true, None).next().unwrap();
-    let imgs = imgs.to_device(device)?.to_dtype::<f32>()?;
+    let imgs = imgs.to_device(device)?.to_dtype::<f32>();
     let imgs = (imgs / ten![127.5].to_device(device)?) - ten![1.0].to_device(device)?;
     let r = imgs.get_item(vec![(0, imgs.shape()[0]), (0, 1), (0, 32), (0, 32)]);
     let g = imgs.get_item(vec![(0, imgs.shape()[0]), (1, 2), (0, 32), (0, 32)]);

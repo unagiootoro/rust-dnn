@@ -9,10 +9,10 @@ use rust_dnn_safetensors::{deserialize, serialize};
 fn test_serialize<T: Num>() -> Result<()> {
     let device = Device::get_cpu_device();
     let x = Tensor::from_vec(vec![1.0, 2.0, 3.0], vec![3], device)
-        .to_dtype::<T>()?
+        .to_dtype::<T>()
         .requires_grad();
     let y = Tensor::from_vec(vec![4.0, 5.0, 6.0, 7.0], vec![4], device)
-        .to_dtype::<T>()?
+        .to_dtype::<T>()
         .requires_grad();
     let mut tensors = HashMap::new();
     tensors.insert("x".to_string(), x.clone());
