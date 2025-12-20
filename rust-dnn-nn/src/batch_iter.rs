@@ -23,8 +23,8 @@ pub trait Batchable {
 
 impl<B: Backend, T: Num> Batchable for (Tensor<B, T>,) {
     fn get_batch(&self, index: &[u32]) -> Self {
-        let index0 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.0.device()).unwrap();
-        (self.0.index_select(0, &index0).unwrap(),)
+        let index0 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.0.device());
+        (self.0.index_select(0, &index0),)
     }
 
     fn batch_size(&self) -> usize {
@@ -34,11 +34,11 @@ impl<B: Backend, T: Num> Batchable for (Tensor<B, T>,) {
 
 impl<B1: Backend, B2: Backend, T1: Num, T2: Num> Batchable for (Tensor<B1, T1>, Tensor<B2, T2>) {
     fn get_batch(&self, index: &[u32]) -> Self {
-        let index0 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.0.device()).unwrap();
-        let index1 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.1.device()).unwrap();
+        let index0 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.0.device());
+        let index1 = Tensor::from_vec(index.to_vec(), vec![index.len()], self.1.device());
         (
-            self.0.index_select(0, &index0).unwrap(),
-            self.1.index_select(0, &index1).unwrap(),
+            self.0.index_select(0, &index0),
+            self.1.index_select(0, &index1),
         )
     }
 
@@ -49,8 +49,8 @@ impl<B1: Backend, B2: Backend, T1: Num, T2: Num> Batchable for (Tensor<B1, T1>, 
 
 impl<B: Backend, T: Num, const N: usize> Batchable for [Tensor<B, T>; N] {
     fn get_batch(&self, index: &[u32]) -> Self {
-        let index = Tensor::from_vec(index.to_vec(), vec![index.len()], self[0].device()).unwrap();
-        array::from_fn(|i| self[i].index_select(0, &index).unwrap())
+        let index = Tensor::from_vec(index.to_vec(), vec![index.len()], self[0].device());
+        array::from_fn(|i| self[i].index_select(0, &index))
     }
 
     fn batch_size(&self) -> usize {

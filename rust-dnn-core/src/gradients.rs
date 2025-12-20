@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{backend::Backend, error::Error, num::Num, tensor::Tensor};
+use crate::{backend::Backend, num::Num, tensor::Tensor};
 
 pub struct Gradients<B: Backend, T: Num>(HashMap<usize, Tensor<B, T>>);
 
@@ -21,13 +21,12 @@ impl<B: Backend, T: Num> Gradients<B, T> {
         self.0.insert(tensor.id(), grad);
     }
 
-    pub fn add(&mut self, tensor: &Tensor<B, T>, grad: Tensor<B, T>) -> Result<(), Error> {
+    pub fn add(&mut self, tensor: &Tensor<B, T>, grad: Tensor<B, T>) {
         if let Some(prev_grad) = self.0.get(&tensor.id()) {
-            self.0.insert(tensor.id(), (prev_grad.clone() + grad)?);
+            self.0.insert(tensor.id(), prev_grad.clone() + grad);
         } else {
             self.0.insert(tensor.id(), grad);
         }
-        Ok(())
     }
 
     pub fn remove(&mut self, tensor: &Tensor<B, T>) {

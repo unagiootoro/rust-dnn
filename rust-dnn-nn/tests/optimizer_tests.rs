@@ -12,29 +12,29 @@ use rust_dnn_nn::{
 use crate::test_utils::assert_tensor;
 
 fn test_sgd_update_parameters<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::arange(0..(2 * 3), device).reshape(vec![2, 3])?;
+    let x = Tensor::arange(0..(2 * 3), device).reshape(vec![2, 3]);
     let w = Tensor::arange(0..(1 * 3), device)
-        .reshape(vec![1, 3])?
+        .reshape(vec![1, 3])
         .requires_grad();
     let b = Tensor::from_scalar(0.5, device).requires_grad();
-    let t = Tensor::from_vec(vec![1., 0.], vec![2, 1], device)?;
-    let linear = Linear::from_weights(w.clone(), Some(b.clone()))?;
-    let y = linear.forward(&x)?;
+    let t = Tensor::from_vec(vec![1., 0.], vec![2, 1], device);
+    let linear = Linear::from_weights(w.clone(), Some(b.clone()));
+    let y = linear.forward(&x);
 
     let loss = mean_squared_error(&y, &t)?;
     assert_eq!(loss.to_vec(), vec![115.25]);
-    let grads = loss.backward()?;
+    let grads = loss.backward();
 
     let mut optimizer = SGD::new(0.01);
-    optimizer.update_parameters(&mut linear.all_parameters_map(), &grads)?;
+    optimizer.update_parameters(&mut linear.all_parameters_map(), &grads);
     assert_tensor(&w, &ten![[-0.4350, 0.3750, 1.1850]]);
     assert_tensor(&b, &ten![0.3100]);
 
-    let y = linear.forward(&x)?;
+    let y = linear.forward(&x);
     let loss: Tensor<B, f64> = mean_squared_error(&y, &t)?;
     assert!((loss.to_vec()[0] - 22.783962500000005).abs() < 1e-4);
-    let grads = loss.backward()?;
-    optimizer.update_parameters(&mut linear.all_parameters_map(), &grads)?;
+    let grads = loss.backward();
+    optimizer.update_parameters(&mut linear.all_parameters_map(), &grads);
     assert_tensor(&w, &ten![[-0.6279, 0.0973, 0.8224]]);
     assert_tensor(&b, &ten![0.2252]);
 
@@ -48,38 +48,38 @@ define_test!(
 );
 
 fn test_adam_update_parameters<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::arange(0..(2 * 3), device).reshape(vec![2, 3])?;
+    let x = Tensor::arange(0..(2 * 3), device).reshape(vec![2, 3]);
     let w = Tensor::arange(0..(1 * 3), device)
-        .reshape(vec![1, 3])?
+        .reshape(vec![1, 3])
         .requires_grad();
     let b = Tensor::from_scalar(0.5, device).requires_grad();
-    let t = Tensor::from_vec(vec![1., 0.], vec![2, 1], device)?;
+    let t = Tensor::from_vec(vec![1., 0.], vec![2, 1], device);
 
-    let linear = Linear::from_weights(w.clone(), Some(b.clone()))?;
-    let y = linear.forward(&x)?;
+    let linear = Linear::from_weights(w.clone(), Some(b.clone()));
+    let y = linear.forward(&x);
 
     let loss = mean_squared_error(&y, &t)?;
     assert_eq!(loss.to_vec(), vec![115.25]);
-    let grads = loss.backward()?;
+    let grads = loss.backward();
 
     let mut optimizer = Adam::new(0.01, 0.9, 0.999, 1e-8);
     {
         let mut parameters = HashMap::new();
         parameters.insert("w".to_string(), w.clone());
         parameters.insert("b".to_string(), b.clone());
-        optimizer.update_parameters(&mut parameters, &grads)?;
+        optimizer.update_parameters(&mut parameters, &grads);
     }
     assert_tensor(&w, &ten![[-0.0100, 0.9900, 1.9900]]);
     assert_tensor(&b, &ten![0.49]);
 
-    let y = linear.forward(&x)?;
+    let y = linear.forward(&x);
     let loss = mean_squared_error(&y, &t)?;
-    let grads = loss.backward()?;
+    let grads = loss.backward();
     {
         let mut parameters = HashMap::new();
         parameters.insert("w".to_string(), w.clone());
         parameters.insert("b".to_string(), b.clone());
-        optimizer.update_parameters(&mut parameters, &grads)?;
+        optimizer.update_parameters(&mut parameters, &grads);
     }
     assert_tensor(&w, &ten![[-0.0200, 0.9800, 1.9800]]);
     assert_tensor(&b, &ten![0.4800]);

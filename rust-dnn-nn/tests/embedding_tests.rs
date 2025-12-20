@@ -12,11 +12,11 @@ use rust_dnn_nn::{
 use crate::test_utils::{arange_with_shape, assert_tensor};
 
 fn test_embedding_forward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::from_vec(vec![1, 2, 4, 5, 4, 3, 2, 9], vec![2, 4], device)?;
+    let x = Tensor::from_vec(vec![1, 2, 4, 5, 4, 3, 2, 9], vec![2, 4], device);
     let w = arange_with_shape::<_, f64>(&[10, 3], device);
     let embedding = Embedding::new(10, 3, device)?;
-    embedding.weight().copy(&w)?;
-    let y = embedding.forward(&x)?;
+    embedding.weight().copy(&w);
+    let y = embedding.forward(&x);
     let expected_y = Tensor::from_vec(
         vec![
             3., 4., 5., 6., 7., 8., 12., 13., 14., 15., 16., 17., 12., 13., 14., 9., 10., 11., 6.,
@@ -24,7 +24,7 @@ fn test_embedding_forward<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![2, 4, 3],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
     Ok(())
 }
@@ -36,11 +36,11 @@ define_test!(
 );
 
 fn test_embedding_forward2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::from_vec(vec![1, 2, 4, 5, 4, 3, 2, 9, 0, 8, 6, 7], vec![12], device)?;
+    let x = Tensor::from_vec(vec![1, 2, 4, 5, 4, 3, 2, 9, 0, 8, 6, 7], vec![12], device);
     let w = arange_with_shape::<_, f64>(&[10, 3], device);
     let embedding = Embedding::new(10, 3, device)?;
-    embedding.weight().copy(&w)?;
-    let y = embedding.forward(&x)?;
+    embedding.weight().copy(&w);
+    let y = embedding.forward(&x);
     let expected_y = Tensor::from_vec(
         vec![
             3., 4., 5., 6., 7., 8., 12., 13., 14., 15., 16., 17., 12., 13., 14., 9., 10., 11., 6.,
@@ -48,7 +48,7 @@ fn test_embedding_forward2<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![12, 3],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
     Ok(())
 }
@@ -60,11 +60,11 @@ define_test!(
 );
 
 fn test_embedding_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::from_vec(vec![1, 2, 4, 5, 4, 3, 2, 9], vec![2, 4], device)?;
+    let x = Tensor::from_vec(vec![1, 2, 4, 5, 4, 3, 2, 9], vec![2, 4], device);
     let w = arange_with_shape::<_, f64>(&[10, 3], device);
     let embedding = Embedding::new(10, 3, device)?;
-    embedding.weight().copy(&w)?;
-    let y = embedding.forward(&x)?;
+    embedding.weight().copy(&w);
+    let y = embedding.forward(&x);
     let expected_y = Tensor::from_vec(
         vec![
             3., 4., 5., 6., 7., 8., 12., 13., 14., 15., 16., 17., 12., 13., 14., 9., 10., 11., 6.,
@@ -72,11 +72,11 @@ fn test_embedding_backward<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![2, 4, 3],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
 
-    let sum = y.sum()?;
-    let grads = sum.backward()?;
+    let sum = y.sum();
+    let grads = sum.backward();
     let gw = grads.get(&embedding.weight()).unwrap();
     let expected_gw = Tensor::from_vec(
         vec![
@@ -85,7 +85,7 @@ fn test_embedding_backward<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![10, 3],
         device,
-    )?;
+    );
     assert_tensor(&gw, &expected_gw);
     Ok(())
 }
@@ -97,11 +97,11 @@ define_test!(
 );
 
 fn test_embedding_backward2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::from_vec(vec![1, 2, 4, 5, 4, 3, 2, 9, 0, 8, 6, 7], vec![12], device)?;
+    let x = Tensor::from_vec(vec![1, 2, 4, 5, 4, 3, 2, 9, 0, 8, 6, 7], vec![12], device);
     let w = arange_with_shape::<_, f64>(&[10, 3], device);
     let embedding = Embedding::new(10, 3, device)?;
-    embedding.weight().copy(&w)?;
-    let y = embedding.forward(&x)?;
+    embedding.weight().copy(&w);
+    let y = embedding.forward(&x);
     let expected_y = Tensor::from_vec(
         vec![
             3., 4., 5., 6., 7., 8., 12., 13., 14., 15., 16., 17., 12., 13., 14., 9., 10., 11., 6.,
@@ -109,11 +109,11 @@ fn test_embedding_backward2<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![12, 3],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
 
-    let sum = y.sum()?;
-    let grads = sum.backward()?;
+    let sum = y.sum();
+    let grads = sum.backward();
     let gw = grads.get(&embedding.weight()).unwrap();
     let expected_gw = Tensor::from_vec(
         vec![
@@ -122,7 +122,7 @@ fn test_embedding_backward2<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![10, 3],
         device,
-    )?;
+    );
     assert_tensor(&gw, &expected_gw);
     Ok(())
 }

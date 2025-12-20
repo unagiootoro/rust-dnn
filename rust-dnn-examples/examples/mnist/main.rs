@@ -23,9 +23,9 @@ struct Model<B: Backend, T: Float> {
 
 impl<B: Backend, T: Float> Model<B, T> {
     pub fn new(device: Device<B>) -> Result<Self> {
-        let fc0 = Linear::new(784, 256, true, device)?;
-        let fc1 = Linear::new(256, 256, true, device)?;
-        let fc2 = Linear::new(256, 10, true, device)?;
+        let fc0 = Linear::new(784, 256, true, device);
+        let fc1 = Linear::new(256, 256, true, device);
+        let fc2 = Linear::new(256, 10, true, device);
         let bn0 = BatchNorm1d::new(256, T::from_f64(0.9), T::from_f64(1e-4), device);
         let bn1 = BatchNorm1d::new(256, T::from_f64(0.9), T::from_f64(1e-4), device);
         Ok(Self {
@@ -52,19 +52,19 @@ impl<B: Backend, T: Float> Layer<B, T> for Model<B, T> {
 
 impl<B: Backend, T: Float> Model<B, T> {
     pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Result<Tensor<B, T>> {
-        let x = self.fc0.forward(x)?;
-        let x = self.bn0.forward(&x, is_train)?;
+        let x = self.fc0.forward(x);
+        let x = self.bn0.forward(&x, is_train);
         let x = x.relu();
-        let x = self.fc1.forward(&x)?;
-        let x = self.bn1.forward(&x, is_train)?;
+        let x = self.fc1.forward(&x);
+        let x = self.bn1.forward(&x, is_train);
         let x = x.relu();
-        let x = self.fc2.forward(&x)?;
+        let x = self.fc2.forward(&x);
         Ok(x)
     }
 }
 
 fn accuracy<B: Backend, T: Float>(x: &Tensor<B, T>, t: &Tensor<B, u32>) -> Result<usize> {
-    let correct = x.argmax_axis(1, false)?.eq(t)?.to_dtype::<T>()?.sum()?;
+    let correct = x.argmax_axis(1, false).eq(t).to_dtype::<T>()?.sum();
     Ok(correct.to_vec()[0].as_usize())
 }
 
@@ -85,14 +85,14 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
                 batch_iter(&train_dataset, batch_size, true, None).enumerate()
             {
                 let images = images.to_device(device)?.to_dtype::<f32>()?;
-                let images = (images / ten![255.0].to_device(device)?)?;
-                let images = images.reshape(vec![100, 784])?;
+                let images = images / ten![255.0].to_device(device)?;
+                let images = images.reshape(vec![100, 784]);
                 let y = model.forward(&images, true)?;
                 let labels = labels.to_device(device)?;
                 let loss = cross_entropy(&y, &labels)?;
-                let grads = loss.backward()?;
+                let grads = loss.backward();
                 println!("iter = {}, loss = {}", iter, loss.to_vec()[0]);
-                optimizer.update_parameters(&mut model.all_trainable_parameters_map(), &grads)?;
+                optimizer.update_parameters(&mut model.all_trainable_parameters_map(), &grads);
             }
         }
     }
@@ -101,8 +101,8 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
         let mut correct = 0;
         for (images, labels) in batch_iter(&test_dataset, batch_size, false, None) {
             let images = images.to_device(device)?.to_dtype::<f32>()?;
-            let images = (images / ten![255.0].to_device(device)?)?;
-            let images = images.reshape(vec![100, 784])?;
+            let images = images / ten![255.0].to_device(device)?;
+            let images = images.reshape(vec![100, 784]);
             let y = model.forward(&images, false)?;
             let labels = labels.to_device(device)?;
             correct += accuracy(&y, &labels)?;

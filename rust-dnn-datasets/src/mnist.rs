@@ -75,7 +75,7 @@ impl MNISTLoader {
         for i in 16..buf.len() {
             data.push(buf[i] as u32);
         }
-        Ok(Tensor::from_vec(data, vec![60000, 28, 28], Device::get_cpu_device()).unwrap())
+        Ok(Tensor::from_vec(data, vec![60000, 28, 28], Device::get_cpu_device()))
     }
 
     fn parse_train_labels(&self, buf: Vec<u8>) -> Result<Tensor<CpuBackend, u32>> {
@@ -83,7 +83,7 @@ impl MNISTLoader {
         for i in 8..buf.len() {
             data.push(buf[i] as u32);
         }
-        Ok(Tensor::from_vec(data, vec![60000], Device::get_cpu_device()).unwrap())
+        Ok(Tensor::from_vec(data, vec![60000], Device::get_cpu_device()))
     }
 
     fn parse_test_images(&self, buf: Vec<u8>) -> Result<Tensor<CpuBackend, u32>> {
@@ -91,7 +91,7 @@ impl MNISTLoader {
         for i in 16..buf.len() {
             data.push(buf[i] as u32);
         }
-        Ok(Tensor::from_vec(data, vec![10000, 28, 28], Device::get_cpu_device()).unwrap())
+        Ok(Tensor::from_vec(data, vec![10000, 28, 28], Device::get_cpu_device()))
     }
 
     fn parse_test_labels(&self, buf: Vec<u8>) -> Result<Tensor<CpuBackend, u32>> {
@@ -99,6 +99,6 @@ impl MNISTLoader {
         for i in 8..buf.len() {
             data.push(buf[i] as u32);
         }
-        Ok(Tensor::from_vec(data, vec![10000], Device::get_cpu_device()).unwrap())
+        Ok(Tensor::from_vec(data, vec![10000], Device::get_cpu_device()))
     }
 }

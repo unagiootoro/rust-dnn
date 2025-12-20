@@ -202,95 +202,95 @@ static MULTI_HEAD_ATTENTION_OUT_PROJ_BIAS: [f64; 4] = [0., 0., 0., 0.];
 fn create_multi_head_attention<B: Backend>(
     device: Device<B>,
 ) -> Result<MultiHeadAttention<B, f64>> {
-    let multi_head_attention = MultiHeadAttention::new(4, 4, 0.0, true, device)?;
+    let multi_head_attention = MultiHeadAttention::new(4, 4, 0.0, true, device);
 
     let q_proj_weight = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_Q_PROJ_WEIGHT.to_vec(),
         vec![4, 4],
         device,
-    )?;
+    );
     multi_head_attention
         .q_proj()
         .weight()
-        .copy(&q_proj_weight)?;
+        .copy(&q_proj_weight);
 
-    let q_proj_bias = Tensor::from_vec(MULTI_HEAD_ATTENTION_Q_PROJ_BIAS.to_vec(), vec![4], device)?;
+    let q_proj_bias = Tensor::from_vec(MULTI_HEAD_ATTENTION_Q_PROJ_BIAS.to_vec(), vec![4], device);
     multi_head_attention
         .q_proj()
         .bias()
         .as_ref()
         .unwrap()
-        .copy(&q_proj_bias)?;
+        .copy(&q_proj_bias);
 
     let k_proj_weight = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_K_PROJ_WEIGHT.to_vec(),
         vec![4, 4],
         device,
-    )?;
+    );
     multi_head_attention
         .k_proj()
         .weight()
-        .copy(&k_proj_weight)?;
+        .copy(&k_proj_weight);
 
-    let k_proj_bias = Tensor::from_vec(MULTI_HEAD_ATTENTION_K_PROJ_BIAS.to_vec(), vec![4], device)?;
+    let k_proj_bias = Tensor::from_vec(MULTI_HEAD_ATTENTION_K_PROJ_BIAS.to_vec(), vec![4], device);
     multi_head_attention
         .k_proj()
         .bias()
         .as_ref()
         .unwrap()
-        .copy(&k_proj_bias)?;
+        .copy(&k_proj_bias);
 
     let v_proj_weight = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_V_PROJ_WEIGHT.to_vec(),
         vec![4, 4],
         device,
-    )?;
+    );
     multi_head_attention
         .v_proj()
         .weight()
-        .copy(&v_proj_weight)?;
+        .copy(&v_proj_weight);
 
-    let v_proj_bias = Tensor::from_vec(MULTI_HEAD_ATTENTION_V_PROJ_BIAS.to_vec(), vec![4], device)?;
+    let v_proj_bias = Tensor::from_vec(MULTI_HEAD_ATTENTION_V_PROJ_BIAS.to_vec(), vec![4], device);
     multi_head_attention
         .v_proj()
         .bias()
         .as_ref()
         .unwrap()
-        .copy(&v_proj_bias)?;
+        .copy(&v_proj_bias);
 
     let out_proj_weight = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_OUT_PROJ_WEIGHT.to_vec(),
         vec![4, 4],
         device,
-    )?;
+    );
     multi_head_attention
         .out_proj()
         .weight()
-        .copy(&out_proj_weight)?;
+        .copy(&out_proj_weight);
 
     let out_proj_bias =
-        Tensor::from_vec(MULTI_HEAD_ATTENTION_OUT_PROJ_BIAS.to_vec(), vec![4], device)?;
+        Tensor::from_vec(MULTI_HEAD_ATTENTION_OUT_PROJ_BIAS.to_vec(), vec![4], device);
     multi_head_attention
         .out_proj()
         .bias()
         .as_ref()
         .unwrap()
-        .copy(&out_proj_bias)?;
+        .copy(&out_proj_bias);
 
     Ok(multi_head_attention)
 }
 
 fn test_multi_head_attention_forward<B: Backend>(device: Device<B>) -> Result<()> {
-    let q = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_Q.to_vec(), vec![2, 3, 4], device)?;
-    let k = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_K.to_vec(), vec![2, 3, 4], device)?;
-    let v = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_V.to_vec(), vec![2, 3, 4], device)?;
+    let q = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_Q.to_vec(), vec![2, 3, 4], device);
+    let k = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_K.to_vec(), vec![2, 3, 4], device);
+    let v = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_V.to_vec(), vec![2, 3, 4], device);
     let multi_head_attention = create_multi_head_attention(device)?;
-    let y = multi_head_attention.forward(&q, &k, &v, None)?;
+    let y = multi_head_attention.forward(&q, &k, &v, None);
     let expected_y = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
     Ok(())
 }
@@ -302,20 +302,20 @@ define_test!(
 );
 
 fn test_multi_head_attention_mask_forward<B: Backend>(device: Device<B>) -> Result<()> {
-    let q = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_Q.to_vec(), vec![2, 3, 4], device)?
+    let q = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_Q.to_vec(), vec![2, 3, 4], device)
         .requires_grad();
-    let k = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_K.to_vec(), vec![2, 3, 4], device)?
+    let k = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_K.to_vec(), vec![2, 3, 4], device)
         .requires_grad();
-    let v = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_V.to_vec(), vec![2, 3, 4], device)?
+    let v = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_V.to_vec(), vec![2, 3, 4], device)
         .requires_grad();
     let multi_head_attention = create_multi_head_attention(device)?;
     let mask = generate_causal_attention_mask(q.shape()[1], device)?;
-    let y = multi_head_attention.forward(&q, &k, &v, Some(&mask))?;
+    let y = multi_head_attention.forward(&q, &k, &v, Some(&mask));
     let expected_y = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_CAUSAL_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
     Ok(())
 }
@@ -327,29 +327,29 @@ define_test!(
 );
 
 fn test_multi_head_attention_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let q = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_Q.to_vec(), vec![2, 3, 4], device)?;
-    let k = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_K.to_vec(), vec![2, 3, 4], device)?;
-    let v = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_V.to_vec(), vec![2, 3, 4], device)?;
+    let q = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_Q.to_vec(), vec![2, 3, 4], device);
+    let k = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_K.to_vec(), vec![2, 3, 4], device);
+    let v = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_V.to_vec(), vec![2, 3, 4], device);
     let multi_head_attention = create_multi_head_attention(device)?;
-    let y = multi_head_attention.forward(&q, &k, &v, None)?;
+    let y = multi_head_attention.forward(&q, &k, &v, None);
     let expected_y = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
 
-    let loss = y.sum()?;
-    let grads = loss.backward()?;
+    let loss = y.sum();
+    let grads = loss.backward();
     let mut optimizer = SGD::new(0.1);
-    optimizer.update_parameters(&mut multi_head_attention.all_parameters_map(), &grads)?;
+    optimizer.update_parameters(&mut multi_head_attention.all_parameters_map(), &grads);
 
-    let y2 = multi_head_attention.forward(&q, &k, &v, None)?;
+    let y2 = multi_head_attention.forward(&q, &k, &v, None);
     let expected_y2 = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_BACKWARDED_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&y2, &expected_y2);
 
     Ok(())
@@ -362,30 +362,30 @@ define_test!(
 );
 
 fn test_multi_head_attention_mask_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let q = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_Q.to_vec(), vec![2, 3, 4], device)?;
-    let k = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_K.to_vec(), vec![2, 3, 4], device)?;
-    let v = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_V.to_vec(), vec![2, 3, 4], device)?;
+    let q = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_Q.to_vec(), vec![2, 3, 4], device);
+    let k = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_K.to_vec(), vec![2, 3, 4], device);
+    let v = Tensor::from_vec(MULTI_HEAD_ATTENTION_INPUT_V.to_vec(), vec![2, 3, 4], device);
     let multi_head_attention = create_multi_head_attention(device)?;
     let mask = generate_causal_attention_mask(q.shape()[1], device)?;
-    let y = multi_head_attention.forward(&q, &k, &v, Some(&mask))?;
+    let y = multi_head_attention.forward(&q, &k, &v, Some(&mask));
     let expected_y = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_CAUSAL_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
 
-    let loss = y.sum()?;
-    let grads = loss.backward()?;
+    let loss = y.sum();
+    let grads = loss.backward();
     let mut optimizer = SGD::new(0.1);
-    optimizer.update_parameters(&mut multi_head_attention.all_parameters_map(), &grads)?;
+    optimizer.update_parameters(&mut multi_head_attention.all_parameters_map(), &grads);
 
-    let y2 = multi_head_attention.forward(&q, &k, &v, Some(&mask))?;
+    let y2 = multi_head_attention.forward(&q, &k, &v, Some(&mask));
     let expected_y2 = Tensor::from_vec(
         MULTI_HEAD_ATTENTION_CAUSAL_BACKWARDED_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&y2, &expected_y2);
 
     Ok(())

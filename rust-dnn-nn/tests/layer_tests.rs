@@ -20,8 +20,8 @@ fn test_linear_forward<B: Backend>(device: Device<B>) -> Result<()> {
         .to_device(device)?
         .requires_grad();
     let bias = ten![1.0, 2.0].to_device(device)?.requires_grad();
-    let linear = Linear::from_weights(weight, Some(bias))?;
-    let y = linear.forward(&x)?;
+    let linear = Linear::from_weights(weight, Some(bias));
+    let y = linear.forward(&x);
     assert_tensor(&y, &ten![[-15.0, -32.0], [15.0, 34.0]]);
     Ok(())
 }
@@ -39,8 +39,8 @@ fn test_linear_no_bias_forward<B: Backend>(device: Device<B>) -> Result<()> {
     let weight = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let linear = Linear::from_weights(weight, None)?;
-    let y = linear.forward(&x)?;
+    let linear = Linear::from_weights(weight, None);
+    let y = linear.forward(&x);
     assert_tensor(&y, &ten![[-16.0, -34.0], [14.0, 32.0]]);
     Ok(())
 }
@@ -59,10 +59,10 @@ fn test_linear_backward<B: Backend>(device: Device<B>) -> Result<()> {
         .to_device(device)?
         .requires_grad();
     let bias = ten![1.0, 2.0].to_device(device)?.requires_grad();
-    let linear = Linear::from_weights(weight.clone(), Some(bias.clone()))?;
-    let y = linear.forward(&x)?;
+    let linear = Linear::from_weights(weight.clone(), Some(bias.clone()));
+    let y = linear.forward(&x);
     assert_tensor(&y, &ten![[-15.0, -32.0], [15.0, 34.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     let gw = grads.get(&weight).unwrap();
     let gb = grads.get(&bias).unwrap();
@@ -85,10 +85,10 @@ fn test_linear_no_bias_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let weight = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let linear = Linear::from_weights(weight.clone(), None)?;
-    let y = linear.forward(&x)?;
+    let linear = Linear::from_weights(weight.clone(), None);
+    let y = linear.forward(&x);
     assert_tensor(&y, &ten![[-16.0, -34.0], [14.0, 32.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     let gw = grads.get(&weight).unwrap();
     assert_tensor(&gx, &ten![[5.0, 7.0, 9.0], [5.0, 7.0, 9.0]]);
@@ -127,10 +127,10 @@ fn test_conv2d<B: Backend>(device: Device<B>) -> Result<()> {
         device,
     );
 
-    conv2d.weight().copy(&w)?;
-    conv2d.bias().unwrap().copy(&b)?;
+    conv2d.weight().copy(&w);
+    conv2d.bias().unwrap().copy(&b);
 
-    let y = conv2d.forward(&x)?;
+    let y = conv2d.forward(&x);
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 3, 3]);
     assert_eq!(
         y.to_vec(),
@@ -171,10 +171,10 @@ fn test_deconv2d<B: Backend>(device: Device<B>) -> Result<()> {
         device,
     );
 
-    deconv2d.weight().copy(&w)?;
-    deconv2d.bias().unwrap().copy(&b)?;
+    deconv2d.weight().copy(&w);
+    deconv2d.bias().unwrap().copy(&b);
 
-    let y = deconv2d.forward(&x)?;
+    let y = deconv2d.forward(&x);
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 4, 5]);
     assert_eq!(
         y.to_vec(),
@@ -201,14 +201,14 @@ fn test_batch_norm1d<B: Backend>(device: Device<B>) -> Result<()> {
         vec![1.0, 5.0, 3.0, 2.0, 1.0, 6.0, 4.0, 2.0, 1.0, 3.0, 7.0, 8.0],
         vec![4, 3],
         device,
-    )?
+    )
     .requires_grad();
-    let gamma = Tensor::from_vec(vec![1.0, 1.5, 2.0], vec![3], device)?.requires_grad();
-    let beta = Tensor::from_vec(vec![0.0, 0.5, -1.0], vec![3], device)?.requires_grad();
+    let gamma = Tensor::from_vec(vec![1.0, 1.5, 2.0], vec![3], device).requires_grad();
+    let beta = Tensor::from_vec(vec![0.0, 0.5, -1.0], vec![3], device).requires_grad();
     let mut batch_norm1d = BatchNorm1d::new(3, 0.9, 1e-7, device);
-    batch_norm1d.gamma().copy(&gamma)?;
-    batch_norm1d.beta().copy(&beta)?;
-    let y = batch_norm1d.forward(&x, true)?;
+    batch_norm1d.gamma().copy(&gamma);
+    batch_norm1d.beta().copy(&beta);
+    let y = batch_norm1d.forward(&x, true);
     assert_tensor(
         &y,
         &ten![
@@ -232,14 +232,14 @@ fn test_batch_norm1d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         vec![1.0, 5.0, 3.0, 2.0, 1.0, 6.0, 4.0, 2.0, 1.0, 3.0, 7.0, 8.0],
         vec![4, 3],
         device,
-    )?
+    )
     .requires_grad();
-    let gamma = Tensor::from_vec(vec![1.0, 1.5, 2.0], vec![3], device)?;
-    let beta = Tensor::from_vec(vec![0.0, 0.5, -1.0], vec![3], device)?;
+    let gamma = Tensor::from_vec(vec![1.0, 1.5, 2.0], vec![3], device);
+    let beta = Tensor::from_vec(vec![0.0, 0.5, -1.0], vec![3], device);
     let mut batch_norm1d = BatchNorm1d::new(3, 0.9, 1e-7, device);
-    batch_norm1d.gamma().copy(&gamma)?;
-    batch_norm1d.beta().copy(&beta)?;
-    let y = batch_norm1d.forward(&x, true)?;
+    batch_norm1d.gamma().copy(&gamma);
+    batch_norm1d.beta().copy(&beta);
+    let y = batch_norm1d.forward(&x, true);
     assert_tensor(
         &y,
         &ten![
@@ -256,10 +256,10 @@ fn test_batch_norm1d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![4, 3],
         device,
-    )?;
-    let y = (&y * x2)?;
+    );
+    let y = &y * x2;
 
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     let ggamma = grads.get(&batch_norm1d.gamma()).unwrap();
     let gbeta = grads.get(&batch_norm1d.beta()).unwrap();
@@ -401,18 +401,18 @@ fn test_batch_norm2d<B: Backend>(device: Device<B>) -> Result<()> {
     let h = 5;
     let w = 6;
     let x = arange_with_shape::<_, f64>(&[w, h, c, n], device);
-    let x = x.reversed_axes()?;
+    let x = x.reversed_axes();
     let gamma = arange_with_shape(&[c], device);
     let beta = arange_with_shape(&[c], device);
     let mut batch_norm2d = BatchNorm2d::new(c, 0.9, 1e-7, device);
-    batch_norm2d.gamma().copy(&gamma)?;
-    batch_norm2d.beta().copy(&beta)?;
-    let y = batch_norm2d.forward(&x, true)?;
+    batch_norm2d.gamma().copy(&gamma);
+    batch_norm2d.beta().copy(&beta);
+    let y = batch_norm2d.forward(&x, true);
     let expected = Tensor::from_vec(
         BATCH_NORM2D_FORWARD_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected);
     Ok(())
 }
@@ -429,24 +429,24 @@ fn test_batch_norm2d_predict<B: Backend>(device: Device<B>) -> Result<()> {
     let h = 5;
     let w = 6;
     let x = arange_with_shape::<_, f64>(&[w, h, c, n], device);
-    let x = x.reversed_axes()?.requires_grad();
+    let x = x.reversed_axes().requires_grad();
     let gamma = arange_with_shape(&[c], device);
     let beta = arange_with_shape(&[c], device);
     let mut batch_norm2d = BatchNorm2d::new(c, 0.9, 1e-7, device);
-    batch_norm2d.gamma().copy(&gamma)?;
-    batch_norm2d.beta().copy(&beta)?;
-    let y = batch_norm2d.forward(&x, true)?;
+    batch_norm2d.gamma().copy(&gamma);
+    batch_norm2d.beta().copy(&beta);
+    let y = batch_norm2d.forward(&x, true);
     let expected_y = Tensor::from_vec(
         BATCH_NORM2D_FORWARD_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
 
     let x2 = arange_with_shape(&[n, c, h, w], device);
-    let y2 = (y * x2)?;
+    let y2 = y * x2;
 
-    let grads: rust_dnn_core::gradients::Gradients<B, f64> = y2.backward()?;
+    let grads: rust_dnn_core::gradients::Gradients<B, f64> = y2.backward();
     let gx = grads.get(&x).unwrap();
     let ggamma = grads.get(&batch_norm2d.gamma()).unwrap();
     let gbeta = grads.get(&batch_norm2d.beta()).unwrap();
@@ -455,29 +455,29 @@ fn test_batch_norm2d_predict<B: Backend>(device: Device<B>) -> Result<()> {
         BATCH_NORM2D_BACKWARD_DATA_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor(&gx, &expected_gx);
 
     let expected_ggamma = Tensor::from_vec(
         BATCH_NORM2D_BACKWARD_GAMMA_EXPECTED_DATA.to_vec(),
         vec![c],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&ggamma, &expected_ggamma, 1e-3);
 
     let expected_gbeta = Tensor::from_vec(
         BATCH_NORM2D_BACKWARD_BETA_EXPECTED_DATA.to_vec(),
         vec![c],
         device,
-    )?;
+    );
     assert_tensor(&gbeta, &expected_gbeta);
 
-    let y3 = batch_norm2d.forward(&x, false)?;
+    let y3 = batch_norm2d.forward(&x, false);
     let expected_y3 = Tensor::from_vec(
         BATCH_NORM2D_FORWARD_PREDICT_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&y3, &expected_y3, 1e-1);
 
     Ok(())
@@ -495,24 +495,24 @@ fn test_batch_norm2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let h = 5;
     let w = 6;
     let x = arange_with_shape::<_, f64>(&[w, h, c, n], device);
-    let x = x.reversed_axes()?.requires_grad();
+    let x = x.reversed_axes().requires_grad();
     let gamma = arange_with_shape(&[c], device);
     let beta = arange_with_shape(&[c], device);
     let mut batch_norm2d = BatchNorm2d::new(c, 0.9, 1e-7, device);
-    batch_norm2d.gamma().copy(&gamma)?;
-    batch_norm2d.beta().copy(&beta)?;
-    let y = batch_norm2d.forward(&x, true)?;
+    batch_norm2d.gamma().copy(&gamma);
+    batch_norm2d.beta().copy(&beta);
+    let y = batch_norm2d.forward(&x, true);
     let expected_y = Tensor::from_vec(
         BATCH_NORM2D_FORWARD_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
 
     let x2 = arange_with_shape(&[n, c, h, w], device);
-    let y2 = (y * x2)?;
+    let y2 = y * x2;
 
-    let grads: rust_dnn_core::gradients::Gradients<B, f64> = y2.backward()?;
+    let grads: rust_dnn_core::gradients::Gradients<B, f64> = y2.backward();
     let gx = grads.get(&x).unwrap();
     let ggamma = grads.get(&batch_norm2d.gamma()).unwrap();
     let gbeta = grads.get(&batch_norm2d.beta()).unwrap();
@@ -521,21 +521,21 @@ fn test_batch_norm2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         BATCH_NORM2D_BACKWARD_DATA_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor(&gx, &expected_gx);
 
     let expected_ggamma = Tensor::from_vec(
         BATCH_NORM2D_BACKWARD_GAMMA_EXPECTED_DATA.to_vec(),
         vec![c],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&ggamma, &expected_ggamma, 1e-3);
 
     let expected_gbeta = Tensor::from_vec(
         BATCH_NORM2D_BACKWARD_BETA_EXPECTED_DATA.to_vec(),
         vec![c],
         device,
-    )?;
+    );
     assert_tensor(&gbeta, &expected_gbeta);
 
     Ok(())
@@ -986,15 +986,15 @@ fn test_layer_norm2d<B: Backend>(device: Device<B>) -> Result<()> {
     let h = 5;
     let w = 6;
     let x = arange_with_shape(&[w, h, c, n], device);
-    let x = x.reversed_axes()?;
+    let x = x.reversed_axes();
     let gamma = arange_with_shape(&[c, h, w], device);
     let beta = arange_with_shape(&[c, h, w], device);
-    let y = layer_norm(&x, &gamma, Some(&beta), &vec![c, h, w], 1e-7)?;
+    let y = layer_norm(&x, &gamma, Some(&beta), &vec![c, h, w], 1e-7);
     let expected_y = Tensor::from_vec(
         LAYER_NORM_FORWARD_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&y, &expected_y, 1e-2);
     Ok(())
 }
@@ -1011,20 +1011,20 @@ fn test_layer_norm_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let h = 5;
     let w = 6;
     let x = arange_with_shape(&[w, h, c, n], device);
-    let x = x.reversed_axes()?.contiguous().requires_grad();
+    let x = x.reversed_axes().contiguous().requires_grad();
     let gamma = arange_with_shape(&[c, h, w], device).requires_grad();
     let beta = arange_with_shape(&[c, h, w], device).requires_grad();
-    let y = layer_norm(&x, &gamma, Some(&beta), &vec![c, h, w], 1e-7)?;
+    let y = layer_norm(&x, &gamma, Some(&beta), &vec![c, h, w], 1e-7);
     let expected_y = Tensor::from_vec(
         LAYER_NORM_FORWARD_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&y, &expected_y, 1e-2);
 
     let x2 = arange_with_shape(&[n, c, h, w], device);
-    let y2 = (y * x2)?;
-    let grads = y2.backward()?;
+    let y2 = y * x2;
+    let grads = y2.backward();
     let gx = grads.get(&x).unwrap();
     let ggamma = grads.get(&gamma).unwrap();
     let gbeta = grads.get(&beta).unwrap();
@@ -1032,19 +1032,19 @@ fn test_layer_norm_backward<B: Backend>(device: Device<B>) -> Result<()> {
         LAYER_NORM_BACKWARD_DATA_EXPECTED_DATA.to_vec(),
         vec![n, c, h, w],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&gx, &expected_gx, 1e-3);
     let expected_ggamma = Tensor::from_vec(
         LAYER_NORM_BACKWARD_GAMMA_EXPECTED_DATA.to_vec(),
         vec![c, h, w],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&ggamma, &expected_ggamma, 1e-3);
     let expected_gbeta = Tensor::from_vec(
         LAYER_NORM_BACKWARD_BETA_EXPECTED_DATA.to_vec(),
         vec![c, h, w],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&gbeta, &expected_gbeta, 1e-3);
     Ok(())
 }
@@ -1512,15 +1512,15 @@ static GROUP_NORM_BACKWARD_EXPECTED_WEIGHT_GRAD: [f64; 6] = [
 static GROUP_NORM_BACKWARD_EXPECTED_BIAS_GRAD: [f64; 6] = [24., 24., 24., 24., 24., 24.];
 
 fn test_group_norm<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::from_vec(GROUP_NORM_INPUT.to_vec(), vec![2, 6, 3, 4], device)?.requires_grad();
-    let gamma = Tensor::from_vec(GROUP_NORM_WEIGHT.to_vec(), vec![6], device)?.requires_grad();
-    let beta = Tensor::from_vec(GROUP_NORM_BIAS.to_vec(), vec![6], device)?.requires_grad();
-    let y = group_norm(&x, &gamma, Some(&beta), 3, 1e-7)?;
+    let x = Tensor::from_vec(GROUP_NORM_INPUT.to_vec(), vec![2, 6, 3, 4], device).requires_grad();
+    let gamma = Tensor::from_vec(GROUP_NORM_WEIGHT.to_vec(), vec![6], device).requires_grad();
+    let beta = Tensor::from_vec(GROUP_NORM_BIAS.to_vec(), vec![6], device).requires_grad();
+    let y = group_norm(&x, &gamma, Some(&beta), 3, 1e-7);
     let expected_y = Tensor::from_vec(
         GROUP_NORM_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 6, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
     Ok(())
 }
@@ -1528,18 +1528,18 @@ fn test_group_norm<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_group_norm, test_group_norm_cpu, test_group_norm_cuda);
 
 fn test_group_norm_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::from_vec(GROUP_NORM_INPUT.to_vec(), vec![2, 6, 3, 4], device)?.requires_grad();
-    let gamma = Tensor::from_vec(GROUP_NORM_WEIGHT.to_vec(), vec![6], device)?.requires_grad();
-    let beta = Tensor::from_vec(GROUP_NORM_BIAS.to_vec(), vec![6], device)?.requires_grad();
-    let y = group_norm(&x, &gamma, Some(&beta), 3, 1e-7)?;
+    let x = Tensor::from_vec(GROUP_NORM_INPUT.to_vec(), vec![2, 6, 3, 4], device).requires_grad();
+    let gamma = Tensor::from_vec(GROUP_NORM_WEIGHT.to_vec(), vec![6], device).requires_grad();
+    let beta = Tensor::from_vec(GROUP_NORM_BIAS.to_vec(), vec![6], device).requires_grad();
+    let y = group_norm(&x, &gamma, Some(&beta), 3, 1e-7);
     let expected_y = Tensor::from_vec(
         GROUP_NORM_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 6, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
 
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     let ggamma = grads.get(&gamma).unwrap();
     let gbeta = grads.get(&beta).unwrap();
@@ -1548,21 +1548,21 @@ fn test_group_norm_backward<B: Backend>(device: Device<B>) -> Result<()> {
         GROUP_NORM_BACKWARD_EXPECTED_DATA.to_vec(),
         vec![2, 6, 3, 4],
         device,
-    )?;
+    );
     assert_tensor(&gx, &expected_gx);
 
     let expected_ggamma = Tensor::from_vec(
         GROUP_NORM_BACKWARD_EXPECTED_WEIGHT_GRAD.to_vec(),
         vec![6],
         device,
-    )?;
+    );
     assert_tensor(&ggamma, &expected_ggamma);
 
     let expected_gbeta = Tensor::from_vec(
         GROUP_NORM_BACKWARD_EXPECTED_BIAS_GRAD.to_vec(),
         vec![6],
         device,
-    )?;
+    );
     assert_tensor(&gbeta, &expected_gbeta);
     Ok(())
 }

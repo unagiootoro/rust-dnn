@@ -58,7 +58,5 @@ pub fn arange_with_shape<B: Backend, T: Num>(shape: &[usize], device: Device<B>)
     for dim in shape {
         len *= *dim as isize;
     }
-    Tensor::<B, T>::arange(0..len, device)
-        .reshape(shape.to_vec())
-        .unwrap()
+    Tensor::<B, T>::arange(0..len, device).reshape(shape.to_vec())
 }

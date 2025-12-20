@@ -68,9 +68,9 @@ fn mnist_load_train() -> Result<()> {
     let (train_images, train_labels) = MNISTLoader::new("../datasets").load_train()?;
     assert_eq!(train_images.shape(), vec![60000, 28, 28]);
     assert_eq!(train_labels.shape(), vec![60000]);
-    let train_image = train_images.select(0, 15000)?;
+    let train_image = train_images.select(0, 15000);
     assert_eq!(train_image.to_vec(), MNIST_TRAIN_IMAGE_15000.to_vec());
-    let train_label = train_labels.select(0, 15000)?;
+    let train_label = train_labels.select(0, 15000);
     assert_eq!(train_label.to_vec(), vec![5]);
     Ok(())
 }
@@ -80,9 +80,9 @@ fn mnist_load_test() -> Result<()> {
     let (test_images, test_labels) = MNISTLoader::new("../datasets").load_test()?;
     assert_eq!(test_images.shape(), vec![10000, 28, 28]);
     assert_eq!(test_labels.shape(), vec![10000]);
-    let test_image = test_images.select(0, 5000)?;
+    let test_image = test_images.select(0, 5000);
     assert_eq!(test_image.to_vec(), MNIST_TEST_IMAGE_5000.to_vec());
-    let test_label = test_labels.select(0, 5000)?;
+    let test_label = test_labels.select(0, 5000);
     assert_eq!(test_label.to_vec(), vec![3]);
     Ok(())
 }

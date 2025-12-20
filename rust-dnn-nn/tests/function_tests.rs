@@ -598,23 +598,23 @@ fn test_scaled_dot_product_attention<B: Backend>(device: Device<B>) -> Result<()
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_Q.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     let k = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_K.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     let v = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_V.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
-    let y = scaled_dot_product_attention(&q, &k, &v, None, 0.0, true, None)?;
+    );
+    let y = scaled_dot_product_attention(&q, &k, &v, None, 0.0, true, None);
     let expected_y = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
     Ok(())
 }
@@ -630,24 +630,24 @@ fn test_scaled_dot_product_attention_mask<B: Backend>(device: Device<B>) -> Resu
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_Q.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     let k = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_K.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     let v = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_V.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     let mask = generate_causal_attention_mask(q.shape()[2], device)?;
-    let y = scaled_dot_product_attention(&q, &k, &v, Some(&mask), 0.0, true, None)?;
+    let y = scaled_dot_product_attention(&q, &k, &v, Some(&mask), 0.0, true, None);
     let expected_y = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_CAUSAL_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     assert_tensor(&y, &expected_y);
     Ok(())
 }
@@ -663,29 +663,29 @@ fn test_scaled_dot_product_attention_backward<B: Backend>(device: Device<B>) -> 
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_Q.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?
+    )
     .requires_grad();
     let k = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_K.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?
+    )
     .requires_grad();
     let v = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_V.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
-    let y = scaled_dot_product_attention(&q, &k, &v, None, 0.0, true, None)?;
+    );
+    let y = scaled_dot_product_attention(&q, &k, &v, None, 0.0, true, None);
     let expected_y = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?
+    )
     .requires_grad();
     assert_tensor(&y, &expected_y);
 
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gq = grads.get(&q).unwrap();
     let gk = grads.get(&k).unwrap();
     let gv = grads.get(&v).unwrap();
@@ -694,21 +694,21 @@ fn test_scaled_dot_product_attention_backward<B: Backend>(device: Device<B>) -> 
         SCALED_DOT_PRODUCT_ATTENTION_BACKWARD_GQ_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     assert_tensor(&gq, &expected_gq);
 
     let expected_gk = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_BACKWARD_GK_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&gk, &expected_gk, 1e-3);
 
     let expected_gv = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_BACKWARD_GV_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     assert_tensor(&gv, &expected_gv);
 
     Ok(())
@@ -725,30 +725,30 @@ fn test_scaled_dot_product_attention_mask_backward<B: Backend>(device: Device<B>
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_Q.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?
+    )
     .requires_grad();
     let k = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_K.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?
+    )
     .requires_grad();
     let v = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_INPUT_V.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     let mask = generate_causal_attention_mask(q.shape()[2], device)?;
-    let y = scaled_dot_product_attention(&q, &k, &v, Some(&mask), 0.0, true, None)?;
+    let y = scaled_dot_product_attention(&q, &k, &v, Some(&mask), 0.0, true, None);
     let expected_y = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_CAUSAL_FORWARD_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?
+    )
     .requires_grad();
     assert_tensor(&y, &expected_y);
 
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gq = grads.get(&q).unwrap();
     let gk = grads.get(&k).unwrap();
     let gv = grads.get(&v).unwrap();
@@ -757,21 +757,21 @@ fn test_scaled_dot_product_attention_mask_backward<B: Backend>(device: Device<B>
         SCALED_DOT_PRODUCT_ATTENTION_CAUSAL_BACKWARD_GQ_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     assert_tensor(&gq, &expected_gq);
 
     let expected_gk = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_CAUSAL_BACKWARD_GK_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     assert_tensor_with_eps(&gk, &expected_gk, 1e-3);
 
     let expected_gv = Tensor::from_vec(
         SCALED_DOT_PRODUCT_ATTENTION_CAUSAL_BACKWARD_GV_EXPECTED_DATA.to_vec(),
         vec![2, 3, 4, 5],
         device,
-    )?;
+    );
     assert_tensor(&gv, &expected_gv);
 
     Ok(())

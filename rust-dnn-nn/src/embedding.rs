@@ -35,7 +35,7 @@ impl<B: Backend, T: Float> Embedding<B, T> {
         &self.weight
     }
 
-    pub fn forward(&self, x: &Tensor<B, u32>) -> Result<Tensor<B, T>> {
+    pub fn forward(&self, x: &Tensor<B, u32>) -> Tensor<B, T> {
         embedding::<B, T>(x, &self.weight)
     }
 }
@@ -43,10 +43,10 @@ impl<B: Backend, T: Float> Embedding<B, T> {
 pub fn embedding<B: Backend, T: Float>(
     x: &Tensor<B, u32>,
     weight: &Tensor<B, T>,
-) -> Result<Tensor<B, T>> {
+) -> Tensor<B, T> {
     let mut output_shape = x.shape().to_vec();
     for i in 1..weight.ndim() {
         output_shape.push(weight.shape()[i]);
     }
-    weight.index_select(0, x)?.reshape(output_shape)
+    weight.index_select(0, x).reshape(output_shape)
 }

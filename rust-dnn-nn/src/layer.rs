@@ -51,7 +51,7 @@ pub trait Layer<B: Backend, T: Float> {
     fn load_parameters_map(&mut self, map: HashMap<String, Tensor<B, T>>) -> Result<()> {
         for (name, parameter) in self.all_parameters_map() {
             if let Some(param) = map.get(&name) {
-                parameter.copy(param)?;
+                parameter.copy(param);
             }
         }
         Ok(())
@@ -80,20 +80,20 @@ impl<B: Backend, T: Float> Linear<B, T> {
         out_features: usize,
         use_bias: bool,
         device: Device<B>,
-    ) -> Result<Self> {
+    ) -> Self {
         let weight = (Tensor::rand_norm(&[out_features, in_features], None, device)
-            * Tensor::from_scalar(T::from_f64(1.0 / in_features as f64), device))?
+            * Tensor::from_scalar(T::from_f64(1.0 / in_features as f64), device))
         .requires_grad();
         let bias = if use_bias {
             Some(Tensor::zeros(vec![out_features], device).requires_grad())
         } else {
             None
         };
-        Ok(Self { weight, bias })
+        Self { weight, bias }
     }
 
-    pub fn from_weights(weight: Tensor<B, T>, bias: Option<Tensor<B, T>>) -> Result<Self> {
-        Ok(Self { weight, bias })
+    pub fn from_weights(weight: Tensor<B, T>, bias: Option<Tensor<B, T>>) -> Self {
+        Self { weight, bias }
     }
 
     pub fn weight(&self) -> &Tensor<B, T> {
@@ -104,7 +104,7 @@ impl<B: Backend, T: Float> Linear<B, T> {
         self.bias.as_ref()
     }
 
-    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+    pub fn forward(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
         linear::<B, T>(x, &self.weight, self.bias.as_ref())
     }
 }
@@ -113,11 +113,11 @@ pub fn linear<B: Backend, T: Float>(
     x: &Tensor<B, T>,
     weight: &Tensor<B, T>,
     bias: Option<&Tensor<B, T>>,
-) -> Result<Tensor<B, T>> {
+) -> Tensor<B, T> {
     if let Some(bias) = bias {
-        x.matmul(&weight.reversed_axes()?) + bias
+        x.matmul(&weight.reversed_axes()) + bias
     } else {
-        x.matmul(&weight.reversed_axes()?)
+        x.matmul(&weight.reversed_axes())
     }
 }
 
@@ -148,9 +148,8 @@ impl<B: Backend, T: Float> Conv2D<B, T> {
         device: Device<B>,
     ) -> Self {
         let scale = (1.0 / (fil_h * fil_w * in_filters) as f64).sqrt();
-        let weight = (Tensor::rand_norm(&[out_filters, in_filters, fil_h, fil_w], None, device)
-            * T::from_f64(scale))
-        .unwrap();
+        let weight = Tensor::rand_norm(&[out_filters, in_filters, fil_h, fil_w], None, device)
+            * T::from_f64(scale);
         let weight = weight.requires_grad();
         let bias = if use_bias {
             Some(Tensor::zeros(vec![out_filters], device).requires_grad())
@@ -171,7 +170,7 @@ impl<B: Backend, T: Float> Conv2D<B, T> {
         }
     }
 
-    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+    pub fn forward(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
         x.conv2d(
             &self.weight,
             self.bias.as_ref(),
@@ -233,9 +232,8 @@ impl<B: Backend, T: Float> Deconv2D<B, T> {
         device: Device<B>,
     ) -> Self {
         let scale = (1.0 / (fil_h * fil_w * in_filters) as f64).sqrt();
-        let weight = (Tensor::rand_norm(&[in_filters, out_filters, fil_h, fil_w], None, device)
-            * T::from_f64(scale))
-        .unwrap();
+        let weight = Tensor::rand_norm(&[in_filters, out_filters, fil_h, fil_w], None, device)
+            * T::from_f64(scale);
         let weight = weight.requires_grad();
         let bias = if use_bias {
             Some(Tensor::zeros(vec![out_filters], device).requires_grad())
@@ -256,7 +254,7 @@ impl<B: Backend, T: Float> Deconv2D<B, T> {
         }
     }
 
-    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+    pub fn forward(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
         x.deconv2d(
             &self.weight,
             self.bias.as_ref(),
@@ -330,17 +328,16 @@ where
 }
 
 impl<B: Backend, T: Float> BatchNorm1d<B, T> {
-    pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Result<Tensor<B, T>> {
-        let y = if is_train {
-            let (y, mean, var) = batch_norm(x, &self.gamma, &self.beta, 0, self.eps)?;
+    pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Tensor<B, T> {
+        if is_train {
+            let (y, mean, var) = batch_norm(x, &self.gamma, &self.beta, 0, self.eps);
             let momentum = Tensor::from_scalar(self.momentum, x.device());
             let one = Tensor::from_scalar(T::one(), x.device());
             let running_mean =
-                ((&momentum * &self.running_mean)? + ((&one - &momentum)? * mean.detach())?)?;
-            let running_var =
-                ((&momentum * &self.running_var)? + ((&one - &momentum)? * var.detach())?)?;
-            self.running_mean.copy(&running_mean).unwrap();
-            self.running_var.copy(&running_var).unwrap();
+                (&momentum * &self.running_mean) + ((&one - &momentum) * mean.detach());
+            let running_var = (&momentum * &self.running_var) + ((&one - &momentum) * var.detach());
+            self.running_mean.copy(&running_mean);
+            self.running_var.copy(&running_var);
             y
         } else {
             batch_norm_predict(
@@ -350,9 +347,8 @@ impl<B: Backend, T: Float> BatchNorm1d<B, T> {
                 &self.gamma,
                 &self.beta,
                 self.eps,
-            )?
-        };
-        Ok(y)
+            )
+        }
     }
 }
 
@@ -413,17 +409,16 @@ where
 }
 
 impl<B: Backend, T: Float> BatchNorm2d<B, T> {
-    pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Result<Tensor<B, T>> {
-        let y = if is_train {
-            let (y, mean, var) = batch_norm2d(x, &self.gamma, &self.beta, self.eps)?;
+    pub fn forward(&mut self, x: &Tensor<B, T>, is_train: bool) -> Tensor<B, T> {
+        if is_train {
+            let (y, mean, var) = batch_norm2d(x, &self.gamma, &self.beta, self.eps);
             let momentum = Tensor::from_scalar(self.momentum, x.device());
             let one = Tensor::from_scalar(T::one(), x.device());
             let running_mean =
-                ((&momentum * &self.running_mean)? + ((&one - &momentum)? * mean.detach())?)?;
-            let running_var =
-                ((&momentum * &self.running_var)? + ((&one - &momentum)? * var.detach())?)?;
-            self.running_mean.copy(&running_mean).unwrap();
-            self.running_var.copy(&running_var).unwrap();
+                (&momentum * &self.running_mean) + ((&one - &momentum) * mean.detach());
+            let running_var = (&momentum * &self.running_var) + ((&one - &momentum) * var.detach());
+            self.running_mean.copy(&running_mean);
+            self.running_var.copy(&running_var);
             y
         } else {
             batch_norm_predict2d(
@@ -433,9 +428,8 @@ impl<B: Backend, T: Float> BatchNorm2d<B, T> {
                 &self.gamma,
                 &self.beta,
                 self.eps,
-            )?
-        };
-        Ok(y)
+            )
+        }
     }
 }
 
@@ -463,14 +457,14 @@ pub fn batch_norm<B: Backend, T: Float>(
     beta: &Tensor<B, T>,
     axis: usize,
     eps: T,
-) -> Result<(Tensor<B, T>, Tensor<B, T>, Tensor<B, T>)> {
-    let mean = x.mean_axis(axis, false)?;
-    let xc = (x - &mean)?;
-    let var = xc.pow_scalar(T::from_f64(2.0))?.mean_axis(axis, false)?;
-    let std = (&var + eps)?.sqrt();
-    let xn = (xc / std)?;
-    let y = (gamma * xn + beta)?;
-    Ok((y, mean, var))
+) -> (Tensor<B, T>, Tensor<B, T>, Tensor<B, T>) {
+    let mean = x.mean_axis(axis, false);
+    let xc = x - &mean;
+    let var = xc.pow_scalar(T::from_f64(2.0)).mean_axis(axis, false);
+    let std = (&var + eps).sqrt();
+    let xn = xc / std;
+    let y = gamma * xn + beta;
+    (y, mean, var)
 }
 
 pub fn batch_norm2d<B: Backend, T: Float>(
@@ -478,19 +472,19 @@ pub fn batch_norm2d<B: Backend, T: Float>(
     gamma: &Tensor<B, T>,
     beta: &Tensor<B, T>,
     eps: T,
-) -> Result<(Tensor<B, T>, Tensor<B, T>, Tensor<B, T>)> {
-    let gamma = gamma.reshape(vec![1, gamma.shape()[0], 1, 1])?;
-    let beta = beta.reshape(vec![1, beta.shape()[0], 1, 1])?;
+) -> (Tensor<B, T>, Tensor<B, T>, Tensor<B, T>) {
+    let gamma = gamma.reshape(vec![1, gamma.shape()[0], 1, 1]);
+    let beta = beta.reshape(vec![1, beta.shape()[0], 1, 1]);
 
-    let mean = x.mean_axes(&vec![0, 2, 3], true)?;
-    let xc = (x - &mean)?;
+    let mean = x.mean_axes(&vec![0, 2, 3], true);
+    let xc = x - &mean;
     let var = xc
-        .pow_scalar(T::from_f64(2.0))?
-        .mean_axes(&vec![0, 2, 3], true)?;
-    let std = (&var + eps)?.sqrt();
-    let xn = (xc / std)?;
-    let y = (gamma * xn + beta)?;
-    Ok((y, mean, var))
+        .pow_scalar(T::from_f64(2.0))
+        .mean_axes(&vec![0, 2, 3], true);
+    let std = (&var + eps).sqrt();
+    let xn = xc / std;
+    let y = gamma * xn + beta;
+    (y, mean, var)
 }
 
 pub fn batch_norm_predict<B: Backend, T: Float>(
@@ -500,9 +494,9 @@ pub fn batch_norm_predict<B: Backend, T: Float>(
     gamma: &Tensor<B, T>,
     beta: &Tensor<B, T>,
     eps: T,
-) -> Result<Tensor<B, T>> {
-    let xc = (x - running_mean)?;
-    let xn = (xc / (running_var + eps)?.sqrt())?;
+) -> Tensor<B, T> {
+    let xc = x - running_mean;
+    let xn = xc / (running_var + eps).sqrt();
     gamma * xn + beta
 }
 
@@ -513,12 +507,12 @@ pub fn batch_norm_predict2d<B: Backend, T: Float>(
     gamma: &Tensor<B, T>,
     beta: &Tensor<B, T>,
     eps: T,
-) -> Result<Tensor<B, T>> {
-    let gamma = gamma.reshape(vec![1, gamma.shape()[0], 1, 1])?;
-    let beta = beta.reshape(vec![1, beta.shape()[0], 1, 1])?;
+) -> Tensor<B, T> {
+    let gamma = gamma.reshape(vec![1, gamma.shape()[0], 1, 1]);
+    let beta = beta.reshape(vec![1, beta.shape()[0], 1, 1]);
 
-    let xc = (x - running_mean)?;
-    let xn = (xc / (running_var + eps)?.sqrt())?;
+    let xc = x - running_mean;
+    let xn = xc / (running_var + eps).sqrt();
     gamma * xn + beta
 }
 
@@ -546,13 +540,12 @@ impl<B: Backend, T: Float> LayerNorm<B, T> {
         }
     }
 
-    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
-        let y = if let Some(beta) = self.beta.as_ref() {
-            layer_norm(x, &self.gamma, Some(&beta), &self.normalize_shape, self.eps)?
+    pub fn forward(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
+        if let Some(beta) = self.beta.as_ref() {
+            layer_norm(x, &self.gamma, Some(&beta), &self.normalize_shape, self.eps)
         } else {
-            layer_norm(&x, &self.gamma, None, &self.normalize_shape, self.eps)?
-        };
-        Ok(y)
+            layer_norm(&x, &self.gamma, None, &self.normalize_shape, self.eps)
+        }
     }
 }
 
@@ -573,7 +566,7 @@ pub fn layer_norm<B: Backend, T: Float>(
     beta: Option<&Tensor<B, T>>,
     normalize_shape: &[usize],
     eps: T,
-) -> Result<Tensor<B, T>> {
+) -> Tensor<B, T> {
     let mut axes = Vec::new();
     for i in 0..normalize_shape.len() {
         let axis = i + (x.ndim() - normalize_shape.len());
@@ -587,16 +580,16 @@ pub fn layer_norm<B: Backend, T: Float>(
         axes.push(axis);
     }
 
-    let mean = x.mean_axes(&axes, true)?;
-    let xc = (x - &mean)?;
-    let var = xc.pow_scalar(T::from_f64(2.0))?.mean_axes(&axes, true)?;
-    let std = (&var + eps)?.sqrt();
-    let xn = (xc / std)?;
-    let mut y = (gamma * xn)?;
+    let mean = x.mean_axes(&axes, true);
+    let xc = x - &mean;
+    let var = xc.pow_scalar(T::from_f64(2.0)).mean_axes(&axes, true);
+    let std = (&var + eps).sqrt();
+    let xn = xc / std;
+    let mut y = gamma * xn;
     if let Some(beta) = beta {
-        y = (y + beta)?;
+        y = y + beta;
     }
-    Ok(y)
+    y
 }
 
 pub struct GroupNorm<B: Backend, T: Float> {
@@ -629,13 +622,12 @@ impl<B: Backend, T: Float> GroupNorm<B, T> {
         }
     }
 
-    pub fn forward(&self, x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
-        let y = if let Some(beta) = self.beta.as_ref() {
-            group_norm(x, &self.gamma, Some(&beta), self.num_groups, self.eps)?
+    pub fn forward(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
+        if let Some(beta) = self.beta.as_ref() {
+            group_norm(x, &self.gamma, Some(&beta), self.num_groups, self.eps)
         } else {
-            group_norm(&x, &self.gamma, None, self.num_groups, self.eps)?
-        };
-        Ok(y)
+            group_norm(&x, &self.gamma, None, self.num_groups, self.eps)
+        }
     }
 }
 
@@ -656,25 +648,23 @@ pub fn group_norm<B: Backend, T: Float>(
     beta: Option<&Tensor<B, T>>,
     num_groups: usize,
     eps: T,
-) -> Result<Tensor<B, T>> {
+) -> Tensor<B, T> {
     let n = x.shape()[0];
     let c = x.shape()[1];
     let h = x.shape()[2];
     let w = x.shape()[3];
 
-    let x = x.reshape(vec![n, num_groups, c / num_groups, h, w])?;
-    let mean = x.mean_axes(&[2, 3, 4], true)?;
-    let xc = (x - &mean)?;
-    let var = xc
-        .pow_scalar(T::from_f64(2.0))?
-        .mean_axes(&[2, 3, 4], true)?;
-    let std = (&var + eps)?.sqrt();
-    let xn = (xc / std)?;
+    let x = x.reshape(vec![n, num_groups, c / num_groups, h, w]);
+    let mean = x.mean_axes(&[2, 3, 4], true);
+    let xc = x - &mean;
+    let var = xc.pow_scalar(T::from_f64(2.0)).mean_axes(&[2, 3, 4], true);
+    let std = (&var + eps).sqrt();
+    let xn = xc / std;
 
-    let xn = xn.reshape(vec![n, c, h, w])?;
-    let gamma = gamma.reshape(vec![1, c, 1, 1])?;
+    let xn = xn.reshape(vec![n, c, h, w]);
+    let gamma = gamma.reshape(vec![1, c, 1, 1]);
     if let Some(beta) = beta {
-        let beta = beta.reshape(vec![1, c, 1, 1])?;
+        let beta = beta.reshape(vec![1, c, 1, 1]);
         gamma * xn + beta
     } else {
         gamma * xn

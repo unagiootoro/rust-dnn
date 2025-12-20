@@ -1,5 +1,4 @@
 mod test_utils;
-use core::panic;
 
 use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor::Tensor};
 
@@ -41,7 +40,7 @@ define_test!(test_arange, test_arange_cpu, test_arange_cuda);
 fn test_add<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
-    let y = (x1 + x2)?;
+    let y = x1 + x2;
     assert_tensor(&y, &ten![[4.0, 6.0, 8.0], [10.0, 12.0, 14.0]]);
     Ok(())
 }
@@ -58,9 +57,9 @@ fn test_add_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x3 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = ((&x1 + &x2) * x3)?;
+    let y = (&x1 + &x2) * x3;
     assert_tensor(&y, &ten![[4.0, 12.0, 24.0], [40.0, 60.0, 84.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     assert_tensor(gx1, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
     let gx2 = grads.get(&x2).unwrap();
@@ -77,7 +76,7 @@ define_test!(
 fn test_sub<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
-    let y = (x1 - x2)?;
+    let y = x1 - x2;
     assert_tensor(&y, &ten![[-6.0, -6.0, -6.0], [-6.0, -6.0, -6.0]]);
     Ok(())
 }
@@ -94,9 +93,9 @@ fn test_sub_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x3 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = ((&x1 - &x2)? * x3)?;
+    let y = (&x1 - &x2) * x3;
     assert_tensor(&y, &ten![[-6.0, -12.0, -18.0], [-24.0, -30.0, -36.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     assert_tensor(gx1, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
     let gx2 = grads.get(&x2).unwrap();
@@ -113,7 +112,7 @@ define_test!(
 fn test_mul<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
-    let y = (x1 * x2)?;
+    let y = x1 * x2;
     assert_tensor(&y, &ten![[-5.0, 0.0, 7.0], [16.0, 27.0, 40.0]]);
     Ok(())
 }
@@ -130,9 +129,9 @@ fn test_mul_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x3 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = ((&x1 * &x2) * x3)?;
+    let y = (&x1 * &x2) * x3;
     assert_tensor(&y, &ten![[-5.0, 0.0, 21.0], [64.0, 135.0, 240.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     assert_tensor(gx1, &ten![[5.0, 12.0, 21.0], [32.0, 45.0, 60.0]]);
     let gx2 = grads.get(&x2).unwrap();
@@ -149,7 +148,7 @@ define_test!(
 fn test_div<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
-    let y = (x1 / x2)?;
+    let y = x1 / x2;
     assert_tensor(&y, &ten![[-0.2, 0.0, 0.14285715], [0.25, 0.33333334, 0.4]]);
     Ok(())
 }
@@ -166,9 +165,9 @@ fn test_div_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x3 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = ((&x1 / &x2) * x3)?;
+    let y = (&x1 / &x2) * x3;
     assert_tensor(&y, &ten![[-0.2, 0.0, 0.42857146], [1.0, 1.6666667, 2.4]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     assert_tensor(
         gx1,
@@ -203,7 +202,7 @@ fn test_neg_backward<B: Backend>(device: Device<B>) -> Result<()> {
         .requires_grad();
     let y = -&x;
     assert_tensor(&y, &ten![[0.0, 2.0, 4.0], [-1.0, -2.0, -3.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![[-1.0, -1.0, -1.0], [-1.0, -1.0, -1.0]]);
     Ok(())
@@ -218,7 +217,7 @@ define_test!(
 fn test_eq<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
     let x2 = ten![-1.0, 0.0, 2.0].to_device(device)?;
-    let y = x1.eq(&x2)?;
+    let y = x1.eq(&x2);
     assert_tensor(&y, &ten![1, 1, 0]);
     Ok(())
 }
@@ -228,7 +227,7 @@ define_test!(test_eq, test_eq_cpu, test_eq_cuda);
 fn test_lt<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
     let x2 = ten![0.0, -1.0, 1.0].to_device(device)?;
-    let y = x1.lt(&x2)?;
+    let y = x1.lt(&x2);
     assert_tensor(&y, &ten![1, 0, 0]);
     Ok(())
 }
@@ -238,7 +237,7 @@ define_test!(test_lt, test_lt_cpu, test_lt_cuda);
 fn test_le<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
     let x2 = ten![0.0, -1.0, 1.0].to_device(device)?;
-    let y = x1.le(&x2)?;
+    let y = x1.le(&x2);
     assert_tensor(&y, &ten![1, 0, 1]);
     Ok(())
 }
@@ -248,7 +247,7 @@ define_test!(test_le, test_le_cpu, test_le_cuda);
 fn test_gt<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
     let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
-    let y = x1.gt(&x2)?;
+    let y = x1.gt(&x2);
     assert_tensor(&y, &ten![1, 0, 0]);
     Ok(())
 }
@@ -258,7 +257,7 @@ define_test!(test_gt, test_gt_cpu, test_gt_cuda);
 fn test_ge<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
     let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
-    let y = x1.ge(&x2)?;
+    let y = x1.ge(&x2);
     assert_tensor(&y, &ten![1, 0, 1]);
     Ok(())
 }
@@ -327,7 +326,7 @@ fn test_matmul<B: Backend>(device: Device<B>) -> Result<()> {
     let x2 = ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x1.matmul(&x2)?;
+    let y = x1.matmul(&x2);
     assert_tensor(&y, &ten![[-26.0, -32.0], [22.0, 28.0]]);
     Ok(())
 }
@@ -335,9 +334,9 @@ fn test_matmul<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_matmul, test_matmul_cpu, test_matmul_cuda);
 
 fn test_matmul_batch<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5])?;
-    let x2 = Tensor::<_, f64>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6])?;
-    let y = x1.matmul(&x2)?;
+    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let x2 = Tensor::<_, f64>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6]);
+    let y = x1.matmul(&x2);
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
     assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD_EXPECTED_DATA);
     Ok(())
@@ -350,9 +349,9 @@ define_test!(
 );
 
 fn test_matmul_batch2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5])?;
-    let x2 = Tensor::<_, f64>::arange(0..(5 * 6), device).reshape(vec![5, 6])?;
-    let y = x1.matmul(&x2)?;
+    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let x2 = Tensor::<_, f64>::arange(0..(5 * 6), device).reshape(vec![5, 6]);
+    let y = x1.matmul(&x2);
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
     assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD2_EXPECTED_DATA);
     Ok(())
@@ -371,7 +370,7 @@ fn test_matmul_transpose<B: Backend>(device: Device<B>) -> Result<()> {
     let x2 = ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x1.reversed_axes()?.matmul(&x2)?;
+    let y = x1.reversed_axes().matmul(&x2);
     assert_tensor(&y, &ten![[-2.0, -4.0], [16.0, 18.0]]);
     Ok(())
 }
@@ -389,9 +388,9 @@ fn test_matmul_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x2 = ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = (x1.matmul(&x2)? * ten![[1.0, 2.0], [3.0, 4.0]].to_device(device)?)?;
+    let y = x1.matmul(&x2) * ten![[1.0, 2.0], [3.0, 4.0]].to_device(device)?;
     assert_tensor(&y, &ten![[-26.0, -64.0], [66.0, 112.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     let gx2 = grads.get(&x2).unwrap();
     assert_tensor(&gx1, &ten![[5.0, 11.0, 17.0], [11.0, 25.0, 39.0]]);
@@ -406,12 +405,12 @@ define_test!(
 );
 
 fn test_matmul_batch_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5])?;
-    let x2 = Tensor::<_, f64>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6])?;
-    let y = x1.matmul(&x2)?;
+    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let x2 = Tensor::<_, f64>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6]);
+    let y = x1.matmul(&x2);
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
     assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD_EXPECTED_DATA);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     let gx2 = grads.get(&x2).unwrap();
     assert_eq!(gx1.to_vec(), MATMUL_BATCH_BACKWARD_X1_EXPECTED_DATA);
@@ -432,9 +431,9 @@ fn test_matmul_transpose_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x2 = ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x1.reversed_axes()?.matmul(&x2)?;
+    let y = x1.reversed_axes().matmul(&x2);
     assert_tensor(&y, &ten![[-2.0, -4.0], [16.0, 18.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     let gx2 = grads.get(&x2).unwrap();
     assert_tensor(&gx1, &ten![[3.0, 3.0], [7.0, 7.0], [11.0, 11.0]]);
@@ -451,7 +450,7 @@ define_test!(
 fn test_broadcast_op2<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![-1.0].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
-    let y = (x1 + x2)?;
+    let y = x1 + x2;
     assert_tensor(&y, &ten![[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
     Ok(())
 }
@@ -470,9 +469,9 @@ fn test_broadcast_op2_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x3 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = ((&x1 + &x2) * x3)?;
+    let y = (&x1 + &x2) * x3;
     assert_tensor(&y, &ten![[4.0, 10.0, 18.0], [28.0, 40.0, 54.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     assert_tensor(gx1, &ten![21.0]);
     let gx2 = grads.get(&x2).unwrap();
@@ -489,7 +488,7 @@ define_test!(
 fn test_pow<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
     let x2 = ten![3.0].to_device(device)?;
-    let y = x1.pow(&x2)?;
+    let y = x1.pow(&x2);
     assert_tensor(&y, &ten![[0.0, -8.0, -64.0], [1.0, 8.0, 27.0]]);
     Ok(())
 }
@@ -501,9 +500,9 @@ fn test_pow_backward<B: Backend>(device: Device<B>) -> Result<()> {
         .to_device(device)?
         .requires_grad();
     let x2 = ten![3.0].to_device(device)?.requires_grad();
-    let y = x1.pow(&x2)?;
+    let y = x1.pow(&x2);
     assert_tensor(&y, &ten![[1.0, 8.0, 27.0], [64.0, 125.0, 216.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     assert_tensor(&gx1, &ten![[3.0, 12.0, 27.0], [48.0, 75.0, 108.0]]);
     let gx2 = grads.get(&x2).unwrap();
@@ -519,7 +518,7 @@ define_test!(
 
 fn test_pow_scalar<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
-    let y = x.pow_scalar(3.0)?;
+    let y = x.pow_scalar(3.0);
     assert_tensor(&y, &ten![[0.0, -8.0, -64.0], [1.0, 8.0, 27.0]]);
     Ok(())
 }
@@ -530,9 +529,9 @@ fn test_pow_scalar_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x.pow_scalar(3.0)?;
+    let y = x.pow_scalar(3.0);
     assert_tensor(&y, &ten![[0.0, -8.0, -64.0], [1.0, 8.0, 27.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![[0.0, 12.0, 48.0], [3.0, 12.0, 27.0]]);
     Ok(())
@@ -555,9 +554,9 @@ define_test!(test_exp, test_exp_cpu, test_exp_cuda);
 
 fn test_exp_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![2.0].to_device(device)?.requires_grad();
-    let y = (x.exp() * ten![2.0].to_device(device)?)?;
+    let y = x.exp() * ten![2.0].to_device(device)?;
     assert_tensor(&y, &ten![14.7781121978613]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![14.7781121978613]);
     Ok(())
@@ -580,9 +579,9 @@ define_test!(test_sqrt, test_sqrt_cpu, test_sqrt_cuda);
 
 fn test_sqrt_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![4.0].to_device(device)?.requires_grad();
-    let y = (x.sqrt() * ten![2.0].to_device(device)?)?;
+    let y = x.sqrt() * ten![2.0].to_device(device)?;
     assert_tensor(&y, &ten![4.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![0.5]);
     Ok(())
@@ -605,9 +604,9 @@ define_test!(test_ln, test_ln_cpu, test_ln_cuda);
 
 fn test_ln_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![4.0].to_device(device)?.requires_grad();
-    let y = (x.ln() * ten![2.0].to_device(device)?)?;
+    let y = x.ln() * ten![2.0].to_device(device)?;
     assert_tensor(&y, &ten![2.772588722239781]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![0.5]);
     Ok(())
@@ -621,7 +620,7 @@ define_test!(
 
 fn test_tril<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::fill(vec![3, 3], 2.0, device);
-    let y = x.tril()?;
+    let y = x.tril();
     #[rustfmt::skip]
     let y_expected = ten![
         [2.0, 0.0, 0.0],
@@ -636,7 +635,7 @@ define_test!(test_tril, test_tril_cpu, test_tril_cuda);
 
 fn test_tril2<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::fill(vec![4, 3], 2.0, device);
-    let y = x.tril()?;
+    let y = x.tril();
     #[rustfmt::skip]
     let y_expected = ten![
         [2.0, 0.0, 0.0],
@@ -652,7 +651,7 @@ define_test!(test_tril2, test_tril2_cpu, test_tril2_cuda);
 
 fn test_tril3<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::fill(vec![3, 4], 2.0, device);
-    let y = x.tril()?;
+    let y = x.tril();
     #[rustfmt::skip]
     let y_expected = ten![
         [2.0, 0.0, 0.0, 0.0],
@@ -673,7 +672,7 @@ fn test_gather<B: Backend>(device: Device<B>) -> Result<()> {
     ]
     .to_device(device)?;
     let index = ten![[0, 1], [2, 3], [1, 3]].to_device(device)?;
-    let y = x.gather(&index, 1)?;
+    let y = x.gather(&index, 1);
     assert_tensor(&y, &ten![[1.0, 2.0], [7.0, 8.0], [10.0, 12.0]]);
     Ok(())
 }
@@ -689,9 +688,9 @@ fn test_gather_backward<B: Backend>(device: Device<B>) -> Result<()> {
     .to_device(device)?
     .requires_grad();
     let index = ten![[0, 1], [2, 3], [1, 3]].to_device(device)?;
-    let y = (x.gather(&index, 1)? * Tensor::from_scalar(2.0, device))?;
+    let y = x.gather(&index, 1) * Tensor::from_scalar(2.0, device);
     assert_tensor(&y, &ten![[2.0, 4.0], [14.0, 16.0], [20.0, 24.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(
         &gx,
@@ -719,7 +718,7 @@ fn test_scatter<B: Backend>(device: Device<B>) -> Result<()> {
     .to_device(device)?;
     let index = ten![[0, 1], [2, 3], [1, 3]].to_device(device)?;
     let src = ten![[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]].to_device(device)?;
-    x.scatter(&index, &src, 1)?;
+    x.scatter(&index, &src, 1);
     assert_tensor(
         &x,
         &ten![
@@ -742,7 +741,7 @@ fn test_scatter_add<B: Backend>(device: Device<B>) -> Result<()> {
     .to_device(device)?;
     let index = ten![[0, 1], [2, 3], [1, 3]].to_device(device)?;
     let src = ten![[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]].to_device(device)?;
-    x.scatter_add(&index, &src, 1)?;
+    x.scatter_add(&index, &src, 1);
     assert_tensor(
         &x,
         &ten![
@@ -768,7 +767,7 @@ fn test_index_select<B: Backend>(device: Device<B>) -> Result<()> {
     ]
     .to_device(device)?;
     let index = ten![1, 3].to_device(device)?;
-    let y = x.index_select(1, &index)?;
+    let y = x.index_select(1, &index);
     assert_tensor(&y, &ten![[2.0, 4.0], [6.0, 8.0], [10.0, 12.0]]);
     Ok(())
 }
@@ -788,9 +787,9 @@ fn test_index_select_backward<B: Backend>(device: Device<B>) -> Result<()> {
     .to_device(device)?
     .requires_grad();
     let index = ten![1, 3].to_device(device)?;
-    let y = (x.index_select(1, &index)? * ten![2.0].to_device(device)?)?;
+    let y = x.index_select(1, &index) * ten![2.0].to_device(device)?;
     assert_tensor(&y, &ten![[4.0, 8.0], [12.0, 16.0], [20.0, 24.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(
         &gx,
@@ -818,7 +817,7 @@ fn test_index_copy<B: Backend>(device: Device<B>) -> Result<()> {
     .to_device(device)?;
     let index = ten![1, 3].to_device(device)?;
     let src = ten![10.0, 20.0].to_device(device)?;
-    x.index_copy(1, &index, &src)?;
+    x.index_copy(1, &index, &src);
     assert_tensor(
         &x,
         &ten![
@@ -841,7 +840,7 @@ fn test_index_add<B: Backend>(device: Device<B>) -> Result<()> {
     .to_device(device)?;
     let index = ten![1, 3].to_device(device)?;
     let src = ten![10.0, 20.0].to_device(device)?;
-    x.index_add(1, &index, &src)?;
+    x.index_add(1, &index, &src);
     assert_tensor(
         &x,
         &ten![
@@ -857,7 +856,7 @@ define_test!(test_index_add, test_index_add_cpu, test_index_add_cuda);
 
 fn test_reshape<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.reshape(vec![6])?;
+    let y = x.reshape(vec![6]);
     assert_tensor(&y, &ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     Ok(())
 }
@@ -866,8 +865,8 @@ define_test!(test_reshape, test_reshape_cpu, test_reshape_cuda);
 
 fn test_reshape2<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
-    let x = x.broadcast_to(vec![2, 3])?;
-    let y = x.reshape(vec![6])?;
+    let x = x.broadcast_to(vec![2, 3]);
+    let y = x.reshape(vec![6]);
     assert_tensor(&y, &ten![1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
     Ok(())
 }
@@ -879,9 +878,9 @@ fn test_reshape_backward<B: Backend>(device: Device<B>) -> Result<()> {
         .to_device(device)?
         .requires_grad();
     let x2 = ten![1.0, 2.0, 3.0, 4.0, 5.0, 6.0].to_device(device)?;
-    let y = (x1.reshape(vec![6])? * x2)?;
+    let y = x1.reshape(vec![6]) * x2;
     assert_tensor(&y, &ten![1.0, 4.0, 9.0, 16.0, 25.0, 36.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x1).unwrap();
     assert_tensor(gx, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
     Ok(())
@@ -896,9 +895,9 @@ define_test!(
 fn test_reshape_backward2<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
     let x2 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = (x1.broadcast_to(vec![2, 3])? * x2)?;
+    let y = x1.broadcast_to(vec![2, 3]) * x2;
     assert_tensor(&y, &ten![[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     assert_tensor(gx1, &ten![5.0, 7.0, 9.0]);
     Ok(())
@@ -921,7 +920,7 @@ define_test!(test_squeeze, test_squeeze_cpu, test_squeeze_cuda);
 
 fn test_squeeze_axes<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[[[1.0], [2.0], [3.0]], [[4.0], [5.0], [6.0]]]].to_device(device)?;
-    let y = x.squeeze_axes(&[0, 3])?;
+    let y = x.squeeze_axes(&[0, 3]);
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
     Ok(())
 }
@@ -934,7 +933,7 @@ define_test!(
 
 fn test_unsqueeze<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.unsqueeze(2)?;
+    let y = x.unsqueeze(2);
     assert_tensor(&y, &ten![[[1.0], [2.0], [3.0]], [[4.0], [5.0], [6.0]]]);
     Ok(())
 }
@@ -943,7 +942,7 @@ define_test!(test_unsqueeze, test_unsqueeze_cpu, test_unsqueeze_cuda);
 
 fn test_permuted_axes<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.permuted_axes(&[1, 0])?;
+    let y = x.permuted_axes(&[1, 0]);
     assert_tensor(&y, &ten![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
     Ok(())
 }
@@ -958,9 +957,9 @@ fn test_permuted_axes_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x.permuted_axes(&[1, 0])?;
+    let y = x.permuted_axes(&[1, 0]);
     assert_tensor(&y, &ten![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(gx, &ten![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
     Ok(())
@@ -974,7 +973,7 @@ define_test!(
 
 fn test_reversed_axes<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.reversed_axes()?;
+    let y = x.reversed_axes();
     assert_tensor(&y, &ten![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
     Ok(())
 }
@@ -989,7 +988,7 @@ fn test_cat<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[1.0, 2.0]].to_device(device)?;
     let x2 = ten![[3.0, 4.0]].to_device(device)?;
     let x3 = ten![[5.0, 6.0]].to_device(device)?;
-    let y = Tensor::cat(&vec![x1, x2, x3], 0)?;
+    let y = Tensor::cat(&vec![x1, x2, x3], 0);
     assert_tensor(&y, &ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);
     Ok(())
 }
@@ -1000,10 +999,10 @@ fn test_cat_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[1.0, 2.0]].to_device(device)?.requires_grad();
     let x2 = ten![[3.0, 4.0]].to_device(device)?.requires_grad();
     let x3 = ten![[5.0, 6.0]].to_device(device)?.requires_grad();
-    let y = Tensor::cat(&vec![x1.clone(), x2.clone(), x3.clone()], 0)?;
-    let y = (y * ten![[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]].to_device(device)?)?;
+    let y = Tensor::cat(&vec![x1.clone(), x2.clone(), x3.clone()], 0);
+    let y = y * ten![[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]].to_device(device)?;
     assert_tensor(&y, &ten![[10.0, 40.0], [90.0, 160.0], [250.0, 360.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx1 = grads.get(&x1).unwrap();
     let gx2 = grads.get(&x2).unwrap();
     let gx3 = grads.get(&x3).unwrap();
@@ -1023,7 +1022,7 @@ fn test_split<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let ys = x.split(1, &vec![2, 1])?;
+    let ys = x.split(1, &vec![2, 1]);
     assert_tensor(&ys[0], &ten![[1.0, 2.0], [4.0, 5.0]]);
     assert_tensor(&ys[1], &ten![[3.0], [6.0]]);
     Ok(())
@@ -1038,7 +1037,7 @@ fn test_get_item<B: Backend>(device: Device<B>) -> Result<()> {
         [9.0, 10.0, 11.0, 12.0]
     ]
     .to_device(device)?;
-    let y = x.get_item(vec![(1, 3), (1, 4)])?;
+    let y = x.get_item(vec![(1, 3), (1, 4)]);
     assert_tensor(&y, &ten![[6.0, 7.0, 8.0], [10.0, 11.0, 12.0]]);
     Ok(())
 }
@@ -1059,8 +1058,8 @@ fn test_get_item2<B: Backend>(device: Device<B>) -> Result<()> {
         ],
     ]
     .to_device(device)?;
-    let h = x.get_item(vec![(1, 2), (0, 3), (0, 4)])?;
-    let y = h.get_item(vec![(0, 1), (1, 3), (1, 4)])?;
+    let h = x.get_item(vec![(1, 2), (0, 3), (0, 4)]);
+    let y = h.get_item(vec![(0, 1), (1, 3), (1, 4)]);
     assert_tensor(&y, &ten![[[18.0, 19.0, 20.0], [22.0, 23.0, 24.0]]]);
     Ok(())
 }
@@ -1074,7 +1073,7 @@ fn test_get_item3<B: Backend>(device: Device<B>) -> Result<()> {
         [9.0, 10.0, 11.0, 12.0]
     ]
     .to_device(device)?;
-    let h = x.get_item(vec![(1, 3), (1, 4)])?;
+    let h = x.get_item(vec![(1, 3), (1, 4)]);
     let y = -h;
     assert_tensor(&y, &ten![[-6.0, -7.0, -8.0], [-10.0, -11.0, -12.0]]);
     Ok(())
@@ -1090,10 +1089,10 @@ fn test_get_item_backward<B: Backend>(device: Device<B>) -> Result<()> {
     ]
     .to_device(device)?
     .requires_grad();
-    let h = x.get_item(vec![(1, 3), (1, 4)])?;
-    let y = (h * ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?)?;
+    let h = x.get_item(vec![(1, 3), (1, 4)]);
+    let y = h * ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
     assert_tensor(&y, &ten![[6.0, 14.0, 24.0], [40.0, 55.0, 72.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(
         &gx,
@@ -1117,7 +1116,7 @@ fn test_set_item<B: Backend>(device: Device<B>) -> Result<()> {
     x.set_item(
         &vec![(1, 3), (1, 4)],
         &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?,
-    )?;
+    );
     assert_tensor(
         &x,
         &ten![
@@ -1138,7 +1137,7 @@ fn test_select<B: Backend>(device: Device<B>) -> Result<()> {
         [9.0, 10.0, 11.0, 12.0]
     ]
     .to_device(device)?;
-    let y = x.select(1, 2)?;
+    let y = x.select(1, 2);
     assert_tensor(&y, &ten![3.0, 7.0, 11.0]);
     Ok(())
 }
@@ -1152,7 +1151,7 @@ fn test_narrow<B: Backend>(device: Device<B>) -> Result<()> {
         [9.0, 10.0, 11.0, 12.0]
     ]
     .to_device(device)?;
-    let y = x.narrow(1, 1, 2)?;
+    let y = x.narrow(1, 1, 2);
     assert_tensor(&y, &ten![[2.0, 3.0], [6.0, 7.0], [10.0, 11.0]]);
     Ok(())
 }
@@ -1161,7 +1160,7 @@ define_test!(test_narrow, test_narrow_cpu, test_narrow_cuda);
 
 fn test_copy<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![2, 3], device);
-    x.copy(&ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]].to_device(device)?)?;
+    x.copy(&ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]].to_device(device)?);
     assert_tensor(&x, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     Ok(())
 }
@@ -1170,7 +1169,7 @@ define_test!(test_copy, test_copy_cpu, test_copy_cuda);
 
 fn test_copy2<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![2, 3], device);
-    x.copy(&ten![1.0, 2.0, 3.0].to_device(device)?)?;
+    x.copy(&ten![1.0, 2.0, 3.0].to_device(device)?);
     assert_tensor(&x, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     Ok(())
 }
@@ -1179,8 +1178,8 @@ define_test!(test_copy2, test_copy2_cpu, test_copy2_cuda);
 
 fn test_copy3<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![3, 4], device);
-    let x2 = x.get_item(vec![(1, 3), (1, 4)])?;
-    x2.copy(&ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?)?;
+    let x2 = x.get_item(vec![(1, 3), (1, 4)]);
+    x2.copy(&ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?);
     assert_tensor(
         &x,
         &ten![
@@ -1196,7 +1195,7 @@ define_test!(test_copy3, test_copy3_cpu, test_copy3_cuda);
 
 fn test_broadcast_to<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
-    let y = x.broadcast_to(vec![2, 3])?;
+    let y = x.broadcast_to(vec![2, 3]);
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     Ok(())
 }
@@ -1209,7 +1208,7 @@ define_test!(
 
 fn test_broadcast_to2<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.broadcast_to(vec![2, 3])?;
+    let y = x.broadcast_to(vec![2, 3]);
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
     Ok(())
 }
@@ -1222,8 +1221,8 @@ define_test!(
 
 fn test_broadcast_to3<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
-    let x = x.broadcast_to(vec![2, 3])?;
-    let y = x.broadcast_to(vec![2, 3])?;
+    let x = x.broadcast_to(vec![2, 3]);
+    let y = x.broadcast_to(vec![2, 3]);
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     Ok(())
 }
@@ -1236,7 +1235,7 @@ define_test!(
 
 fn test_broadcast_to4<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0], [2.0], [3.0]].to_device(device)?;
-    let y = x.broadcast_to(vec![3, 2])?;
+    let y = x.broadcast_to(vec![3, 2]);
     assert_tensor(&y, &ten![[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]);
     Ok(())
 }
@@ -1249,7 +1248,7 @@ define_test!(
 
 fn test_broadcast_to5<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0], [2.0], [3.0]].to_device(device)?;
-    let y = x.broadcast_to(vec![2, 3, 4])?;
+    let y = x.broadcast_to(vec![2, 3, 4]);
     assert_tensor(
         &y,
         &ten![
@@ -1277,9 +1276,9 @@ define_test!(
 fn test_broadcast_to_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
     let x2 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = (x1.broadcast_to(vec![2, 3])? * x2)?;
+    let y = x1.broadcast_to(vec![2, 3]) * x2;
     assert_tensor(&y, &ten![[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x1).unwrap();
     assert_tensor(gx, &ten![5.0, 7.0, 9.0]);
     Ok(())
@@ -1293,8 +1292,8 @@ define_test!(
 
 fn test_masked_fill<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::fill(vec![4], 1.0, device);
-    let mask = Tensor::<B, u32>::from_vec(vec![0, 1, 0, 1], vec![4], device)?;
-    let y = x.masked_fill(&mask, 2.0)?;
+    let mask = Tensor::<B, u32>::from_vec(vec![0, 1, 0, 1], vec![4], device);
+    let y = x.masked_fill(&mask, 2.0);
     assert_tensor(&y, &ten![1.0, 2.0, 1.0, 2.0].to_device(device)?);
     Ok(())
 }
@@ -1307,12 +1306,12 @@ define_test!(
 
 fn test_masked_fill_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::fill(vec![4], 1.0, device).requires_grad();
-    let mask = Tensor::<B, u32>::from_vec(vec![0, 1, 0, 1], vec![4], device)?;
-    let y = x.masked_fill(&mask, 2.0)?;
+    let mask = Tensor::<B, u32>::from_vec(vec![0, 1, 0, 1], vec![4], device);
+    let y = x.masked_fill(&mask, 2.0);
     assert_tensor(&y, &ten![1.0, 2.0, 1.0, 2.0].to_device(device)?);
 
-    let y2 = (y * ten![3.0].to_device(device)?)?;
-    let grads = y2.backward()?;
+    let y2 = y * ten![3.0].to_device(device)?;
+    let grads = y2.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![3.0, 0.0, 3.0, 0.0]);
     Ok(())
@@ -1326,7 +1325,7 @@ define_test!(
 
 fn test_sum_to<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_to(&vec![1, 3])?;
+    let y = x.sum_to(&vec![1, 3]);
     assert_tensor(&y, &ten![[5.0, 7.0, 9.0]]);
     Ok(())
 }
@@ -1335,7 +1334,7 @@ define_test!(test_sum_to, test_sum_to_cpu, test_sum_to_cuda);
 
 fn test_sum_to2<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_to(&vec![3])?;
+    let y = x.sum_to(&vec![3]);
     assert_tensor(&y, &ten![5.0, 7.0, 9.0]);
     Ok(())
 }
@@ -1344,8 +1343,8 @@ define_test!(test_sum_to2, test_sum_to2_cpu, test_sum_to2_cuda);
 
 fn test_sum_to3<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0]].to_device(device)?;
-    let x = x.broadcast_to(vec![4, 3])?;
-    let y = x.sum_to(&vec![1, 3])?;
+    let x = x.broadcast_to(vec![4, 3]);
+    let y = x.sum_to(&vec![1, 3]);
     assert_tensor(&y, &ten![[4.0, 8.0, 12.0]]);
     Ok(())
 }
@@ -1354,8 +1353,8 @@ define_test!(test_sum_to3, test_sum_to3_cpu, test_sum_to3_cuda);
 
 fn test_sum_to4<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0]].to_device(device)?;
-    let x = x.broadcast_to(vec![4, 3])?;
-    let y = x.sum_to(&vec![4, 1])?;
+    let x = x.broadcast_to(vec![4, 3]);
+    let y = x.sum_to(&vec![4, 1]);
     assert_tensor(&y, &ten![[6.0], [6.0], [6.0], [6.0]]);
     Ok(())
 }
@@ -1364,7 +1363,7 @@ define_test!(test_sum_to4, test_sum_to4_cpu, test_sum_to4_cuda);
 
 fn test_sum_to5<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_to(&vec![1])?;
+    let y = x.sum_to(&vec![1]);
     assert_tensor(&y, &ten![21.0]);
     Ok(())
 }
@@ -1373,7 +1372,7 @@ define_test!(test_sum_to5, test_sum_to5_cpu, test_sum_to5_cuda);
 
 fn test_sum_to6<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_to(&vec![2, 1])?;
+    let y = x.sum_to(&vec![2, 1]);
     assert_tensor(&y, &ten![[6.0], [15.0]]);
     Ok(())
 }
@@ -1384,9 +1383,9 @@ fn test_sum_to_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x.sum_to(&vec![3])?;
+    let y = x.sum_to(&vec![3]);
     assert_tensor(&y, &ten![5.0, 7.0, 9.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(gx, &ten![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
     Ok(())
@@ -1400,7 +1399,7 @@ define_test!(
 
 fn test_sum_axis<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_axis(0, false)?;
+    let y = x.sum_axis(0, false);
     assert_tensor(&y, &ten![5.0, 7.0, 9.0]);
     Ok(())
 }
@@ -1409,7 +1408,7 @@ define_test!(test_sum_axis, test_sum_axis_cpu, test_sum_axis_cuda);
 
 fn test_sum_axis_keepdims_true<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
-    let y = x.sum_axis(0, true)?;
+    let y = x.sum_axis(0, true);
     assert_tensor(&y, &ten![[5.0, 7.0, 9.0]]);
     Ok(())
 }
@@ -1424,9 +1423,9 @@ fn test_sum_axis_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x.sum_axis(0, false)?;
+    let y = x.sum_axis(0, false);
     assert_tensor(&y, &ten![5.0, 7.0, 9.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(gx, &ten![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
     Ok(())
@@ -1442,9 +1441,9 @@ fn test_sum_axis_backward_keepdims_true<B: Backend>(device: Device<B>) -> Result
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
         .requires_grad();
-    let y = x.sum_axis(0, true)?;
+    let y = x.sum_axis(0, true);
     assert_tensor(&y, &ten![[5.0, 7.0, 9.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(gx, &ten![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
     Ok(())
@@ -1458,7 +1457,7 @@ define_test!(
 
 fn test_max<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]].to_device(device)?;
-    let y = x.max()?;
+    let y = x.max();
     assert_tensor(&y, &ten![4.0]);
     Ok(())
 }
@@ -1469,9 +1468,9 @@ fn test_max_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]]
         .to_device(device)?
         .requires_grad();
-    let y = (x.max()? * Tensor::from_scalar(2.0, device))?;
+    let y = x.max() * Tensor::from_scalar(2.0, device);
     assert_tensor(&y, &ten![8.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![[0.0, 2.0, 0.0], [0.0, 0.0, 0.0]]);
     Ok(())
@@ -1485,7 +1484,7 @@ define_test!(
 
 fn test_max_axis<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]].to_device(device)?;
-    let y = x.max_axis(0, false)?;
+    let y = x.max_axis(0, false);
     assert_tensor(&y, &ten![2.0, 4.0, -1.0]);
     Ok(())
 }
@@ -1496,9 +1495,9 @@ fn test_max_axis_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]]
         .to_device(device)?
         .requires_grad();
-    let y = (x.max_axis(0, false)? * Tensor::from_scalar(2.0, device))?;
+    let y = x.max_axis(0, false) * Tensor::from_scalar(2.0, device);
     assert_tensor(&y, &ten![4.0, 8.0, -2.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![[0.0, 2.0, 0.0], [2.0, 0.0, 2.0]]);
     Ok(())
@@ -1512,7 +1511,7 @@ define_test!(
 
 fn test_max_axis_keepdims_true<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]].to_device(device)?;
-    let y = x.max_axis(0, true)?;
+    let y = x.max_axis(0, true);
     assert_tensor(&y, &ten![[2.0, 4.0, -1.0]]);
     Ok(())
 }
@@ -1527,9 +1526,9 @@ fn test_max_axis_backward_keepdims_true<B: Backend>(device: Device<B>) -> Result
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]]
         .to_device(device)?
         .requires_grad();
-    let y = (x.max_axis(0, true)? * Tensor::from_scalar(2.0, device))?;
+    let y = x.max_axis(0, true) * Tensor::from_scalar(2.0, device);
     assert_tensor(&y, &ten![[4.0, 8.0, -2.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![[0.0, 2.0, 0.0], [2.0, 0.0, 2.0]]);
     Ok(())
@@ -1543,7 +1542,7 @@ define_test!(
 
 fn test_argmax_axis<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]].to_device(device)?;
-    let y = x.argmax_axis(0, false)?;
+    let y = x.argmax_axis(0, false);
     assert_tensor(&y, &ten![1, 0, 1]);
     Ok(())
 }
@@ -1556,7 +1555,7 @@ define_test!(
 
 fn test_argmax_axis_keepdims_true<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 4.0, -2.0], [2.0, 3.0, -1.0]].to_device(device)?;
-    let y = x.argmax_axis(0, true)?;
+    let y = x.argmax_axis(0, true);
     assert_tensor(&y, &ten![[1, 0, 1]]);
     Ok(())
 }
@@ -1569,7 +1568,7 @@ define_test!(
 
 fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
-    let x = x.broadcast_to(vec![2, 3])?;
+    let x = x.broadcast_to(vec![2, 3]);
     assert!(!x.is_contiguous());
     let y = x.contiguous();
     assert!(y.is_contiguous());
@@ -1581,12 +1580,12 @@ define_test!(test_contiguous, test_contiguous_cpu, test_contiguous_cuda);
 
 fn test_contiguous_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
-    let h = x.broadcast_to(vec![2, 3])?;
+    let h = x.broadcast_to(vec![2, 3]);
     assert!(!h.is_contiguous());
     let y = h.contiguous();
     assert!(y.is_contiguous());
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(gx, &ten![2.0, 2.0, 2.0]);
     Ok(())
@@ -1614,7 +1613,7 @@ fn test_sigmoid_backward<B: Backend>(device: Device<B>) -> Result<()> {
     assert!(x.is_requires_grad());
     assert!(y.is_requires_grad());
 
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![0.19661193324148185, 0.25, 0.19661193324148188]);
 
@@ -1638,9 +1637,9 @@ define_test!(test_relu, test_relu_cpu, test_relu_cuda);
 
 fn test_relu_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![-1.0, 0.0, 1.0].to_device(device)?.requires_grad();
-    let y = (x.relu() * ten![2.0].to_device(device)?)?;
+    let y = x.relu() * ten![2.0].to_device(device)?;
     assert_tensor(&y, &ten![0.0, 0.0, 2.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![0.0, 0.0, 2.0]);
     Ok(())
@@ -1665,7 +1664,7 @@ fn test_leaky_relu_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![-2.0, 0.0, 2.0].to_device(device)?.requires_grad();
     let y = x.leaky_relu(0.2);
     assert_tensor(&y, &ten![-0.4, 0.0, 2.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(gx, &ten![0.2, 0.2, 1.0]);
     Ok(())
@@ -1709,7 +1708,7 @@ fn test_dropout_backward<B: Backend>(device: Device<B>) -> Result<()> {
         .requires_grad();
     let y = x.dropout(0.5, true, Some(838861));
     assert_tensor(&y, &ten![2.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![2.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
     Ok(())
@@ -1723,7 +1722,7 @@ define_test!(
 
 fn test_softmax<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?;
-    let y = x.softmax(0)?;
+    let y = x.softmax(0);
     assert_tensor(
         &y,
         &ten![
@@ -1739,7 +1738,7 @@ define_test!(test_softmax, test_softmax_cpu, test_softmax_cuda);
 
 fn test_softmax_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?.requires_grad();
-    let y = (x.softmax(0)? * ten![2.0].to_device(device)?)?;
+    let y = x.softmax(0) * ten![2.0].to_device(device)?;
     assert_tensor(
         &y,
         &ten![
@@ -1748,7 +1747,7 @@ fn test_softmax_backward<B: Backend>(device: Device<B>) -> Result<()> {
             1.33048191154964356996970309410244
         ],
     );
-    let grads = y.get_item(vec![(0, 1)])?.backward()?;
+    let grads = y.get_item(vec![(0, 1)]).backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(
         &gx,
@@ -1777,8 +1776,8 @@ fn test_im2col<B: Backend>(device: Device<B>) -> Result<()> {
     let out_h = 3;
     let out_w = 3;
     let x = Tensor::<_, f64>::arange(0..((batch_size * img_ch * img_h * img_w) as isize), device)
-        .reshape(vec![batch_size, img_ch, img_h, img_w])?;
-    let y = x.im2col(out_h, out_w, fil_h, fil_w, 1, 1)?;
+        .reshape(vec![batch_size, img_ch, img_h, img_w]);
+    let y = x.im2col(out_h, out_w, fil_h, fil_w, 1, 1);
     assert_eq!(
         y.shape(),
         &vec![batch_size, img_ch * fil_h * fil_w, out_h * out_w]
@@ -1826,9 +1825,9 @@ fn test_col2im<B: Backend>(device: Device<B>) -> Result<()> {
         0..((batch_size * img_ch * fil_h * fil_w * out_h * out_w) as isize),
         device,
     )
-    .reshape(vec![batch_size, img_ch * fil_h * fil_w, out_h * out_w])?;
+    .reshape(vec![batch_size, img_ch * fil_h * fil_w, out_h * out_w]);
     let img_shape = vec![batch_size, img_ch, img_h, img_w];
-    let y = x.col2im(img_shape.clone(), out_h, out_w, fil_h, fil_w, 1, 1)?;
+    let y = x.col2im(img_shape.clone(), out_h, out_w, fil_h, fil_w, 1, 1);
     assert_eq!(y.shape(), &img_shape);
     assert_eq!(
         y.to_vec(),
@@ -1850,8 +1849,8 @@ fn test_col2im<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_col2im, test_col2im_cpu, test_col2im_cuda);
 
 fn test_zero_padding2d<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![1, 1, 2, 3], device)?;
-    let y = x.zero_padding2d(2, 3)?;
+    let x = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![1, 1, 2, 3], device);
+    let y = x.zero_padding2d(2, 3);
     assert_eq!(y.shape(), &vec![1, 1, 4, 6]);
     assert_eq!(
         y.to_vec(),
@@ -1870,9 +1869,9 @@ define_test!(
 );
 
 fn test_zero_padding2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![1, 1, 2, 3], device)?
+    let x = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![1, 1, 2, 3], device)
         .requires_grad();
-    let y = x.zero_padding2d(2, 3)?;
+    let y = x.zero_padding2d(2, 3);
     assert_eq!(y.shape(), &vec![1, 1, 4, 6]);
     assert_eq!(
         y.to_vec(),
@@ -1888,9 +1887,9 @@ fn test_zero_padding2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![1, 1, 4, 6],
         device,
-    )?;
-    let y2 = (y * x2)?;
-    let grads = y2.backward()?;
+    );
+    let y2 = y * x2;
+    let grads = y2.backward();
     let gx = grads.get(&x).unwrap();
     assert_eq!(gx.shape(), &vec![1, 1, 2, 3]);
     assert_eq!(gx.to_vec(), vec![11.0, 12.0, 13.0, 14.0, 15.0, 16.0]);
@@ -1911,8 +1910,8 @@ fn test_cropping2d<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![1, 1, 4, 6],
         device,
-    )?;
-    let y = x.cropping2d(2, 3)?;
+    );
+    let y = x.cropping2d(2, 3);
     assert_eq!(y.shape(), &vec![1, 1, 2, 3]);
     assert_eq!(y.to_vec(), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     Ok(())
@@ -1928,9 +1927,9 @@ fn test_cropping2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         ],
         vec![1, 1, 4, 6],
         device,
-    )?
+    )
     .requires_grad();
-    let y = x.cropping2d(2, 3)?;
+    let y = x.cropping2d(2, 3);
     assert_eq!(y.shape(), &vec![1, 1, 2, 3]);
     assert_eq!(y.to_vec(), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 
@@ -1938,9 +1937,9 @@ fn test_cropping2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         vec![11.0, 12.0, 13.0, 14.0, 15.0, 16.0],
         vec![1, 1, 2, 3],
         device,
-    )?;
-    let y2 = (y * x2)?;
-    let grads = y2.backward()?;
+    );
+    let y2 = y * x2;
+    let grads = y2.backward();
     let gx = grads.get(&x).unwrap();
     assert_eq!(gx.shape(), &vec![1, 1, 4, 6]);
     assert_eq!(
@@ -1981,7 +1980,7 @@ fn test_conv2d<B: Backend>(device: Device<B>) -> Result<()> {
         1,
         None,
         false,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 3, 3]);
     assert_eq!(
         y.to_vec(),
@@ -2019,7 +2018,7 @@ fn test_conv2d_auto_padding<B: Backend>(device: Device<B>) -> Result<()> {
         1,
         None,
         true,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, img_h, img_w]);
     assert_eq!(
         y.to_vec(),
@@ -2066,7 +2065,7 @@ fn test_conv2d_strides<B: Backend>(device: Device<B>) -> Result<()> {
         3,
         None,
         false,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 1]);
     assert_eq!(
         y.to_vec(),
@@ -2104,7 +2103,7 @@ fn test_conv2d_strides_auto_padding<B: Backend>(device: Device<B>) -> Result<()>
         3,
         Some((0, 2)),
         false,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 2]);
     assert_eq!(
         y.to_vec(),
@@ -2145,7 +2144,7 @@ fn test_conv2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         1,
         None,
         false,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 3, 3]);
     assert_eq!(
         y.to_vec(),
@@ -2157,7 +2156,7 @@ fn test_conv2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         ]
     );
 
-    let grads = y.backward()?;
+    let grads = y.backward();
 
     let gx = grads.get(&x).unwrap();
     assert_eq!(gx.shape(), &vec![batch_size, in_filters, img_h, img_w]);
@@ -2221,7 +2220,7 @@ fn test_conv2d_backward_auto_padding<B: Backend>(device: Device<B>) -> Result<()
         1,
         None,
         true,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, img_h, img_w]);
     assert_eq!(
         y.to_vec(),
@@ -2237,7 +2236,7 @@ fn test_conv2d_backward_auto_padding<B: Backend>(device: Device<B>) -> Result<()
         ]
     );
 
-    let grads = y.backward()?;
+    let grads = y.backward();
 
     let gx = grads.get(&x).unwrap();
     assert_eq!(gx.shape(), &vec![batch_size, in_filters, img_h, img_w]);
@@ -2302,14 +2301,14 @@ fn test_conv2d_backward_strides<B: Backend>(device: Device<B>) -> Result<()> {
         3,
         None,
         false,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 1]);
     assert_eq!(
         y.to_vec(),
         vec![5115., 6645., 12730., 17500., 14295., 15825., 41350., 46120.]
     );
 
-    let grads = y.backward()?;
+    let grads = y.backward();
 
     let gx = grads.get(&x).unwrap();
     assert_eq!(gx.shape(), &vec![batch_size, in_filters, img_h, img_w]);
@@ -2373,7 +2372,7 @@ fn test_conv2d_backward_strides_auto_padding<B: Backend>(device: Device<B>) -> R
         3,
         Some((0, 2)),
         false,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 2]);
     assert_eq!(
         y.to_vec(),
@@ -2383,7 +2382,7 @@ fn test_conv2d_backward_strides_auto_padding<B: Backend>(device: Device<B>) -> R
         ]
     );
 
-    let grads = y.backward()?;
+    let grads = y.backward();
 
     let gx = grads.get(&x).unwrap();
     assert_eq!(gx.shape(), &vec![batch_size, in_filters, img_h, img_w]);
@@ -2447,7 +2446,7 @@ fn test_deconv2d<B: Backend>(device: Device<B>) -> Result<()> {
         1,
         None,
         false,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 4, 5]);
     assert_eq!(
         y.to_vec(),
@@ -2492,7 +2491,7 @@ fn test_deconv2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         1,
         None,
         false,
-    )?;
+    );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 4, 5]);
     assert_eq!(
         y.to_vec(),
@@ -2510,7 +2509,7 @@ fn test_deconv2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
         ]
     );
 
-    let grads = y.backward()?;
+    let grads = y.backward();
 
     let gx = grads.get(&x).unwrap();
     assert_eq!(gx.shape(), &vec![batch_size, in_filters, img_h, img_w]);
@@ -2554,7 +2553,7 @@ fn test_max_pool2d<B: Backend>(device: Device<B>) -> Result<()> {
     let fil_h = 2;
     let fil_w = 3;
     let x = arange_with_shape::<B, f64>(&[batch_size, img_ch, img_h, img_w], device);
-    let y = x.max_pool2d(fil_h, fil_w, None, None)?;
+    let y = x.max_pool2d(fil_h, fil_w, None, None);
     assert_eq!(y.shape(), &vec![batch_size, img_ch, 2, 1]);
     assert_eq!(
         y.to_vec(),
@@ -2574,14 +2573,14 @@ fn test_max_pool2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let fil_w = 3;
     let x =
         arange_with_shape::<B, f64>(&[batch_size, img_ch, img_h, img_w], device).requires_grad();
-    let y = x.max_pool2d(fil_h, fil_w, None, None)?;
+    let y = x.max_pool2d(fil_h, fil_w, None, None);
     assert_eq!(y.shape(), &vec![batch_size, img_ch, 2, 1]);
     assert_eq!(
         y.to_vec(),
         vec![7., 17., 27., 37., 47., 57., 67., 77., 87., 97., 107., 117.,]
     );
 
-    let grads = y.backward()?;
+    let grads = y.backward();
 
     let gx = grads.get(&x).unwrap();
     assert_eq!(gx.shape(), &vec![batch_size, img_ch, img_h, img_w]);

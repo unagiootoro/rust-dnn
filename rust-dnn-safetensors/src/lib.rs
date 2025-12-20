@@ -170,7 +170,7 @@ fn parse_tensor<B: Backend, T: Num>(
                 values.push(f32::from_le_bytes(f32_buf));
             }
 
-            let tensor = Tensor::from_vec(values, tensor_data.shape, device)?;
+            let tensor = Tensor::from_vec(values, tensor_data.shape, device);
             let tensor = unsafe { tensor.reinterpret_cast_dtype() };
             tensor
         }
@@ -192,7 +192,7 @@ fn parse_tensor<B: Backend, T: Num>(
                 values.push(f64::from_le_bytes(f64_buf));
             }
 
-            let tensor = Tensor::from_vec(values, tensor_data.shape, device)?;
+            let tensor = Tensor::from_vec(values, tensor_data.shape, device);
             let tensor = unsafe { tensor.reinterpret_cast_dtype() };
             tensor
         }

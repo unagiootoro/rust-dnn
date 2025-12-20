@@ -320,9 +320,9 @@ fn cifar10_load_train() -> Result<()> {
     let (train_images, train_labels) = CIFAR10Loader::new("../datasets").load_train()?;
     assert_eq!(train_images.shape(), vec![50000, 3, 32, 32]);
     assert_eq!(train_labels.shape(), vec![50000]);
-    let train_image = train_images.select(0, 15000)?;
+    let train_image = train_images.select(0, 15000);
     assert_eq!(train_image.to_vec(), CIFAR10_TRAIN_IMAGE_15000.to_vec());
-    let train_label = train_labels.select(0, 15000)?;
+    let train_label = train_labels.select(0, 15000);
     assert_eq!(train_label.to_vec(), vec![0]);
     Ok(())
 }
@@ -332,9 +332,9 @@ fn cifar10_load_test() -> Result<()> {
     let (test_images, test_labels) = CIFAR10Loader::new("../datasets").load_test()?;
     assert_eq!(test_images.shape(), vec![10000, 3, 32, 32]);
     assert_eq!(test_labels.shape(), vec![10000]);
-    let test_image = test_images.select(0, 5000)?;
+    let test_image = test_images.select(0, 5000);
     assert_eq!(test_image.to_vec(), CIFAR10_TEST_IMAGE_5000.to_vec());
-    let test_label = test_labels.select(0, 0)?;
+    let test_label = test_labels.select(0, 0);
     assert_eq!(test_label.to_vec(), vec![3]);
     Ok(())
 }

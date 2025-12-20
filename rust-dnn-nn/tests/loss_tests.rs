@@ -30,7 +30,7 @@ fn test_mean_squared_error_backward<B: Backend>(device: Device<B>) -> Result<()>
     let t = ten![3.0, 4.0, 5.0].to_device(device)?;
     let y = mean_squared_error(&x, &t)?;
     assert_tensor(&y, &ten![9.0]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![-2.0, -2.0, -2.0]);
     Ok(())
@@ -61,7 +61,7 @@ fn test_cross_entropy_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let t = ten![2].to_device(device)?;
     let y = cross_entropy(&x, &t)?;
     assert_tensor(&y, &ten![0.4076058]);
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(gx, &ten![[0.09003057, 0.24472848, -0.33475906]]);
     Ok(())
@@ -93,7 +93,7 @@ fn test_sigmoid_cross_entropy_backward<B: Backend>(device: Device<B>) -> Result<
     let y = sigmoid_cross_entropy(&x, &t)?;
     assert_tensor(&y, &ten![0.7137670516967773]);
 
-    let grads = y.backward()?;
+    let grads = y.backward();
     let gx = grads.get(&x).unwrap();
     assert_tensor(&gx, &ten![-0.1258, 0.1667, -0.2075]);
     Ok(())

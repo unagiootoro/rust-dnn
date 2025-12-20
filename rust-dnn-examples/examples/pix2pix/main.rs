@@ -14,7 +14,7 @@ use rust_dnn_nn::{
 };
 use rust_dnn_safetensors::{deserialize, serialize};
 
-pub fn flatten_except_batch<B: Backend, T: Float>(x: &Tensor<B, T>) -> Result<Tensor<B, T>> {
+pub fn flatten_except_batch<B: Backend, T: Float>(x: &Tensor<B, T>) -> Tensor<B, T> {
     let mut dim = 1;
     for i in (1..x.ndim()).rev() {
         dim *= x.shape()[i];
@@ -25,7 +25,7 @@ pub fn flatten_except_batch<B: Backend, T: Float>(x: &Tensor<B, T>) -> Result<Te
 pub fn reshape_except_batch<B: Backend, T: Float>(
     x: &Tensor<B, T>,
     shape: Vec<usize>,
-) -> Result<Tensor<B, T>> {
+) -> Tensor<B, T> {
     let mut shape2 = Vec::new();
     shape2.push(x.shape()[0]);
     for dim in shape {
@@ -58,8 +58,8 @@ impl<B: Backend> UpConvBlock<B> {
     }
 
     pub fn forward(&mut self, x: &Tensor<B, f32>, is_train: bool) -> Result<Tensor<B, f32>> {
-        let x = self.dcv0.forward(x)?;
-        let x = self.bn0.forward(&x, is_train)?;
+        let x = self.dcv0.forward(x);
+        let x = self.bn0.forward(&x, is_train);
         let x = x.relu();
         Ok(x)
     }
@@ -98,8 +98,8 @@ impl<B: Backend> DownConvBlock<B> {
     }
 
     pub fn forward(&mut self, x: &Tensor<B, f32>, is_train: bool) -> Result<Tensor<B, f32>> {
-        let x = self.cv0.forward(&x)?;
-        let x = self.bn0.forward(&x, is_train)?;
+        let x = self.cv0.forward(&x);
+        let x = self.bn0.forward(&x, is_train);
         let x = x.relu();
         Ok(x)
     }
@@ -127,8 +127,8 @@ impl<B: Backend> ConvBlock<B> {
     }
 
     pub fn forward(&mut self, x: &Tensor<B, f32>, is_train: bool) -> Result<Tensor<B, f32>> {
-        let x = self.cv0.forward(&x)?;
-        let x = self.bn0.forward(&x, is_train)?;
+        let x = self.cv0.forward(&x);
+        let x = self.bn0.forward(&x, is_train);
         let x = x.relu();
         Ok(x)
     }
@@ -178,8 +178,8 @@ impl<B: Backend> Generator<B> {
     }
 
     pub fn forward(&mut self, x: &Tensor<B, f32>, is_train: bool) -> Result<Tensor<B, f32>> {
-        let x = self.cv0.forward(x)?;
-        let x = self.bn0.forward(&x, is_train)?;
+        let x = self.cv0.forward(x);
+        let x = self.bn0.forward(&x, is_train);
         let x = x.relu();
 
         let x = self.down_conv_block0.forward(&x, is_train)?;
@@ -187,12 +187,12 @@ impl<B: Backend> Generator<B> {
         let x = self.down_conv_block1.forward(&x, is_train)?;
         let x1 = &x;
         let x = self.conv_block0.forward(&x, is_train)?;
-        let x = Tensor::cat(&[x1.clone(), x.clone()], 1)?;
+        let x = Tensor::cat(&[x1.clone(), x.clone()], 1);
         let x = self.up_conv_block0.forward(&x, is_train)?;
-        let x = Tensor::cat(&[x0.clone(), x.clone()], 1)?;
+        let x = Tensor::cat(&[x0.clone(), x.clone()], 1);
         let x = self.up_conv_block1.forward(&x, is_train)?;
 
-        let x = self.cv1.forward(&x)?;
+        let x = self.cv1.forward(&x);
         let x = x.tanh();
         Ok(x)
     }
@@ -237,8 +237,8 @@ impl<B: Backend> DiscriminatorDownConvBlock<B> {
     }
 
     pub fn forward(&mut self, x: &Tensor<B, f32>, is_train: bool) -> Result<Tensor<B, f32>> {
-        let x = self.cv0.forward(x)?;
-        let x = self.bn0.forward(&x, is_train)?;
+        let x = self.cv0.forward(x);
+        let x = self.bn0.forward(&x, is_train);
         let x = x.leaky_relu(0.2);
         Ok(x)
     }
@@ -266,8 +266,8 @@ impl<B: Backend> DiscriminatorConvBlock<B> {
     }
 
     pub fn forward(&mut self, x: &Tensor<B, f32>, is_train: bool) -> Result<Tensor<B, f32>> {
-        let x = self.cv0.forward(x)?;
-        let x = self.bn0.forward(&x, is_train)?;
+        let x = self.cv0.forward(x);
+        let x = self.bn0.forward(&x, is_train);
         let x = x.leaky_relu(0.2);
         Ok(x)
     }
@@ -305,8 +305,8 @@ impl<B: Backend> Discriminator<B> {
         let down_conv_block0 = DiscriminatorDownConvBlock::new(features, features * 2, device);
         let down_conv_block1 = DiscriminatorDownConvBlock::new(features * 2, features * 4, device);
         let conv_block0 = DiscriminatorConvBlock::new(features * 4, device);
-        let fc0 = Linear::new(128 * 8 * 8, 1024, true, device)?;
-        let fc1 = Linear::new(1024, 1, true, device)?;
+        let fc0 = Linear::new(128 * 8 * 8, 1024, true, device);
+        let fc1 = Linear::new(1024, 1, true, device);
         let bn0 = BatchNorm2d::new(features, 0.9, 1e-4, device);
         let bn1 = BatchNorm2d::new(features, 0.9, 1e-4, device);
         let bn2 = BatchNorm2d::new(features, 0.9, 1e-4, device);
@@ -334,29 +334,29 @@ impl<B: Backend> Discriminator<B> {
         x1: &Tensor<B, f32>,
         is_train: bool,
     ) -> Result<Tensor<B, f32>> {
-        let x0 = self.cv0.forward(x0)?;
-        let x0 = self.bn0.forward(&x0, is_train)?;
+        let x0 = self.cv0.forward(x0);
+        let x0 = self.bn0.forward(&x0, is_train);
         let x0 = x0.leaky_relu(0.2);
 
-        let x1 = self.cv1.forward(x1)?;
-        let x1 = self.bn1.forward(&x1, is_train)?;
+        let x1 = self.cv1.forward(x1);
+        let x1 = self.bn1.forward(&x1, is_train);
         let x1 = x1.leaky_relu(0.2);
 
-        let x = Tensor::cat(&vec![x0, x1], 1)?;
-        let x = self.cv2.forward(&x)?;
-        let x = self.bn2.forward(&x, is_train)?;
+        let x = Tensor::cat(&vec![x0, x1], 1);
+        let x = self.cv2.forward(&x);
+        let x = self.bn2.forward(&x, is_train);
         let x = x.leaky_relu(0.2);
 
         let x = self.down_conv_block0.forward(&x, is_train)?;
         let x = self.down_conv_block1.forward(&x, is_train)?;
         let x = self.conv_block0.forward(&x, is_train)?;
 
-        let x = flatten_except_batch(&x)?;
-        let x = self.fc0.forward(&x)?;
-        let x = self.bn3.forward(&x, is_train)?;
+        let x = flatten_except_batch(&x);
+        let x = self.fc0.forward(&x);
+        let x = self.bn3.forward(&x, is_train);
         let x = x.leaky_relu(0.2);
 
-        let x = self.fc1.forward(&x)?;
+        let x = self.fc1.forward(&x);
         Ok(x)
     }
 }
@@ -398,26 +398,26 @@ fn train<B: Backend>(device: Device<B>) -> Result<()> {
 
         for (iter, (imgs, _)) in batch_iter(&train_dataset, batch_size, true, None).enumerate() {
             let imgs = imgs.to_device(device)?.to_dtype::<f32>()?;
-            let imgs = ((imgs / ten![127.5].to_device(device)?)? - ten![1.0].to_device(device)?)?;
+            let imgs = (imgs / ten![127.5].to_device(device)?) - ten![1.0].to_device(device)?;
 
-            let r = imgs.get_item(vec![(0, imgs.shape()[0]), (0, 1), (0, 32), (0, 32)])?;
-            let g = imgs.get_item(vec![(0, imgs.shape()[0]), (1, 2), (0, 32), (0, 32)])?;
-            let b = imgs.get_item(vec![(0, imgs.shape()[0]), (2, 3), (0, 32), (0, 32)])?;
-            let grayscale_imgs = ((r + g + b)? / ten![3.0].to_device(device)?)?;
+            let r = imgs.get_item(vec![(0, imgs.shape()[0]), (0, 1), (0, 32), (0, 32)]);
+            let g = imgs.get_item(vec![(0, imgs.shape()[0]), (1, 2), (0, 32), (0, 32)]);
+            let b = imgs.get_item(vec![(0, imgs.shape()[0]), (2, 3), (0, 32), (0, 32)]);
+            let grayscale_imgs = ((r + g + b) / ten![3.0].to_device(device)?);
 
             let fake = generator.forward(&grayscale_imgs, true)?;
             let y_real = discriminator.forward(&grayscale_imgs, &imgs, true)?;
             let y_fake = discriminator.forward(&grayscale_imgs, &fake.detach(), true)?;
             let loss_dis_real = sigmoid_cross_entropy(&y_real, &label_real)?;
             let loss_dis_fake = sigmoid_cross_entropy(&y_fake, &label_fake)?;
-            let loss_dis = (loss_dis_real + loss_dis_fake)?;
-            let grads = loss_dis.backward()?;
-            opt_dis.update_parameters(&mut discriminator.all_trainable_parameters_map(), &grads)?;
+            let loss_dis = loss_dis_real + loss_dis_fake;
+            let grads = loss_dis.backward();
+            opt_dis.update_parameters(&mut discriminator.all_trainable_parameters_map(), &grads);
 
             let y_fake = discriminator.forward(&grayscale_imgs, &fake, true)?;
             let loss_gen = sigmoid_cross_entropy(&y_fake, &label_real)?;
-            let grads = loss_gen.backward()?;
-            opt_gen.update_parameters(&mut generator.all_trainable_parameters_map(), &grads)?;
+            let grads = loss_gen.backward();
+            opt_gen.update_parameters(&mut generator.all_trainable_parameters_map(), &grads);
 
             println!(
                 "iter = {}, loss_dis = {}, loss_gen = {}",
@@ -448,17 +448,17 @@ fn test<B: Backend>(epoch: usize, device: Device<B>) -> Result<()> {
 
     let (imgs, _) = batch_iter(&test_dataset, 100, true, None).next().unwrap();
     let imgs = imgs.to_device(device)?.to_dtype::<f32>()?;
-    let imgs = ((imgs / ten![127.5].to_device(device)?)? - ten![1.0].to_device(device)?)?;
-    let r = imgs.get_item(vec![(0, imgs.shape()[0]), (0, 1), (0, 32), (0, 32)])?;
-    let g = imgs.get_item(vec![(0, imgs.shape()[0]), (1, 2), (0, 32), (0, 32)])?;
-    let b = imgs.get_item(vec![(0, imgs.shape()[0]), (2, 3), (0, 32), (0, 32)])?;
-    let grayscale_imgs = ((r + g + b)? / ten![3.0].to_device(device)?)?;
+    let imgs = (imgs / ten![127.5].to_device(device)?) - ten![1.0].to_device(device)?;
+    let r = imgs.get_item(vec![(0, imgs.shape()[0]), (0, 1), (0, 32), (0, 32)]);
+    let g = imgs.get_item(vec![(0, imgs.shape()[0]), (1, 2), (0, 32), (0, 32)]);
+    let b = imgs.get_item(vec![(0, imgs.shape()[0]), (2, 3), (0, 32), (0, 32)]);
+    let grayscale_imgs = (r + g + b) / ten![3.0].to_device(device)?;
     let color_imgs = model.forward(&grayscale_imgs, false)?;
-    let result = ((color_imgs + 1.0)? * 127.5)?;
-    let result = result.reshape(vec![10, 10, 3, 32, 32])?;
+    let result = (color_imgs + 1.0) * 127.5;
+    let result = result.reshape(vec![10, 10, 3, 32, 32]);
     let result = result
-        .permuted_axes(&[0, 3, 1, 4, 2])?
-        .reshape(vec![320, 320, 3])?;
+        .permuted_axes(&[0, 3, 1, 4, 2])
+        .reshape(vec![320, 320, 3]);
 
     let mut pixel_data = Vec::new();
     for value in result.to_vec() {
