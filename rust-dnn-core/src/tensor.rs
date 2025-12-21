@@ -1160,10 +1160,21 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn to_dtype<T2: Num>(&self) -> Tensor<B, T2> {
-        let storage = self.storage.borrow().to_dtype();
+        if T::dtype() == T2::dtype() {
+            return unsafe { self.clone().reinterpret_cast_dtype::<T2>() };
+        }
+
+        let input_storage = &*self.storage.borrow();
+        let output_storage = B::convert_dtype::<T, T2>(input_storage, &self.layout).unwrap();
+
+        let layout = Layout::new(
+            self.shape().to_vec(),
+            Self::compute_stride(&self.shape()),
+            0,
+        );
         Tensor::new(
-            Rc::new(RefCell::new(storage)),
-            self.layout.clone(),
+            Rc::new(RefCell::new(output_storage)),
+            layout,
             self.device.clone(),
             self.dtype,
             self.is_requires_grad,

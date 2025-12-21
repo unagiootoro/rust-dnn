@@ -3,6 +3,7 @@ use crate::float::Float;
 use crate::{layout::Layout, num::Num, storage::Storage};
 
 pub trait Backend: Clone + Copy {
+    fn convert_dtype<T1: Num, T2: Num>(storage: &Storage<T1>, layout: &Layout) -> Result<Storage<T2>>;
     fn contiguous<T: Num>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn sum<T: Num>(input_storage: &Storage<T>, input_layout: &Layout) -> Result<Storage<T>>;
     fn sum_axis<T: Num>(

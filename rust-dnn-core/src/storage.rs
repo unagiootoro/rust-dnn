@@ -52,33 +52,4 @@ impl<T: Num> Storage<T> {
             }),
         }
     }
-
-    pub fn to_dtype<T2: Num>(&self) -> Storage<T2> {
-        match self {
-            Self::CpuStorage(cpu_storage) => Storage::CpuStorage(convert_vec::<T, T2>(cpu_storage)),
-            #[cfg(feature = "cuda")]
-            Self::CudaStorage(cuda_storage) => {
-                let cuda_storage =
-                    GPUBuffer::<T2>::from_vec(&convert_vec::<T, T2>(&cuda_storage.to_vec()));
-                Storage::CudaStorage(cuda_storage)
-            }
-        }
-    }
-}
-
-fn convert_vec<T1: Num, T2: Num>(v: &Vec<T1>) -> Vec<T2> {
-    match T2::dtype() {
-        DType::U32 => {
-            let v2 = v.iter().map(|n| n.as_u32()).collect();
-            unsafe { std::mem::transmute::<Vec<u32>, Vec<T2>>(v2) }
-        }
-        DType::F32 => {
-            let v2 = v.iter().map(|n| n.as_f32()).collect();
-            unsafe { std::mem::transmute::<Vec<f32>, Vec<T2>>(v2) }
-        }
-        DType::F64 => {
-            let v2 = v.iter().map(|n| n.as_f64()).collect();
-            unsafe { std::mem::transmute::<Vec<f64>, Vec<T2>>(v2) }
-        }
-    }
 }

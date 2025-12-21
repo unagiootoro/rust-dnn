@@ -21,6 +21,20 @@ DEFINE_OP2_U32_KERNEL2(cuda_gt, >)
 DEFINE_OP2_U32_KERNEL2(cuda_ge, >=)
 DEFINE_OP2_U32_KERNEL2(cuda_eq, ==)
 
+template <typename T1, typename T2>
+__device__ void cuda_convert_kernel(
+    T1* a,
+    Layout a_layout,
+    T2* b,
+    int len
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < len) {
+        size_t a_idx = compute_offset2(&a_layout, idx);
+        b[idx] = a[a_idx];
+    }
+}
+
 template <typename T>
 __device__ void cuda_matmul_kernel(
     T* a, Layout a_layout,
@@ -44,25 +58,6 @@ __device__ void cuda_matmul_kernel(
         c[i * b_cols + j] = sum;
     }
 }
-
-__global__ void cmp_max_kernel(
-    float* a, size_t a_base_offset, NDimArray a_shape, NDimArray a_strides, size_t a_ndim,
-    float* b, size_t b_base_offset, NDimArray b_shape, NDimArray b_strides, size_t b_ndim,
-    float* c,
-    int len
-) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < len) {
-        size_t a_idx = compute_offset(a_base_offset, &a_shape.data[0], &a_strides.data[0], a_ndim, idx);
-        size_t b_idx = compute_offset(b_base_offset, &b_shape.data[0], &b_strides.data[0], b_ndim, idx);
-        if (a[a_idx] > b[b_idx]) {
-            c[idx] = a[a_idx];
-        } else {
-            c[idx] = b[b_idx];
-        }
-    }
-}
-
 
 template <typename T>
 __device__ void cuda_contiguous_kernel(
@@ -216,6 +211,59 @@ __device__ void cuda_fill_kernel(T* output_data, T value, int len) {
     }
 }
 
+#define DEFINE_CUDA_CONVERT_KERNEL(type1, type2) \
+__global__ void cuda_convert_kernel_##type1##_##type2( \
+    type1* a, Layout a_layout, type2* b, int len \
+) { \
+    cuda_convert_kernel<type1, type2>(a, a_layout, b, len); \
+}
+
+DEFINE_CUDA_CONVERT_KERNEL(uint32_t, float)
+DEFINE_CUDA_CONVERT_KERNEL(uint32_t, double)
+DEFINE_CUDA_CONVERT_KERNEL(float, uint32_t)
+DEFINE_CUDA_CONVERT_KERNEL(float, double)
+DEFINE_CUDA_CONVERT_KERNEL(double, uint32_t)
+DEFINE_CUDA_CONVERT_KERNEL(double, float)
+
+extern "C" void cuda_convert(
+    DType dtype1, DType dtype2, void* a, Layout a_layout, void* b, int len
+) {
+    int threads = 256;
+    int blocks = (len + threads - 1) / threads;
+    switch (dtype1) {
+        case DType_U32:
+            switch (dtype2) {
+                case DType_F32:
+                    cuda_convert_kernel_uint32_t_float<<<blocks, threads>>>((uint32_t*)a, a_layout, (float*)b, len);
+                    break;
+                case DType_F64:
+                    cuda_convert_kernel_uint32_t_double<<<blocks, threads>>>((uint32_t*)a, a_layout, (double*)b, len);
+                    break;
+            }
+            break;
+        case DType_F32:
+            switch (dtype2) {
+                case DType_U32:
+                    cuda_convert_kernel_float_uint32_t<<<blocks, threads>>>((float*)a, a_layout, (uint32_t*)b, len);
+                    break;
+                case DType_F64:
+                    cuda_convert_kernel_float_double<<<blocks, threads>>>((float*)a, a_layout, (double*)b, len);
+                    break;
+            }
+            break;
+        case DType_F64:
+            switch (dtype2) {
+                case DType_U32:
+                    cuda_convert_kernel_double_uint32_t<<<blocks, threads>>>((double*)a, a_layout, (uint32_t*)b, len);
+                    break;
+                case DType_F32:
+                    cuda_convert_kernel_double_float<<<blocks, threads>>>((double*)a, a_layout, (float*)b, len);
+                    break;
+            }
+            break;
+    }
+}
+
 #define DEFINE_CUDA_MATMUL_KERNEL(type) \
 __global__ void cuda_matmul_kernel_##type( \
     type* a, Layout a_layout, \
@@ -242,27 +290,6 @@ extern "C" void cuda_matmul(
             cuda_matmul_kernel_double<<<blocks, threads>>>((double*)a, a_layout, (double*)b, b_layout, (double*)c, len);
             break;
     }
-}
-
-extern "C" void cuda_cmp_max(
-    float* a, size_t a_base_offset, size_t* a_shape, size_t* a_strides, size_t a_ndim,
-    float* b, size_t b_base_offset, size_t* b_shape, size_t* b_strides, size_t b_ndim,
-    float* c,
-    int len
-) {
-    NDimArray a_shape_array(a_shape, a_ndim);
-    NDimArray a_strides_array(a_strides, a_ndim);
-    NDimArray b_shape_array(b_shape, b_ndim);
-    NDimArray b_strides_array(b_strides, b_ndim);
-
-    int threads = 256;
-    int blocks = (len + threads - 1) / threads;
-    cmp_max_kernel<<<blocks, threads>>>(
-        a, a_base_offset, a_shape_array, a_strides_array, a_ndim,
-        b, b_base_offset, b_shape_array, b_strides_array, b_ndim,
-        c,
-        len
-    );
 }
 
 #define DEFINE_CUDA_KERNEL_CONTIGUOUS(type) \

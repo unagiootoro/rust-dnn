@@ -52,6 +52,24 @@ pub(crate) type CudaReduceCmpAxisIndexFunc<T> = unsafe fn(
 pub struct CudaBackend;
 
 impl Backend for CudaBackend {
+    fn convert_dtype<T1: Num, T2: Num>(storage: &Storage<T1>, layout: &Layout) -> Result<Storage<T2>> {
+        let input_data = storage.get_cuda_storage()?;
+        let output_data = unsafe {
+            let output_data = GPUBuffer::<T2>::new(layout.len());
+            cuda_convert(
+                T1::dtype() as i32,
+                T2::dtype() as i32,
+                input_data.ptr(),
+                layout_to_clayout(&layout)?,
+                output_data.ptr(),
+                layout.len() as i32,
+            );
+            check_cuda_error();
+            output_data
+        };
+        Ok(Storage::CudaStorage(output_data))
+    }
+
     fn contiguous<T: Num>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         let input_data = storage.get_cuda_storage()?;
         let output_data = unsafe {

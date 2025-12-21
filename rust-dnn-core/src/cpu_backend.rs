@@ -1,4 +1,5 @@
 use crate::backend::Backend;
+use crate::dtype::DType;
 use crate::error::Result;
 use crate::float::Float;
 use crate::num::Num;
@@ -8,6 +9,43 @@ use crate::{layout::Layout, storage::Storage};
 pub struct CpuBackend;
 
 impl Backend for CpuBackend {
+    fn convert_dtype<T1: Num, T2: Num>(
+        storage: &Storage<T1>,
+        layout: &Layout,
+    ) -> Result<Storage<T2>> {
+        let input_data = storage.get_cpu_storage()?;
+
+        let output_data = match T2::dtype() {
+            DType::U32 => {
+                let mut output_data = Vec::with_capacity(layout.len());
+                for i in 0..layout.len() {
+                    let offset = compute_offset(&layout, i);
+                    output_data.push(input_data[offset].as_u32());
+                }
+                unsafe { std::mem::transmute::<Vec<u32>, Vec<T2>>(output_data) }
+            }
+            DType::F32 => {
+                let mut output_data = Vec::with_capacity(layout.len());
+                for i in 0..layout.len() {
+                    let offset = compute_offset(&layout, i);
+                    output_data.push(input_data[offset].as_f32());
+                }
+                unsafe { std::mem::transmute::<Vec<f32>, Vec<T2>>(output_data) }
+            }
+            DType::F64 => {
+                let mut output_data = Vec::with_capacity(layout.len());
+                for i in 0..layout.len() {
+                    let offset = compute_offset(&layout, i);
+                    output_data.push(input_data[offset].as_f64());
+                }
+                unsafe { std::mem::transmute::<Vec<f64>, Vec<T2>>(output_data) }
+            }
+        };
+
+        let output_storage = Storage::CpuStorage(output_data);
+        Ok(output_storage)
+    }
+
     fn contiguous<T: Num>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         let mut output_data = Vec::with_capacity(layout.len());
         let input_data = storage.get_cpu_storage()?;

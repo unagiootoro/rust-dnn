@@ -260,6 +260,17 @@ define_extern_op2_u32_func!(cuda_gt_uint32_t, cuda_gt_float, cuda_gt_double);
 define_extern_op2_u32_func!(cuda_ge_uint32_t, cuda_ge_float, cuda_ge_double);
 define_extern_op2_u32_func!(cuda_eq_uint32_t, cuda_eq_float, cuda_eq_double);
 
+unsafe extern "C" {
+    pub fn cuda_convert(
+        dtype1: i32,
+        dtype2: i32,
+        a: *const c_void,
+        a_layout: CLayout,
+        b: *mut c_void,
+        len: i32,
+    );
+}
+
 #[rustfmt::skip]
 unsafe extern "C" {
     pub fn cuda_matmul(
@@ -270,16 +281,6 @@ unsafe extern "C" {
         b_layout: CLayout,
         c: *mut c_void,
         len: i32,
-    );
-}
-
-#[rustfmt::skip]
-unsafe extern "C" {
-    pub fn cuda_cmp_max(
-        a: *const c_float, a_base_offset: size_t, a_shape: *const size_t, a_strides: *const size_t, a_ndim: size_t,
-        b: *const c_float, b_base_offset: size_t, b_shape: *const size_t, b_strides: *const size_t, b_ndim: size_t,
-        c: *mut c_float,
-        len: i32
     );
 }
 
