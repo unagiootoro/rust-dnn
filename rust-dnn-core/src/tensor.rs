@@ -191,6 +191,19 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    pub fn rand_int(
+        min: i32,
+        max: i32,
+        shape: &[usize],
+        seed: Option<u64>,
+        device: Device<B>,
+    ) -> Self {
+        let r = Tensor::<B, f32>::rand_uniform(shape, seed, device);
+        let r = r * ((max - min) as f64);
+        let r = r + min as f64;
+        r.to_dtype::<T>()
+    }
+
     fn compute_len(shape: &[usize]) -> usize {
         let mut len = 1;
         for dim in shape {
@@ -1194,6 +1207,35 @@ impl<B: Backend, T: Num> Tensor<B, T> {
 }
 
 impl<B: Backend, T: Float> Tensor<B, T> {
+    pub fn linspace(start: T, stop: T, num: usize, device: Device<B>) -> Self {
+        let mut data = Vec::new();
+        for i in 0..num {
+            if i == 0 {
+                data.push(start);
+            } else if i == num - 1 {
+                data.push(stop);
+            } else {
+                data.push(start + ((stop - start) / T::from_usize(num - 1) * T::from_usize(i)));
+            }
+        }
+        let shape = vec![data.len()];
+        let stride = Self::compute_stride(&shape);
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
+        let layout = Layout::new(shape, stride, 0);
+        Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        )
+    }
+
     pub fn rand_norm(shape: &[usize], seed: Option<u64>, device: Device<B>) -> Self {
         let u1 = Self::rand_uniform(shape, seed, device);
         let u2 = Self::rand_uniform(shape, seed, device);
