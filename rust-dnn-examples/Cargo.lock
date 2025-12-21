@@ -787,6 +787,15 @@ name = "rust-dnn-core"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "rust-dnn-cuda-kernel",
+]
+
+[[package]]
+name = "rust-dnn-cuda-kernel"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]

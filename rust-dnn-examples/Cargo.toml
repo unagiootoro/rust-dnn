@@ -21,4 +21,4 @@ path = "../rust-dnn-safetensors"
 
 [features]
 default = []
-cuda = [] 
+cuda = ["rust-dnn-core/cuda"] 
