@@ -1018,6 +1018,17 @@ define_test!(
     test_cat_backward_cuda
 );
 
+fn test_stack<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![1.0, 2.0].to_device(device)?;
+    let x2 = ten![3.0, 4.0].to_device(device)?;
+    let x3 = ten![5.0, 6.0].to_device(device)?;
+    let y = Tensor::stack(&vec![x1, x2, x3], 0);
+    assert_tensor(&y, &ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);
+    Ok(())
+}
+
+define_test!(test_stack, test_stack_cpu, test_stack_cuda);
+
 fn test_split<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?

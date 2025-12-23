@@ -948,6 +948,14 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         y.with_op(Some(Op::Cat(tensors.to_vec(), axis, split_sections)))
     }
 
+    pub fn stack(tensors: &[Self], axis: isize) -> Self {
+        let tensors = tensors
+            .iter()
+            .map(|t| t.unsqueeze(axis))
+            .collect::<Vec<Self>>();
+        Self::cat(&tensors, axis)
+    }
+
     pub fn split(&self, axis: usize, split_sections: &[usize]) -> Vec<Self> {
         let mut ys = Vec::new();
         let mut total_axis_ndim = 0;
