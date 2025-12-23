@@ -581,6 +581,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         );
     }
 
+    pub fn flatten(&self) -> Self {
+        self.reshape(vec![self.len()])
+    }
+
     pub fn squeeze(&self) -> Self {
         let mut shape = Vec::new();
         for dim in self.shape() {
@@ -962,6 +966,17 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             ys.push(y);
         }
         ys
+    }
+
+    pub fn repeat_interleave(&self, axis: isize, repeats: usize) -> Self {
+        let input_size = self.size(axis) as isize;
+        let indices = Tensor::arange(0..input_size, self.device());
+        let indices = indices
+            .reshape(vec![indices.len(), 1])
+            .broadcast_to(vec![indices.len(), repeats])
+            .flatten();
+        let axis2 = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed select");
+        self.index_select(axis2, &indices)
     }
 
     pub fn copy(&self, src: &Self) {

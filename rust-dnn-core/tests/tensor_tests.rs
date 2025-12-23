@@ -1030,6 +1030,42 @@ fn test_split<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_split, test_split_cpu, test_split_cuda);
 
+fn test_repeat_interleave<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
+    let y = x.repeat_interleave(0, 2);
+    assert_tensor(&y, &ten![1.0, 1.0, 2.0, 2.0, 3.0, 3.0]);
+    Ok(())
+}
+
+define_test!(
+    test_repeat_interleave,
+    test_repeat_interleave_cpu,
+    test_repeat_interleave_cuda
+);
+
+fn test_repeat_interleave2<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+        .to_device(device)?
+        .requires_grad();
+    let y = x.repeat_interleave(0, 2);
+    assert_tensor(
+        &y,
+        &ten![
+            [1.0, 2.0, 3.0],
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [4.0, 5.0, 6.0]
+        ],
+    );
+    Ok(())
+}
+
+define_test!(
+    test_repeat_interleave2,
+    test_repeat_interleave2_cpu,
+    test_repeat_interleave2_cuda
+);
+
 fn test_get_item<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
         [1.0, 2.0, 3.0, 4.0],
@@ -1573,7 +1609,11 @@ fn test_multinomial<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_multinomial, test_multinomial_cpu, test_multinomial_cuda);
+define_test!(
+    test_multinomial,
+    test_multinomial_cpu,
+    test_multinomial_cuda
+);
 
 fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?;
