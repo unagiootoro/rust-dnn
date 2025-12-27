@@ -52,7 +52,10 @@ pub(crate) type CudaReduceCmpAxisIndexFunc<T> = unsafe fn(
 pub struct CudaBackend;
 
 impl Backend for CudaBackend {
-    fn convert_dtype<T1: Num, T2: Num>(storage: &Storage<T1>, layout: &Layout) -> Result<Storage<T2>> {
+    fn convert_dtype<T1: Num, T2: Num>(
+        storage: &Storage<T1>,
+        layout: &Layout,
+    ) -> Result<Storage<T2>> {
         let input_data = storage.get_cuda_storage()?;
         let output_data = unsafe {
             let output_data = GPUBuffer::<T2>::new(layout.len());
@@ -545,20 +548,11 @@ impl Backend for CudaBackend {
         input_layout: &Layout,
         index_layout: &Layout,
         src_layout: &Layout,
-        dest_shape: &[usize],
-        dest_len: usize,
         axis: usize,
     ) -> Result<()> {
         let input_data = input_storage.get_cuda_storage()?;
         let index_data = index_storage.get_cuda_storage()?;
         let src_data = src_storage.get_cuda_storage()?;
-
-        let mut len = 1;
-        for (i, dim) in dest_shape.iter().enumerate() {
-            if i != axis {
-                len *= *dim;
-            }
-        }
 
         unsafe {
             cuda_index_copy(
@@ -569,10 +563,8 @@ impl Backend for CudaBackend {
                 layout_to_clayout(index_layout)?,
                 src_data.ptr(),
                 layout_to_clayout(src_layout)?,
-                slice_to_ndimarray(dest_shape)?,
                 axis,
-                // dest_len as i32,
-                len as i32,
+                src_layout.len() as i32,
             );
             check_cuda_error();
         };
@@ -586,20 +578,11 @@ impl Backend for CudaBackend {
         input_layout: &Layout,
         index_layout: &Layout,
         src_layout: &Layout,
-        dest_shape: &[usize],
-        dest_len: usize,
         axis: usize,
     ) -> Result<()> {
         let input_data = input_storage.get_cuda_storage()?;
         let index_data = index_storage.get_cuda_storage()?;
         let src_data = src_storage.get_cuda_storage()?;
-
-        let mut len = 1;
-        for (i, dim) in dest_shape.iter().enumerate() {
-            if i != axis {
-                len *= *dim;
-            }
-        }
 
         unsafe {
             cuda_index_add(
@@ -610,9 +593,8 @@ impl Backend for CudaBackend {
                 layout_to_clayout(index_layout)?,
                 src_data.ptr(),
                 layout_to_clayout(src_layout)?,
-                slice_to_ndimarray(dest_shape)?,
                 axis,
-                len as i32,
+                src_layout.len() as i32,
             );
             check_cuda_error();
         };
