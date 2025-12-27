@@ -554,6 +554,13 @@ impl Backend for CudaBackend {
         let index_data = index_storage.get_cuda_storage()?;
         let src_data = src_storage.get_cuda_storage()?;
 
+        let mut len = 1;
+        for (i, dim) in src_layout.shape().iter().enumerate() {
+            if i != axis {
+                len *= *dim;
+            }
+        }
+
         unsafe {
             cuda_index_copy(
                 T::dtype() as i32,
@@ -564,7 +571,7 @@ impl Backend for CudaBackend {
                 src_data.ptr(),
                 layout_to_clayout(src_layout)?,
                 axis,
-                src_layout.len() as i32,
+                len as i32,
             );
             check_cuda_error();
         };
@@ -584,6 +591,13 @@ impl Backend for CudaBackend {
         let index_data = index_storage.get_cuda_storage()?;
         let src_data = src_storage.get_cuda_storage()?;
 
+        let mut len = 1;
+        for (i, dim) in src_layout.shape().iter().enumerate() {
+            if i != axis {
+                len *= *dim;
+            }
+        }
+
         unsafe {
             cuda_index_add(
                 T::dtype() as i32,
@@ -594,7 +608,7 @@ impl Backend for CudaBackend {
                 src_data.ptr(),
                 layout_to_clayout(src_layout)?,
                 axis,
-                src_layout.len() as i32,
+                len as i32,
             );
             check_cuda_error();
         };
