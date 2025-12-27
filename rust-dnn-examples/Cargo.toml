@@ -22,3 +22,6 @@ path = "../rust-dnn-safetensors"
 [features]
 default = []
 cuda = ["rust-dnn-core/cuda"] 
+
+[profile.dev]
+opt-level = 3
