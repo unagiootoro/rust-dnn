@@ -182,8 +182,6 @@ pub trait Backend: Clone + Copy {
         input_layout: &Layout,
         index_layout: &Layout,
         src_layout: &Layout,
-        dest_shape: &[usize],
-        dest_len: usize,
         axis: usize,
     ) -> Result<()>;
     fn index_add<T: Num>(
@@ -193,8 +191,6 @@ pub trait Backend: Clone + Copy {
         input_layout: &Layout,
         index_layout: &Layout,
         src_layout: &Layout,
-        dest_shape: &[usize],
-        dest_len: usize,
         axis: usize,
     ) -> Result<()>;
 

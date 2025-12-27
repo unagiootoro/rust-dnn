@@ -358,7 +358,6 @@ unsafe extern "C" {
         index_layout: CLayout,
         src_data: *mut c_void,
         src_layout: CLayout,
-        dest_shape: NDimArray,
         axis: usize,
         len: i32,
     );
@@ -373,7 +372,6 @@ unsafe extern "C" {
         index_layout: CLayout,
         src_data: *mut c_void,
         src_layout: CLayout,
-        dest_shape: NDimArray,
         axis: usize,
         len: i32,
     );

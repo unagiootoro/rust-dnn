@@ -159,20 +159,18 @@ __device__ void cuda_index_copy_kernel(
     uint32_t* index_data, Layout index_layout,
     T* src_data,
     Layout src_layout,
-    NDimArray dest_shape,
     size_t axis,
     int len
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < len) {
-        int axis_dim = dest_shape.data[axis];
+        int axis_dim = src_layout.shape[axis];
         for (int j = 0; j < axis_dim; j++) {
             int idx = i + len * j;
-            size_t output_axis_index = unravel_index_axis(&dest_shape.data[0], dest_shape.ndim, axis, idx);
+            size_t output_axis_index = unravel_index_axis(&src_layout.shape[0], src_layout.ndim, axis, idx);
             size_t index_offset = compute_offset2(&index_layout, output_axis_index);
             size_t index = index_data[index_offset];
-            size_t input_offset = compute_offset_by_axis_index(input_layout.storage_offset, &dest_shape.data[0], &input_layout.stride[0], dest_shape.ndim, idx, axis, index);
-            size_t src_offset = compute_offset2(&src_layout, output_axis_index);
+            size_t input_offset = compute_offset_by_axis_index(input_layout.storage_offset, &src_layout.shape[0], &input_layout.stride[0], src_layout.ndim, idx, axis, index);
             input_data[input_offset] = src_data[idx];
         }
     }
@@ -184,20 +182,18 @@ __device__ void cuda_index_add_kernel(
     uint32_t* index_data, Layout index_layout,
     T* src_data,
     Layout src_layout,
-    NDimArray dest_shape,
     size_t axis,
     int len
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < len) {
-        int axis_dim = dest_shape.data[axis];
+        int axis_dim = src_layout.shape[axis];
         for (int j = 0; j < axis_dim; j++) {
             int idx = i + len * j;
-            size_t output_axis_index = unravel_index_axis(&dest_shape.data[0], dest_shape.ndim, axis, idx);
+            size_t output_axis_index = unravel_index_axis(&src_layout.shape[0], src_layout.ndim, axis, idx);
             size_t index_offset = compute_offset2(&index_layout, output_axis_index);
             size_t index = index_data[index_offset];
-            size_t input_offset = compute_offset_by_axis_index(input_layout.storage_offset, &dest_shape.data[0], &input_layout.stride[0], dest_shape.ndim, idx, axis, index);
-            size_t src_offset = compute_offset2(&src_layout, output_axis_index);
+            size_t input_offset = compute_offset_by_axis_index(input_layout.storage_offset, &src_layout.shape[0], &input_layout.stride[0], src_layout.ndim, idx, axis, index);
             input_data[input_offset] += src_data[idx];
         }
     }
@@ -439,9 +435,9 @@ extern "C" void cuda_index_select(
 
 #define DEFINE_CUDA_INDEX_COPY_KERNEL(type) \
 __global__ void cuda_index_copy_kernel_##type( \
-    type* input_data, Layout input_layout, uint32_t* index_data, Layout index_layout, type* src_data, Layout src_layout, NDimArray dest_shape, size_t axis, int len \
+    type* input_data, Layout input_layout, uint32_t* index_data, Layout index_layout, type* src_data, Layout src_layout, size_t axis, int len \
 ) { \
-    cuda_index_copy_kernel<type>(input_data, input_layout, index_data, index_layout, src_data, src_layout, dest_shape, axis, len); \
+    cuda_index_copy_kernel<type>(input_data, input_layout, index_data, index_layout, src_data, src_layout, axis, len); \
 }
 
 DEFINE_CUDA_INDEX_COPY_KERNEL(uint32_t)
@@ -449,28 +445,28 @@ DEFINE_CUDA_INDEX_COPY_KERNEL(float)
 DEFINE_CUDA_INDEX_COPY_KERNEL(double)
 
 extern "C" void cuda_index_copy(
-    DType dtype, void* input_data, Layout input_layout, uint32_t* index_data, Layout index_layout, void* src_data, Layout src_layout, NDimArray dest_shape, size_t axis, int len
+    DType dtype, void* input_data, Layout input_layout, uint32_t* index_data, Layout index_layout, void* src_data, Layout src_layout, size_t axis, int len
 ) {
     int threads = 256;
     int blocks = (len + threads - 1) / threads;
     switch (dtype) {
         case DType_U32:
-            cuda_index_copy_kernel_uint32_t<<<blocks, threads>>>((uint32_t*)input_data, input_layout, index_data, index_layout, (uint32_t*)src_data, src_layout, dest_shape, axis, len);
+            cuda_index_copy_kernel_uint32_t<<<blocks, threads>>>((uint32_t*)input_data, input_layout, index_data, index_layout, (uint32_t*)src_data, src_layout, axis, len);
             break;
         case DType_F32:
-            cuda_index_copy_kernel_float<<<blocks, threads>>>((float*)input_data, input_layout, index_data, index_layout, (float*)src_data, src_layout, dest_shape, axis, len);
+            cuda_index_copy_kernel_float<<<blocks, threads>>>((float*)input_data, input_layout, index_data, index_layout, (float*)src_data, src_layout, axis, len);
             break;
         case DType_F64:
-            cuda_index_copy_kernel_double<<<blocks, threads>>>((double*)input_data, input_layout, index_data, index_layout, (double*)src_data, src_layout, dest_shape, axis, len);
+            cuda_index_copy_kernel_double<<<blocks, threads>>>((double*)input_data, input_layout, index_data, index_layout, (double*)src_data, src_layout, axis, len);
             break;
     }
 }
 
 #define DEFINE_CUDA_INDEX_ADD_KERNEL(type) \
 __global__ void cuda_index_add_kernel_##type( \
-    type* input_data, Layout input_layout, uint32_t* index_data, Layout index_layout, type* src_data, Layout src_layout, NDimArray dest_shape, size_t axis, int len \
+    type* input_data, Layout input_layout, uint32_t* index_data, Layout index_layout, type* src_data, Layout src_layout, size_t axis, int len \
 ) { \
-    cuda_index_add_kernel<type>(input_data, input_layout, index_data, index_layout, src_data, src_layout, dest_shape, axis, len); \
+    cuda_index_add_kernel<type>(input_data, input_layout, index_data, index_layout, src_data, src_layout, axis, len); \
 }
 
 DEFINE_CUDA_INDEX_ADD_KERNEL(uint32_t)
@@ -478,19 +474,19 @@ DEFINE_CUDA_INDEX_ADD_KERNEL(float)
 DEFINE_CUDA_INDEX_ADD_KERNEL(double)
 
 extern "C" void cuda_index_add(
-    DType dtype, void* input_data, Layout input_layout, uint32_t* index_data, Layout index_layout, void* src_data, Layout src_layout, NDimArray dest_shape, size_t axis, int len
+    DType dtype, void* input_data, Layout input_layout, uint32_t* index_data, Layout index_layout, void* src_data, Layout src_layout, size_t axis, int len
 ) {
     int threads = 256;
     int blocks = (len + threads - 1) / threads;
     switch (dtype) {
         case DType_U32:
-            cuda_index_add_kernel_uint32_t<<<blocks, threads>>>((uint32_t*)input_data, input_layout, index_data, index_layout, (uint32_t*)src_data, src_layout, dest_shape, axis, len);
+            cuda_index_add_kernel_uint32_t<<<blocks, threads>>>((uint32_t*)input_data, input_layout, index_data, index_layout, (uint32_t*)src_data, src_layout, axis, len);
             break;
         case DType_F32:
-            cuda_index_add_kernel_float<<<blocks, threads>>>((float*)input_data, input_layout, index_data, index_layout, (float*)src_data, src_layout, dest_shape, axis, len);
+            cuda_index_add_kernel_float<<<blocks, threads>>>((float*)input_data, input_layout, index_data, index_layout, (float*)src_data, src_layout, axis, len);
             break;
         case DType_F64:
-            cuda_index_add_kernel_double<<<blocks, threads>>>((double*)input_data, input_layout, index_data, index_layout, (double*)src_data, src_layout, dest_shape, axis, len);
+            cuda_index_add_kernel_double<<<blocks, threads>>>((double*)input_data, input_layout, index_data, index_layout, (double*)src_data, src_layout, axis, len);
             break;
     }
 }

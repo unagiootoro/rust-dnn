@@ -869,8 +869,6 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             &'a Layout,
             &'a Layout,
             &'a Layout,
-            &[usize],
-            usize,
             usize,
         ) -> Result<()>,
     {
@@ -881,15 +879,6 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let index_storage = &*index.storage.borrow();
         let src_storage = &*src.storage.borrow();
 
-        let mut dest_shape = Vec::new();
-        for (i, dim) in self.shape().iter().enumerate() {
-            if i == axis {
-                dest_shape.push(index.len());
-            } else {
-                dest_shape.push(*dim);
-            }
-        }
-
         f(
             input_storage,
             index_storage,
@@ -897,8 +886,6 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             &self.layout,
             &index.layout,
             &src.layout,
-            &dest_shape,
-            Self::compute_len(&dest_shape),
             axis,
         )
         .expect("Failed index_set_impl")

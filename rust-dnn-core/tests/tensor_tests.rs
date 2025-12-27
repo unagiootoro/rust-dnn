@@ -816,14 +816,14 @@ fn test_index_copy<B: Backend>(device: Device<B>) -> Result<()> {
     ]
     .to_device(device)?;
     let index = ten![1, 3].to_device(device)?;
-    let src = ten![10.0, 20.0].to_device(device)?;
+    let src = ten![[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]].to_device(device)?;
     x.index_copy(1, &index, &src);
     assert_tensor(
         &x,
         &ten![
             [1.0, 10.0, 3.0, 20.0],
-            [5.0, 10.0, 7.0, 20.0],
-            [9.0, 10.0, 11.0, 20.0]
+            [5.0, 30.0, 7.0, 40.0],
+            [9.0, 50.0, 11.0, 60.0]
         ],
     );
     Ok(())
@@ -839,14 +839,14 @@ fn test_index_add<B: Backend>(device: Device<B>) -> Result<()> {
     ]
     .to_device(device)?;
     let index = ten![1, 3].to_device(device)?;
-    let src = ten![10.0, 20.0].to_device(device)?;
+    let src = ten![[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]].to_device(device)?;
     x.index_add(1, &index, &src);
     assert_tensor(
         &x,
         &ten![
             [1.0, 12.0, 3.0, 24.0],
-            [5.0, 16.0, 7.0, 28.0],
-            [9.0, 20.0, 11.0, 32.0]
+            [5.0, 36.0, 7.0, 48.0],
+            [9.0, 60.0, 11.0, 72.0]
         ],
     );
     Ok(())
