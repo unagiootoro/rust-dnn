@@ -2,6 +2,15 @@ use rust_dnn_core::{
     backend::Backend, device::Device, error::Result, float::Float, num::Num, tensor::Tensor,
 };
 
+pub fn rms_norm<B: Backend, T: Float>(
+    x: &Tensor<B, T>,
+    gamma: &Tensor<B, T>,
+    eps: f64,
+) -> Tensor<B, T> {
+    let xn = x * (x.pow_scalar(2.0).mean_axis(-1, true) + eps).rsqrt();
+    xn * gamma
+}
+
 pub fn scaled_dot_product_attention<B: Backend, T: Float>(
     q: &Tensor<B, T>,
     k: &Tensor<B, T>,

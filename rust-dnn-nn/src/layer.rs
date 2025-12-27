@@ -7,6 +7,7 @@ use rust_dnn_core::float::Float;
 use rust_dnn_core::num::Num;
 use rust_dnn_core::tensor::Tensor;
 
+use crate::function::rms_norm;
 use crate::sequential::SequentialItem;
 
 pub trait Layer<B: Backend, T: Float> {
@@ -77,7 +78,7 @@ impl<B: Backend, T: Float> Layer<B, T> for Linear<B, T> {
 }
 
 impl<B: Backend, T: Float> SequentialItem<B, T> for Linear<B, T> {
-    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T>{
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
         Linear::<B, T>::forward(self, &x)
     }
 }
@@ -667,5 +668,29 @@ pub fn group_norm<B: Backend, T: Float>(
         gamma * xn + beta
     } else {
         gamma * xn
+    }
+}
+
+pub struct RMSNorm<B: Backend, T: Float> {
+    gamma: Tensor<B, T>,
+    eps: f64,
+}
+
+impl<B: Backend, T: Float> RMSNorm<B, T> {
+    pub fn new(num_channels: usize, eps: f64, device: Device<B>) -> Self {
+        let gamma = Tensor::ones(vec![num_channels], device).requires_grad();
+        Self { gamma, eps }
+    }
+
+    pub fn forward(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
+        rms_norm(&x, &self.gamma, self.eps)
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for RMSNorm<B, T> {
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, T>> {
+        let mut map = HashMap::new();
+        map.insert("weight".to_string(), self.gamma.clone());
+        map
     }
 }

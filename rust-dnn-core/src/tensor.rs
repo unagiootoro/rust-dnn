@@ -1711,6 +1711,10 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op1_impl(op, B::sqrt)
     }
 
+    pub fn rsqrt(&self) -> Self {
+        1.0 / self.sqrt()
+    }
+
     pub fn exp(&self) -> Self {
         let op = if self.is_requires_grad() {
             Some(Op::Exp(self.clone()))

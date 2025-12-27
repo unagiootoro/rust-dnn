@@ -173,7 +173,7 @@ __device__ void cuda_index_copy_kernel(
             size_t index = index_data[index_offset];
             size_t input_offset = compute_offset_by_axis_index(input_layout.storage_offset, &dest_shape.data[0], &input_layout.stride[0], dest_shape.ndim, idx, axis, index);
             size_t src_offset = compute_offset2(&src_layout, output_axis_index);
-            input_data[input_offset] = src_data[src_offset];
+            input_data[input_offset] = src_data[idx];
         }
     }
 }
@@ -198,7 +198,7 @@ __device__ void cuda_index_add_kernel(
             size_t index = index_data[index_offset];
             size_t input_offset = compute_offset_by_axis_index(input_layout.storage_offset, &dest_shape.data[0], &input_layout.stride[0], dest_shape.ndim, idx, axis, index);
             size_t src_offset = compute_offset2(&src_layout, output_axis_index);
-            input_data[input_offset] += src_data[src_offset];
+            input_data[input_offset] += src_data[idx];
         }
     }
 }
