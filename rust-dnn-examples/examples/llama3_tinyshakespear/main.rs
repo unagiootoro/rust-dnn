@@ -602,7 +602,7 @@ fn run<B: Backend>(device: Device<B>) {
                 // println!("y.shape = {:?}", y.shape());
                 // println!("intputs.shape = {:?}", intputs.shape());
                 // println!("outputs.shape = {:?}", outputs.shape());
-                let outputs = outputs.reshape(vec![outputs.shape()[0] * outputs.shape()[1], 1]);
+                let outputs = outputs.reshape(vec![outputs.shape()[0] * outputs.shape()[1]]);
                 let loss = cross_entropy(&y, &outputs).unwrap();
                 println!("iter = {}, loss = {}", iter, loss.to_vec()[0]);
                 let grads = loss.backward();

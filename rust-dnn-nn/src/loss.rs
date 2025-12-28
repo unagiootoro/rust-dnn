@@ -13,6 +13,8 @@ pub fn cross_entropy<B: Backend, T: Float>(
     x: &Tensor<B, T>,
     y: &Tensor<B, u32>,
 ) -> Result<Tensor<B, T>> {
+    assert_eq!(x.ndim(), 2);
+    assert_eq!(y.ndim(), 1);
     let x = x.log_softmax(1);
     let index = y.unsqueeze(1);
     let output = -x.gather(&index, 1).mean_axis(0, false).sum();
