@@ -46,11 +46,11 @@ impl Backend for WgpuBackend {
                 let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
                 let output_data = WgpuBuffer::zeros_u32(lhs_layout.len());
                 wgpu_add(
-                    &lhs_data.raw,
+                    &lhs_data,
                     layout_to_wgpu_layout(lhs_layout),
-                    &rhs_data.raw,
+                    &rhs_data,
                     layout_to_wgpu_layout(rhs_layout),
-                    &output_data.raw,
+                    &output_data,
                     lhs_layout.len() as u32,
                     ShaderType::Op2U32,
                 );
@@ -61,11 +61,11 @@ impl Backend for WgpuBackend {
                 let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
                 let output_data = WgpuBuffer::zeros_f32(lhs_layout.len());
                 wgpu_add(
-                    &lhs_data.raw,
+                    &lhs_data,
                     layout_to_wgpu_layout(lhs_layout),
-                    &rhs_data.raw,
+                    &rhs_data,
                     layout_to_wgpu_layout(rhs_layout),
-                    &output_data.raw,
+                    &output_data,
                     lhs_layout.len() as u32,
                     ShaderType::Op2F32,
                 );
@@ -89,11 +89,11 @@ impl Backend for WgpuBackend {
                 let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
                 let output_data = WgpuBuffer::zeros_u32(lhs_layout.len());
                 wgpu_sub(
-                    &lhs_data.raw,
+                    &lhs_data,
                     layout_to_wgpu_layout(lhs_layout),
-                    &rhs_data.raw,
+                    &rhs_data,
                     layout_to_wgpu_layout(rhs_layout),
-                    &output_data.raw,
+                    &output_data,
                     lhs_layout.len() as u32,
                     ShaderType::Op2U32,
                 );
@@ -104,11 +104,11 @@ impl Backend for WgpuBackend {
                 let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
                 let output_data = WgpuBuffer::zeros_f32(lhs_layout.len());
                 wgpu_sub(
-                    &lhs_data.raw,
+                    &lhs_data,
                     layout_to_wgpu_layout(lhs_layout),
-                    &rhs_data.raw,
+                    &rhs_data,
                     layout_to_wgpu_layout(rhs_layout),
-                    &output_data.raw,
+                    &output_data,
                     lhs_layout.len() as u32,
                     ShaderType::Op2F32,
                 );

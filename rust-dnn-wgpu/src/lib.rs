@@ -8,7 +8,8 @@ use std::{borrow::Cow, rc::Rc};
 use wgpu::{Label, util::DeviceExt};
 
 use crate::layout::Layout;
-use crate::shader_type::ShaderType; // バッファ初期化のためのユーティリティ
+use crate::shader_type::ShaderType;
+use crate::wgpu_buffer::WgpuBuffer; // バッファ初期化のためのユーティリティ
 
 thread_local!(static WGPU_STATE: Rc<RefCell<Option<WGPUState>>> = Rc::new(RefCell::new(None)));
 
@@ -77,11 +78,11 @@ async fn buffer_to_vec_async<T: AnyBitPattern>(buffer: &wgpu::Buffer, len: usize
 }
 
 pub fn wgpu_add(
-    lhs: &wgpu::Buffer,
+    lhs: &WgpuBuffer,
     lhs_layout: Layout,
-    rhs: &wgpu::Buffer,
+    rhs: &WgpuBuffer,
     rhs_layout: Layout,
-    output: &wgpu::Buffer,
+    output: &WgpuBuffer,
     len: u32,
     shader_type: ShaderType,
 ) {
@@ -98,11 +99,11 @@ pub fn wgpu_add(
 }
 
 pub fn wgpu_sub(
-    lhs: &wgpu::Buffer,
+    lhs: &WgpuBuffer,
     lhs_layout: Layout,
-    rhs: &wgpu::Buffer,
+    rhs: &WgpuBuffer,
     rhs_layout: Layout,
-    output: &wgpu::Buffer,
+    output: &WgpuBuffer,
     len: u32,
     shader_type: ShaderType,
 ) {
@@ -119,11 +120,11 @@ pub fn wgpu_sub(
 }
 
 pub fn wgpu_mul(
-    lhs: &wgpu::Buffer,
+    lhs: &WgpuBuffer,
     lhs_layout: Layout,
-    rhs: &wgpu::Buffer,
+    rhs: &WgpuBuffer,
     rhs_layout: Layout,
-    output: &wgpu::Buffer,
+    output: &WgpuBuffer,
     len: u32,
     shader_type: ShaderType,
 ) {
@@ -140,11 +141,11 @@ pub fn wgpu_mul(
 }
 
 fn wgpu_op2(
-    lhs: &wgpu::Buffer,
+    lhs: &WgpuBuffer,
     lhs_layout: Layout,
-    rhs: &wgpu::Buffer,
+    rhs: &WgpuBuffer,
     rhs_layout: Layout,
-    output: &wgpu::Buffer,
+    output: &WgpuBuffer,
     len: u32,
     shader_type: ShaderType,
     entry_point: &str,
@@ -162,11 +163,11 @@ fn wgpu_op2(
 }
 
 async fn wgpu_op2_async(
-    lhs: &wgpu::Buffer,
+    lhs: &WgpuBuffer,
     lhs_layout: Layout,
-    rhs: &wgpu::Buffer,
+    rhs: &WgpuBuffer,
     rhs_layout: Layout,
-    output: &wgpu::Buffer,
+    output: &WgpuBuffer,
     len: u32,
     shader_type: ShaderType,
     entry_point: &str,
@@ -312,11 +313,11 @@ impl WGPUState {
 
     pub async fn op2(
         &self,
-        buffer_a: &wgpu::Buffer,
+        buffer_a: &WgpuBuffer,
         lhs_layout: Layout,
-        buffer_b: &wgpu::Buffer,
+        buffer_b: &WgpuBuffer,
         rhs_layout: Layout,
-        buffer_c: &wgpu::Buffer,
+        buffer_c: &WgpuBuffer,
         len: u32,
         shader_type: ShaderType,
         entry_point: &str,
@@ -365,7 +366,7 @@ impl WGPUState {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: buffer_a.as_entire_binding(),
+                    resource: buffer_a.raw.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -373,7 +374,7 @@ impl WGPUState {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: buffer_b.as_entire_binding(),
+                    resource: buffer_b.raw.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -381,7 +382,7 @@ impl WGPUState {
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
-                    resource: buffer_c.as_entire_binding(),
+                    resource: buffer_c.raw.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 5,

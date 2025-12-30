@@ -39,20 +39,6 @@ var<storage, read_write> output_c: array<T>;
 @group(0) @binding(5)
 var<uniform> u_length: Length;
 
-/*
-__device__ size_t compute_offset2(Layout* layout, size_t linear_index) {
-    size_t offset = 0;
-    for (int i = layout->ndim - 1; i >= 0; i--) {
-        if (layout->stride[i] > 0) {
-            size_t idx = linear_index % layout->shape[i];
-            offset += idx * layout->stride[i];
-        }
-        linear_index /= layout->shape[i];
-    }
-    return layout->storage_offset + offset;
-}
-*/
-
 fn compute_offset2(is_lhs: bool, linear_index_in: u32) -> u32 {
     var offset: u32 = 0u;
     var linear_index = linear_index_in;
