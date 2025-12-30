@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::{buffer_to_vec, create_wgpu_buffer_from_data};
 
 pub struct WgpuBuffer {

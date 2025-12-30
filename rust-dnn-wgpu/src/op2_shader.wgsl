@@ -76,45 +76,4 @@ fn compute_offset(is_lhs: bool, linear_index_in: u32) -> u32 {
     }
 }
 
-// コンピュートシェーダーのエントリーポイント
-// workgroup_size(64): 1つのワークグループで64スレッド並列実行
-@compute @workgroup_size(64)
-fn add(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let index = global_id.x;
-    let dummy = lhs_layout.storage_offset + rhs_layout.storage_offset;
-
-    // 配列の境界チェック（本来はUnfirom等でサイズを渡すべきですが、簡略化のため省略）
-    // Rust側でディスパッチするサイズを調整します
-    if (index < u_length.len) {
-        let lhs_index = compute_offset(true, index);
-        let rhs_index = compute_offset(false, index);
-        output_c[index] = input_a[lhs_index] + input_b[rhs_index];
-    }
-}
-
-@compute @workgroup_size(64)
-fn sub(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let index = global_id.x;
-    let dummy = lhs_layout.storage_offset + rhs_layout.storage_offset;
-
-    // 配列の境界チェック（本来はUnfirom等でサイズを渡すべきですが、簡略化のため省略）
-    // Rust側でディスパッチするサイズを調整します
-    if (index < u_length.len) {
-        let lhs_index = compute_offset(true, index);
-        let rhs_index = compute_offset(false, index);
-        output_c[index] = input_a[lhs_index] - input_b[rhs_index];
-    }
-}
-
-@compute @workgroup_size(64)
-fn mul(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let index = global_id.x;
-
-    // 配列の境界チェック（本来はUnfirom等でサイズを渡すべきですが、簡略化のため省略）
-    // Rust側でディスパッチするサイズを調整します
-    if (index < u_length.len) {
-        let lhs_index = compute_offset(true, index);
-        let rhs_index = compute_offset(false, index);
-        output_c[index] = input_a[lhs_index] * input_b[rhs_index];
-    }
-}
+/*<FUNCTIONS>*/

@@ -48,12 +48,12 @@ impl WGPUState {
             .await
             .expect("Failed to create device");
 
-        let op1_f32_shader_src = include_str!("./op1_shader.wgsl").to_string();
+        let op1_f32_shader_src = Self::generate_op1_shader_src();
 
         let op1_f32_shader =
             Self::create_shader_module2(&device, Some("op1_f32_shader_src"), &op1_f32_shader_src);
 
-        let op2_shader_src = include_str!("./op2_shader.wgsl").to_string();
+        let op2_shader_src = Self::generate_op2_shader_src();
         let op2_u32_shader_src = op2_shader_src.replace("alias T = f32;", "alias T = u32;");
         let op2_f32_shader_src = op2_shader_src.replace("alias T = f32;", "alias T = f32;");
 
@@ -71,6 +71,60 @@ impl WGPUState {
             device,
             queue,
         }
+    }
+
+    fn generate_op1_shader_src() -> String {
+        let mut src = include_str!("./op1_shader.wgsl").to_string();
+        let mut functions = String::new();
+        functions += &Self::op1_shader_func_def("array_exp", "exp");
+        src = src.replace("/*<FUNCTIONS>*/", &functions);
+        src
+    }
+
+    fn op1_shader_func_def(function_name: &str, op: &str) -> String {
+        let mut src = "
+@compute @workgroup_size(64)
+fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let index = global_id.x;
+
+    if (index < u_length.len) {
+        output[index] = <OP>(input[index]);
+    }
+}
+        "
+        .to_string();
+        src = src.replace("<FUNCTION_NAME>", function_name);
+        src = src.replace("<OP>", op);
+        src
+    }
+
+    fn generate_op2_shader_src() -> String {
+        let mut src = include_str!("./op2_shader.wgsl").to_string();
+        let mut functions = String::new();
+        functions += &Self::build_func_def("add", "+");
+        functions += &Self::build_func_def("sub", "-");
+        functions += &Self::build_func_def("mul", "*");
+        functions += &Self::build_func_def("div", "/");
+        src = src.replace("/*<FUNCTIONS>*/", &functions);
+        src
+    }
+
+    fn build_func_def(function_name: &str, op: &str) -> String {
+        let mut src = "
+@compute @workgroup_size(64)
+fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let index = global_id.x;
+    if (index < u_length.len) {
+        let lhs_index = compute_offset(true, index);
+        let rhs_index = compute_offset(false, index);
+        output_c[index] = input_a[lhs_index] <OP> input_b[rhs_index];
+    }
+}
+        "
+        .to_string();
+        src = src.replace("<FUNCTION_NAME>", function_name);
+        src = src.replace("<OP>", op);
+        src
     }
 
     pub fn create_buffer<'a, T: NoUninit>(&self, label: Label<'a>, data: &[T]) -> wgpu::Buffer {
