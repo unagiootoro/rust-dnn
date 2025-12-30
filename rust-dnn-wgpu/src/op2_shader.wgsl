@@ -1,5 +1,7 @@
 // shader.wgsl
 
+alias T = f32;
+
 struct Layout {
     shape: array<u32, 8>,
     stride: array<u32, 8>,
@@ -18,21 +20,21 @@ struct Length {
 
 // バインディング0: 入力配列A (読み取り専用)
 @group(0) @binding(0)
-var<storage, read> input_a: array<u32>;
+var<storage, read> input_a: array<T>;
 
 @group(0) @binding(1)
 var<storage, read> lhs_layout: Layout;
 
 // バインディング1: 入力配列B (読み取り専用)
 @group(0) @binding(2)
-var<storage, read> input_b: array<u32>;
+var<storage, read> input_b: array<T>;
 
 @group(0) @binding(3)
 var<storage, read> rhs_layout: Layout;
 
 // バインディング2: 出力配列C (読み書き可能)
 @group(0) @binding(4)
-var<storage, read_write> output_c: array<u32>;
+var<storage, read_write> output_c: array<T>;
 
 @group(0) @binding(5)
 var<uniform> u_length: Length;

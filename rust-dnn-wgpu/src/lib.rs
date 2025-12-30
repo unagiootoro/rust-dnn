@@ -230,17 +230,21 @@ impl WGPUState {
             )
             .await
             .expect("Failed to create device");
+        
+        let op2_shader_src = include_str!("./op2_shader.wgsl").to_string();
+        let op2_u32_shader_src = op2_shader_src.replace("alias T = f32;", "alias T = u32;");
+        let op2_f32_shader_src = op2_shader_src.replace("alias T = f32;", "alias T = f32;");
 
         let op2_u32_shader = Self::create_shader_module2(
             &device,
             Some("op2_u32_shader"),
-            include_str!("./op2_u32_shader.wgsl"),
+            &op2_u32_shader_src,
         );
 
         let op2_f32_shader = Self::create_shader_module2(
             &device,
             Some("op2_f32_shader"),
-            include_str!("./op2_f32_shader.wgsl"),
+            &op2_f32_shader_src,
         );
 
         Self {
