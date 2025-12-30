@@ -1,3 +1,4 @@
+use rust_dnn_wgpu::layout::MAX_NDIM;
 use rust_dnn_wgpu::shader_type::ShaderType;
 use rust_dnn_wgpu::{wgpu_add, wgpu_sub};
 use rust_dnn_wgpu::wgpu_buffer::WgpuBuffer;
@@ -44,14 +45,13 @@ impl Backend for WgpuBackend {
                 let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
                 let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
                 let output_data = WgpuBuffer::zeros_u32(lhs_layout.len());
-                let output_layout = lhs_layout.clone();
                 wgpu_add(
                     &lhs_data.raw,
-                    &layout_to_wgpu_layout(lhs_layout),
+                    layout_to_wgpu_layout(lhs_layout),
                     &rhs_data.raw,
-                    &layout_to_wgpu_layout(rhs_layout),
+                    layout_to_wgpu_layout(rhs_layout),
                     &output_data.raw,
-                    &layout_to_wgpu_layout(&output_layout),
+                    lhs_layout.len() as u32,
                     ShaderType::Op2U32,
                 );
                 output_data
@@ -60,14 +60,13 @@ impl Backend for WgpuBackend {
                 let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
                 let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
                 let output_data = WgpuBuffer::zeros_f32(lhs_layout.len());
-                let output_layout = lhs_layout.clone();
                 wgpu_add(
                     &lhs_data.raw,
-                    &layout_to_wgpu_layout(lhs_layout),
+                    layout_to_wgpu_layout(lhs_layout),
                     &rhs_data.raw,
-                    &layout_to_wgpu_layout(rhs_layout),
+                    layout_to_wgpu_layout(rhs_layout),
                     &output_data.raw,
-                    &layout_to_wgpu_layout(&output_layout),
+                    lhs_layout.len() as u32,
                     ShaderType::Op2F32,
                 );
                 output_data
@@ -89,14 +88,13 @@ impl Backend for WgpuBackend {
                 let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
                 let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
                 let output_data = WgpuBuffer::zeros_u32(lhs_layout.len());
-                let output_layout = lhs_layout.clone();
                 wgpu_sub(
                     &lhs_data.raw,
-                    &layout_to_wgpu_layout(lhs_layout),
+                    layout_to_wgpu_layout(lhs_layout),
                     &rhs_data.raw,
-                    &layout_to_wgpu_layout(rhs_layout),
+                    layout_to_wgpu_layout(rhs_layout),
                     &output_data.raw,
-                    &layout_to_wgpu_layout(&output_layout),
+                    lhs_layout.len() as u32,
                     ShaderType::Op2U32,
                 );
                 output_data
@@ -105,14 +103,13 @@ impl Backend for WgpuBackend {
                 let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
                 let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
                 let output_data = WgpuBuffer::zeros_f32(lhs_layout.len());
-                let output_layout = lhs_layout.clone();
                 wgpu_sub(
                     &lhs_data.raw,
-                    &layout_to_wgpu_layout(lhs_layout),
+                    layout_to_wgpu_layout(lhs_layout),
                     &rhs_data.raw,
-                    &layout_to_wgpu_layout(rhs_layout),
+                    layout_to_wgpu_layout(rhs_layout),
                     &output_data.raw,
-                    &layout_to_wgpu_layout(&output_layout),
+                    lhs_layout.len() as u32,
                     ShaderType::Op2F32,
                 );
                 output_data
@@ -431,9 +428,29 @@ impl Backend for WgpuBackend {
 }
 
 fn layout_to_wgpu_layout(layout: &Layout) -> rust_dnn_wgpu::layout::Layout {
-    rust_dnn_wgpu::layout::Layout::new(
-        layout.shape().to_vec(),
-        layout.stride().to_vec(),
-        layout.storage_offset(),
-    )
+    // rust_dnn_wgpu::layout::Layout::new(
+    //     layout.shape().to_vec(),
+    //     layout.stride().to_vec(),
+    //     layout.storage_offset(),
+    // )
+
+    if layout.ndim() > MAX_NDIM {
+        panic!("Invalid layout ndim({})", layout.ndim());
+    }
+    let mut shape = [0u32; MAX_NDIM];
+    for (i, dim) in layout.shape().iter().enumerate() {
+        shape[i] = *dim as u32;
+    }
+    let mut stride = [0u32; MAX_NDIM];
+    for (i, dim) in layout.stride().iter().enumerate() {
+        stride[i] = *dim as u32;
+    }
+    let wgpu_layout = rust_dnn_wgpu::layout::Layout::new(
+        shape,
+        stride,
+        layout.ndim() as u32,
+        layout.len() as u32,
+        layout.storage_offset() as u32,
+    );
+    wgpu_layout
 }

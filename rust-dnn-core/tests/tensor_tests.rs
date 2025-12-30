@@ -448,7 +448,7 @@ define_test!(
 );
 
 fn test_broadcast_op2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![-1.0].to_device(device)?;
+    let x1 = ten![-1.0f32].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
     let y = x1 + x2;
     assert_tensor(&y, &ten![[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
@@ -458,7 +458,8 @@ fn test_broadcast_op2<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_broadcast_op2,
     test_broadcast_op2_cpu,
-    test_broadcast_op2_cuda
+    test_broadcast_op2_cuda,
+    test_broadcast_op2_wgpu
 );
 
 fn test_broadcast_op2_backward<B: Backend>(device: Device<B>) -> Result<()> {

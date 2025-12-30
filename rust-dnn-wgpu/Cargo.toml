@@ -5,6 +5,6 @@ edition = "2024"
 
 [dependencies]
 wgpu = "0.19"       # WebGPUの実装
-bytemuck = "1.14"   # バイナリデータのキャスト用
+bytemuck = { version = "1.14", features = ["derive"] }
 pollster = "0.3"    # 非同期関数を同期的に実行するためのランタイム
 futures-intrusive = "0.5.0"
