@@ -1,6 +1,6 @@
 use rust_dnn_wgpu::layout::MAX_NDIM;
 use rust_dnn_wgpu::shader_type::ShaderType;
-use rust_dnn_wgpu::{wgpu_add, wgpu_sub};
+use rust_dnn_wgpu::{wgpu_add, wgpu_exp, wgpu_sub};
 use rust_dnn_wgpu::wgpu_buffer::WgpuBuffer;
 
 use crate::backend::Backend;
@@ -380,7 +380,22 @@ impl Backend for WgpuBackend {
     }
 
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        let output_data = match T::dtype() {
+            DType::F32 => {
+                let input_data = storage.get_wgpu_storage().unwrap();
+                let output_data = WgpuBuffer::zeros_u32(layout.len());
+                wgpu_exp(
+                    &input_data,
+                    &output_data,
+                    layout.len() as u32,
+                    ShaderType::Op2F32,
+                );
+                output_data
+            }
+            _ => todo!()
+        };
+
+        Ok(Storage::WgpuStorage(output_data))
     }
 
     fn argmax_axis<T: Num>(

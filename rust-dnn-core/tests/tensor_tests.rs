@@ -545,13 +545,13 @@ define_test!(
 );
 
 fn test_exp<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![2.0].to_device(device)?;
+    let x = ten![2.0f32].to_device(device)?;
     let y = x.exp();
     assert_tensor(&y, &ten![7.38905609893065]);
     Ok(())
 }
 
-define_test!(test_exp, test_exp_cpu, test_exp_cuda);
+define_test!(test_exp, test_exp_cpu, test_exp_cuda, test_exp_wgpu);
 
 fn test_exp_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![2.0].to_device(device)?.requires_grad();

@@ -39,7 +39,7 @@ var<storage, read_write> output_c: array<T>;
 @group(0) @binding(5)
 var<uniform> u_length: Length;
 
-fn compute_offset2(is_lhs: bool, linear_index_in: u32) -> u32 {
+fn compute_offset(is_lhs: bool, linear_index_in: u32) -> u32 {
     var offset: u32 = 0u;
     var linear_index = linear_index_in;
     
@@ -86,8 +86,8 @@ fn add(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // 配列の境界チェック（本来はUnfirom等でサイズを渡すべきですが、簡略化のため省略）
     // Rust側でディスパッチするサイズを調整します
     if (index < u_length.len) {
-        let lhs_index = compute_offset2(true, index);
-        let rhs_index = compute_offset2(false, index);
+        let lhs_index = compute_offset(true, index);
+        let rhs_index = compute_offset(false, index);
         output_c[index] = input_a[lhs_index] + input_b[rhs_index];
     }
 }
@@ -100,8 +100,8 @@ fn sub(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // 配列の境界チェック（本来はUnfirom等でサイズを渡すべきですが、簡略化のため省略）
     // Rust側でディスパッチするサイズを調整します
     if (index < u_length.len) {
-        let lhs_index = compute_offset2(true, index);
-        let rhs_index = compute_offset2(false, index);
+        let lhs_index = compute_offset(true, index);
+        let rhs_index = compute_offset(false, index);
         output_c[index] = input_a[lhs_index] - input_b[rhs_index];
     }
 }
@@ -113,8 +113,8 @@ fn mul(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // 配列の境界チェック（本来はUnfirom等でサイズを渡すべきですが、簡略化のため省略）
     // Rust側でディスパッチするサイズを調整します
     if (index < u_length.len) {
-        let lhs_index = compute_offset2(true, index);
-        let rhs_index = compute_offset2(false, index);
+        let lhs_index = compute_offset(true, index);
+        let rhs_index = compute_offset(false, index);
         output_c[index] = input_a[lhs_index] * input_b[rhs_index];
     }
 }
