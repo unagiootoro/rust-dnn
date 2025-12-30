@@ -10,9 +10,11 @@ use std::{
 
 #[cfg(feature = "cuda")]
 use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
+use rust_dnn_wgpu::wgpu_buffer::{self, WgpuBuffer};
 
 use crate::{
     backend::Backend,
+    cpu_backend::CpuBackend,
     device::{Device, DeviceInfo},
     dtype::DType,
     error::{Error, Result},
@@ -21,7 +23,8 @@ use crate::{
     layout::Layout,
     num::Num,
     op::Op,
-    storage::Storage,
+    storage::{self, Storage},
+    wgpu_backend::WgpuBackend,
     xorshift128::XorShift128Plus,
 };
 
@@ -90,6 +93,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             DeviceInfo::Cpu => Storage::CpuStorage(data),
             #[cfg(feature = "cuda")]
             DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+            DeviceInfo::Wgpu => todo!(),
         };
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, 0);
@@ -110,6 +114,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             DeviceInfo::Cpu => Storage::CpuStorage(data),
             #[cfg(feature = "cuda")]
             DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+            DeviceInfo::Wgpu => todo!(),
         };
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, 0);
@@ -156,6 +161,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                     }
                 }
             }
+            DeviceInfo::Wgpu => todo!(),
         };
         let layout = Layout::new(shape, stride, 0);
         Self::new(
@@ -179,6 +185,14 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             DeviceInfo::Cpu => Storage::CpuStorage(data),
             #[cfg(feature = "cuda")]
             DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+            DeviceInfo::Wgpu => {
+                // let buf = match T::dtype() {
+                //     DType::U32 => WgpuBuffer::from_vec_u32(data),
+                //     _ => todo!(),
+                // };
+                // Storage::WgpuStorage(buf)
+                todo!()
+            }
         };
         let layout = Layout::new(shape, stride, 0);
         Self::new(
@@ -1160,9 +1174,74 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         })
     }
 
+    // #[cfg(not(feature = "cuda"))]
+    // pub fn to_device<B2: Backend>(&self, _device: Device<B2>) -> Result<Tensor<B2, T>> {
+    //     return unsafe { Ok(self.detach().reinterpret_cast_backend::<B2>()) };
+    // }
+
     #[cfg(not(feature = "cuda"))]
-    pub fn to_device<B2: Backend>(&self, _device: Device<B2>) -> Result<Tensor<B2, T>> {
-        return unsafe { Ok(self.detach().reinterpret_cast_backend::<B2>()) };
+    pub fn to_device<B2: Backend>(&self, device: Device<B2>) -> Result<Tensor<B2, T>> {
+        if self.device.info() == device.info() {
+            return unsafe { Ok(self.detach().reinterpret_cast_backend::<B2>()) };
+        } else if *self.device.info() == DeviceInfo::Cpu && *device.info() == DeviceInfo::Wgpu {
+            let device = unsafe { device.reinterpret_cast() };
+            return Ok(unsafe {
+                Self::cpu_to_wgpu(self.clone().reinterpret_cast_backend::<CpuBackend>(), device)
+                    .reinterpret_cast_backend::<B2>()
+            });
+        } else if *self.device.info() == DeviceInfo::Wgpu && *device.info() == DeviceInfo::Cpu {
+            let device = unsafe { device.reinterpret_cast() };
+            return Ok(unsafe { Self::wgpu_to_cpu(self.clone().reinterpret_cast_backend::<WgpuBackend>(), device).reinterpret_cast_backend::<B2>() });
+        }
+        Err(Error::ArgumentsError {
+            msg: format!("Invalid device(device = {:?}", device.info()).to_string(),
+        })
+    }
+
+    fn cpu_to_wgpu(tensor: Tensor<CpuBackend, T>, device: Device<WgpuBackend>) -> Tensor<WgpuBackend, T> {
+        let wgpu_buffer = match T::dtype() {
+            DType::U32 => {
+                let vec = unsafe { std::mem::transmute::<Vec<T>, Vec<u32>>(tensor.to_vec()) };
+                WgpuBuffer::from_vec_u32(vec)
+            }
+            DType::F32 => {
+                let vec = unsafe { std::mem::transmute::<Vec<T>, Vec<f32>>(tensor.to_vec()) };
+                WgpuBuffer::from_vec_f32(vec)
+            }
+            _ => todo!()
+        };
+        let storage = Storage::WgpuStorage(wgpu_buffer);
+        Tensor::new(
+            Rc::new(RefCell::new(storage)),
+            tensor.layout.clone(),
+            device,
+            tensor.dtype,
+            tensor.is_requires_grad,
+            None,
+        )
+    }
+
+    fn wgpu_to_cpu(tensor: Tensor<WgpuBackend, T>, device: Device<CpuBackend>) -> Tensor<CpuBackend, T> {
+        let storage = tensor.storage.borrow();
+        let wgpu_buffer = storage.get_wgpu_storage().unwrap();
+        let vec = match T::dtype() {
+            DType::U32 => {
+                unsafe { std::mem::transmute::<Vec<u32>, Vec<T>>(wgpu_buffer.to_vec_u32()) }
+            }
+            DType::F32 => {
+                unsafe { std::mem::transmute::<Vec<f32>, Vec<T>>(wgpu_buffer.to_vec_f32()) }
+            }
+            _ => todo!()
+        };
+        let storage = Storage::CpuStorage(vec);
+        Tensor::new(
+            Rc::new(RefCell::new(storage)),
+            tensor.layout.clone(),
+            device,
+            tensor.dtype,
+            tensor.is_requires_grad,
+            None,
+        )
     }
 
     pub unsafe fn reinterpret_cast_backend<B2: Backend>(self) -> Tensor<B2, T> {
@@ -1245,6 +1324,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             DeviceInfo::Cpu => Storage::CpuStorage(data),
             #[cfg(feature = "cuda")]
             DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+            DeviceInfo::Wgpu => todo!(),
         };
         let layout = Layout::new(shape, stride, 0);
         Self::new(
@@ -1279,6 +1359,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             DeviceInfo::Cpu => Storage::CpuStorage(data),
             #[cfg(feature = "cuda")]
             DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+            DeviceInfo::Wgpu => todo!(),
         };
         let layout = Layout::new(shape.to_vec(), stride, 0);
         Self::new(

@@ -6,10 +6,14 @@ use rust_dnn_core::{
     ten,
     tensor::{self, Tensor},
 };
+use rust_dnn_wgpu::init_wgpu_state;
 
 use crate::test_utils::assert_tensor;
 
 fn test_dtype_u32<B: Backend>(device: Device<B>) -> Result<()> {
+    if device.is_wgpu() {
+        init_wgpu_state();
+    }
     let x1 = ten![[0, 1, 2], [2, 3, 4]].to_device(device)?;
     let x2 = ten![[5, 6, 7], [8, 9, 10]].to_device(device)?;
     let y = x1 + x2;
@@ -17,7 +21,7 @@ fn test_dtype_u32<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_dtype_u32, test_dtype_u32_cpu, test_dtype_u32_cuda);
+define_test!(test_dtype_u32, test_dtype_u32_cpu, test_dtype_u32_cuda, test_dtype_u32_wgpu);
 
 fn test_dtype_f32<B: Backend>(device: Device<B>) -> Result<()> {
     let x1: Tensor<_, f32> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
@@ -27,7 +31,7 @@ fn test_dtype_f32<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_dtype_f32, test_dtype_f32_cpu, test_dtype_f32_cuda);
+define_test!(test_dtype_f32, test_dtype_f32_cpu, test_dtype_f32_cuda, test_dtype_f32_wgpu);
 
 fn test_dtype_backward_f32<B: Backend>(device: Device<B>) -> Result<()> {
     let x1: Tensor<_, f32> = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]

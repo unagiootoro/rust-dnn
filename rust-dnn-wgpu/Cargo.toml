@@ -1,0 +1,10 @@
+[package]
+name = "rust-dnn-wgpu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu = "0.19"       # WebGPUの実装
+bytemuck = "1.14"   # バイナリデータのキャスト用
+pollster = "0.3"    # 非同期関数を同期的に実行するためのランタイム
+futures-intrusive = "0.5.0"

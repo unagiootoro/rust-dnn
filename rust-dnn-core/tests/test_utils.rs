@@ -2,6 +2,24 @@ use rust_dnn_core::{backend::Backend, device::Device, num::Num, tensor::Tensor};
 
 #[macro_export]
 macro_rules! define_test {
+    ($fn_name: ident, $test_cpu: ident, $test_cuda: ident, $test_wgpu: ident) => {
+        #[test]
+        fn $test_cpu() -> Result<()> {
+            $fn_name(Device::get_cpu_device())
+        }
+
+        #[cfg(feature = "cuda")]
+        #[test]
+        fn $test_cuda() -> Result<()> {
+            $fn_name(Device::get_cuda_device())
+        }
+
+        #[test]
+        fn $test_wgpu() -> Result<()> {
+            $fn_name(Device::get_wgpu_device())
+        }
+    };
+
     ($fn_name: ident, $test_cpu: ident, $test_cuda: ident) => {
         #[test]
         fn $test_cpu() -> Result<()> {

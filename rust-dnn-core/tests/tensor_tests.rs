@@ -13,12 +13,12 @@ fn test_fill<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_fill, test_fill_cpu, test_fill_cuda);
 
 fn test_to_vec<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![0.0, 1.0, 2.0].to_device(device)?;
+    let x = ten![0.0f32, 1.0, 2.0].to_device(device)?;
     assert_eq!(x.to_vec(), vec![0.0, 1.0, 2.0]);
     Ok(())
 }
 
-define_test!(test_to_vec, test_to_vec_cpu, test_to_vec_cuda);
+define_test!(test_to_vec, test_to_vec_cpu, test_to_vec_cuda, test_to_vec_wgpu);
 
 fn test_to_dtype<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?;
@@ -38,14 +38,14 @@ fn test_arange<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(test_arange, test_arange_cpu, test_arange_cuda);
 
 fn test_add<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
+    let x1 = ten![[-1.0f32, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
     let y = x1 + x2;
     assert_tensor(&y, &ten![[4.0, 6.0, 8.0], [10.0, 12.0, 14.0]]);
     Ok(())
 }
 
-define_test!(test_add, test_add_cpu, test_add_cuda);
+define_test!(test_add, test_add_cpu, test_add_cuda, test_add_wgpu);
 
 fn test_add_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]
@@ -74,14 +74,14 @@ define_test!(
 );
 
 fn test_sub<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
+    let x1 = ten![[-1.0f32, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
     let y = x1 - x2;
     assert_tensor(&y, &ten![[-6.0, -6.0, -6.0], [-6.0, -6.0, -6.0]]);
     Ok(())
 }
 
-define_test!(test_sub, test_sub_cpu, test_sub_cuda);
+define_test!(test_sub, test_sub_cpu, test_sub_cuda, test_sub_wgpu);
 
 fn test_sub_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]

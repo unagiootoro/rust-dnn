@@ -13,3 +13,4 @@ pub mod op;
 pub mod storage;
 pub mod tensor;
 pub mod xorshift128;
+pub mod wgpu_backend;

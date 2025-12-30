@@ -13,3 +13,6 @@ cuda = ["rust-dnn-cuda-kernel"]
 [dependencies.rust-dnn-cuda-kernel]
 path = "../rust-dnn-cuda-kernel"
 optional = true 
+
+[dependencies.rust-dnn-wgpu]
+path = "../rust-dnn-wgpu"
