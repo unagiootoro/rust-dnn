@@ -2,8 +2,8 @@ use rust_dnn_wgpu::layout::MAX_NDIM;
 use rust_dnn_wgpu::wgpu_buffer::WgpuBuffer;
 use rust_dnn_wgpu::wgpu_dtype::WgpuDTypeKind;
 use rust_dnn_wgpu::{
-    wgpu_add, wgpu_div, wgpu_eq, wgpu_exp, wgpu_ge, wgpu_gt, wgpu_le, wgpu_lt, wgpu_mul, wgpu_neg,
-    wgpu_pow, wgpu_sub,
+    wgpu_add, wgpu_cos, wgpu_div, wgpu_eq, wgpu_exp, wgpu_ge, wgpu_gt, wgpu_le, wgpu_log, wgpu_lt,
+    wgpu_mul, wgpu_neg, wgpu_pow, wgpu_sin, wgpu_sqrt, wgpu_sub, wgpu_tanh,
 };
 
 use crate::backend::Backend;
@@ -200,23 +200,23 @@ impl Backend for WgpuBackend {
     }
 
     fn sin<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op1_func_call(storage, layout, wgpu_sin)
     }
 
     fn cos<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op1_func_call(storage, layout, wgpu_cos)
     }
 
     fn tanh<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op1_func_call(storage, layout, wgpu_tanh)
     }
 
     fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op1_func_call(storage, layout, wgpu_sqrt)
     }
 
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op1_func_call(storage, layout, wgpu_log)
     }
 
     fn matmul<T: Float>(

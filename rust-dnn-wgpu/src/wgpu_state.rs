@@ -116,6 +116,11 @@ impl WGPUState {
         let mut src = include_str!("./op1_shader.wgsl").to_string();
         let mut functions = String::new();
         functions += &Self::op1_shader_func_def("array_exp", "exp");
+        functions += &Self::op1_shader_func_def("array_sqrt", "sqrt");
+        functions += &Self::op1_shader_func_def("array_log", "log");
+        functions += &Self::op1_shader_func_def("array_sin", "sin");
+        functions += &Self::op1_shader_func_def("array_cos", "cos");
+        functions += &Self::op1_shader_func_def("array_tanh", "tanh");
         functions += &Self::op1_shader_func_def("neg", "-");
         src = src.replace("/*<FUNCTIONS>*/", &functions);
         src

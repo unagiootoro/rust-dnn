@@ -18,7 +18,12 @@ fn test_to_vec<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_to_vec, test_to_vec_cpu, test_to_vec_cuda, test_to_vec_wgpu);
+define_test!(
+    test_to_vec,
+    test_to_vec_cpu,
+    test_to_vec_cuda,
+    test_to_vec_wgpu
+);
 
 fn test_to_dtype<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.0, 1.0, 2.0].to_device(device)?;
@@ -570,13 +575,13 @@ define_test!(
 );
 
 fn test_sqrt<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![4.0].to_device(device)?;
+    let x = ten![4.0f32].to_device(device)?;
     let y = x.sqrt();
     assert_tensor(&y, &ten![2.0]);
     Ok(())
 }
 
-define_test!(test_sqrt, test_sqrt_cpu, test_sqrt_cuda);
+define_test!(test_sqrt, test_sqrt_cpu, test_sqrt_cuda, test_sqrt_wgpu);
 
 fn test_sqrt_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![4.0].to_device(device)?.requires_grad();
@@ -595,13 +600,13 @@ define_test!(
 );
 
 fn test_ln<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![4.0].to_device(device)?;
+    let x = ten![4.0f32].to_device(device)?;
     let y = x.ln();
     assert_tensor(&y, &ten![1.3862944]);
     Ok(())
 }
 
-define_test!(test_ln, test_ln_cpu, test_ln_cuda);
+define_test!(test_ln, test_ln_cpu, test_ln_cuda, test_ln_wgpu);
 
 fn test_ln_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![4.0].to_device(device)?.requires_grad();
@@ -620,13 +625,13 @@ define_test!(
 );
 
 fn test_sin<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![0.5].to_device(device)?;
+    let x = ten![0.5f32].to_device(device)?;
     let y = x.sin();
     assert_tensor(&y, &ten![0.479425538604203]);
     Ok(())
 }
 
-define_test!(test_sin, test_sin_cpu, test_sin_cuda);
+define_test!(test_sin, test_sin_cpu, test_sin_cuda, test_sin_wgpu);
 
 fn test_sin_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.5].to_device(device)?.requires_grad();
@@ -645,13 +650,13 @@ define_test!(
 );
 
 fn test_cos<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![0.5].to_device(device)?;
+    let x = ten![0.5f32].to_device(device)?;
     let y = x.cos();
     assert_tensor(&y, &ten![0.8775825618903728]);
     Ok(())
 }
 
-define_test!(test_cos, test_cos_cpu, test_cos_cuda);
+define_test!(test_cos, test_cos_cpu, test_cos_cuda, test_cos_wgpu);
 
 fn test_cos_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.5].to_device(device)?.requires_grad();
@@ -670,13 +675,13 @@ define_test!(
 );
 
 fn test_tanh<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![0.5].to_device(device)?;
+    let x = ten![0.5f32].to_device(device)?;
     let y = x.tanh();
     assert_tensor(&y, &ten![0.46211715726000974]);
     Ok(())
 }
 
-define_test!(test_tanh, test_tanh_cpu, test_tanh_cuda);
+define_test!(test_tanh, test_tanh_cpu, test_tanh_cuda, test_tanh_wgpu);
 
 fn test_tanh_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.5].to_device(device)?.requires_grad();

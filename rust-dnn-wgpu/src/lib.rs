@@ -117,6 +117,26 @@ pub fn wgpu_exp(input: &WgpuBuffer, storage_offset: u32, output: &WgpuBuffer, le
     wgpu_op1(input, storage_offset, output, len, "array_exp");
 }
 
+pub fn wgpu_sqrt(input: &WgpuBuffer, storage_offset: u32, output: &WgpuBuffer, len: u32) {
+    wgpu_op1(input, storage_offset, output, len, "array_sqrt");
+}
+
+pub fn wgpu_log(input: &WgpuBuffer, storage_offset: u32, output: &WgpuBuffer, len: u32) {
+    wgpu_op1(input, storage_offset, output, len, "array_log");
+}
+
+pub fn wgpu_sin(input: &WgpuBuffer, storage_offset: u32, output: &WgpuBuffer, len: u32) {
+    wgpu_op1(input, storage_offset, output, len, "array_sin");
+}
+
+pub fn wgpu_cos(input: &WgpuBuffer, storage_offset: u32, output: &WgpuBuffer, len: u32) {
+    wgpu_op1(input, storage_offset, output, len, "array_cos");
+}
+
+pub fn wgpu_tanh(input: &WgpuBuffer, storage_offset: u32, output: &WgpuBuffer, len: u32) {
+    wgpu_op1(input, storage_offset, output, len, "array_tanh");
+}
+
 fn wgpu_op1(
     input: &WgpuBuffer,
     storage_offset: u32,
