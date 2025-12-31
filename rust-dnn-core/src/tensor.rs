@@ -1202,11 +1202,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let wgpu_buffer = match T::dtype() {
             DType::U32 => {
                 let vec = unsafe { std::mem::transmute::<Vec<T>, Vec<u32>>(tensor.to_vec()) };
-                WgpuBuffer::from_vec_u32(vec)
+                WgpuBuffer::from_vec(vec)
             }
             DType::F32 => {
                 let vec = unsafe { std::mem::transmute::<Vec<T>, Vec<f32>>(tensor.to_vec()) };
-                WgpuBuffer::from_vec_f32(vec)
+                WgpuBuffer::from_vec(vec)
             }
             _ => todo!()
         };
@@ -1226,10 +1226,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let wgpu_buffer = storage.get_wgpu_storage().unwrap();
         let vec = match T::dtype() {
             DType::U32 => {
-                unsafe { std::mem::transmute::<Vec<u32>, Vec<T>>(wgpu_buffer.to_vec_u32()) }
+                unsafe { std::mem::transmute::<Vec<u32>, Vec<T>>(wgpu_buffer.to_vec()) }
             }
             DType::F32 => {
-                unsafe { std::mem::transmute::<Vec<f32>, Vec<T>>(wgpu_buffer.to_vec_f32()) }
+                unsafe { std::mem::transmute::<Vec<f32>, Vec<T>>(wgpu_buffer.to_vec()) }
             }
             _ => todo!()
         };

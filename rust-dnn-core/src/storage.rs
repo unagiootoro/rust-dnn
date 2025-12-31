@@ -25,11 +25,11 @@ impl<T: Num> Storage<T> {
             Self::WgpuStorage(wgpu_storage) => {
                 match T::dtype() {
                     DType::U32 => {
-                        let v = wgpu_storage.to_vec_u32()[range].to_vec();
+                        let v = wgpu_storage.to_vec()[range].to_vec();
                         unsafe { std::mem::transmute::<Vec<u32>, Vec<T>>(v) }
                     },
                     DType::F32 => {
-                        let v = wgpu_storage.to_vec_f32()[range].to_vec();
+                        let v = wgpu_storage.to_vec()[range].to_vec();
                         unsafe { std::mem::transmute::<Vec<f32>, Vec<T>>(v) }
                     },
                     _ => todo!()

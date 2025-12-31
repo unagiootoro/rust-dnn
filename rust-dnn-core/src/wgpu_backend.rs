@@ -1,7 +1,7 @@
 use rust_dnn_wgpu::layout::MAX_NDIM;
-use rust_dnn_wgpu::shader_type::ShaderType;
-use rust_dnn_wgpu::{wgpu_add, wgpu_exp, wgpu_sub};
 use rust_dnn_wgpu::wgpu_buffer::WgpuBuffer;
+use rust_dnn_wgpu::wgpu_dtype::WgpuDTypeKind;
+use rust_dnn_wgpu::{wgpu_add, wgpu_exp, wgpu_sub};
 
 use crate::backend::Backend;
 use crate::dtype::DType;
@@ -41,38 +41,28 @@ impl Backend for WgpuBackend {
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
         let output_data = match T::dtype() {
-            DType::U32 => {
-                let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
-                let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
-                let output_data = WgpuBuffer::zeros_u32(lhs_layout.len());
-                wgpu_add(
-                    &lhs_data,
-                    layout_to_wgpu_layout(lhs_layout),
-                    &rhs_data,
-                    layout_to_wgpu_layout(rhs_layout),
-                    &output_data,
-                    lhs_layout.len() as u32,
-                    ShaderType::Op2U32,
-                );
-                output_data
-            }
-            DType::F32 => {
-                let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
-                let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
-                let output_data = WgpuBuffer::zeros_f32(lhs_layout.len());
-                wgpu_add(
-                    &lhs_data,
-                    layout_to_wgpu_layout(lhs_layout),
-                    &rhs_data,
-                    layout_to_wgpu_layout(rhs_layout),
-                    &output_data,
-                    lhs_layout.len() as u32,
-                    ShaderType::Op2F32,
-                );
-                output_data
-            }
-            DType::F64 => todo!()
+            DType::U32 => WgpuBuffer::fill::<u32>(lhs_layout.len(), 0),
+            DType::F32 => WgpuBuffer::fill::<f32>(lhs_layout.len(), 0.0),
+            DType::F64 => todo!(),
         };
+
+        let wgpu_dtype_kind = match T::dtype() {
+            DType::U32 => WgpuDTypeKind::U32,
+            DType::F32 => WgpuDTypeKind::F32,
+            DType::F64 => todo!(),
+        };
+
+        let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
+        let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
+        wgpu_add(
+            &lhs_data,
+            layout_to_wgpu_layout(lhs_layout),
+            &rhs_data,
+            layout_to_wgpu_layout(rhs_layout),
+            &output_data,
+            lhs_layout.len() as u32,
+            wgpu_dtype_kind,
+        );
 
         Ok(Storage::WgpuStorage(output_data))
     }
@@ -84,38 +74,28 @@ impl Backend for WgpuBackend {
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
         let output_data = match T::dtype() {
-            DType::U32 => {
-                let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
-                let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
-                let output_data = WgpuBuffer::zeros_u32(lhs_layout.len());
-                wgpu_sub(
-                    &lhs_data,
-                    layout_to_wgpu_layout(lhs_layout),
-                    &rhs_data,
-                    layout_to_wgpu_layout(rhs_layout),
-                    &output_data,
-                    lhs_layout.len() as u32,
-                    ShaderType::Op2U32,
-                );
-                output_data
-            }
-            DType::F32 => {
-                let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
-                let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
-                let output_data = WgpuBuffer::zeros_f32(lhs_layout.len());
-                wgpu_sub(
-                    &lhs_data,
-                    layout_to_wgpu_layout(lhs_layout),
-                    &rhs_data,
-                    layout_to_wgpu_layout(rhs_layout),
-                    &output_data,
-                    lhs_layout.len() as u32,
-                    ShaderType::Op2F32,
-                );
-                output_data
-            }
-            DType::F64 => todo!()
+            DType::U32 => WgpuBuffer::fill::<u32>(lhs_layout.len(), 0),
+            DType::F32 => WgpuBuffer::fill::<f32>(lhs_layout.len(), 0.0),
+            DType::F64 => todo!(),
         };
+
+        let wgpu_dtype_kind = match T::dtype() {
+            DType::U32 => WgpuDTypeKind::U32,
+            DType::F32 => WgpuDTypeKind::F32,
+            DType::F64 => todo!(),
+        };
+
+        let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
+        let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
+        wgpu_sub(
+            &lhs_data,
+            layout_to_wgpu_layout(lhs_layout),
+            &rhs_data,
+            layout_to_wgpu_layout(rhs_layout),
+            &output_data,
+            lhs_layout.len() as u32,
+            wgpu_dtype_kind,
+        );
 
         Ok(Storage::WgpuStorage(output_data))
     }
@@ -381,19 +361,22 @@ impl Backend for WgpuBackend {
 
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         let output_data = match T::dtype() {
-            DType::F32 => {
-                let input_data = storage.get_wgpu_storage().unwrap();
-                let output_data = WgpuBuffer::zeros_u32(layout.len());
-                wgpu_exp(
-                    &input_data,
-                    &output_data,
-                    layout.len() as u32,
-                    ShaderType::Op2F32,
-                );
-                output_data
-            }
-            _ => todo!()
+            DType::F32 => WgpuBuffer::fill::<f32>(layout.len(), 0.0),
+            _ => todo!(),
         };
+
+        let wgpu_dtype_kind = match T::dtype() {
+            DType::F32 => WgpuDTypeKind::F32,
+            _ => todo!(),
+        };
+
+        let input_data = storage.get_wgpu_storage().unwrap();
+        wgpu_exp(
+            &input_data,
+            &output_data,
+            layout.len() as u32,
+            wgpu_dtype_kind,
+        );
 
         Ok(Storage::WgpuStorage(output_data))
     }

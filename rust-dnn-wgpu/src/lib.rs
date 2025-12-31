@@ -1,7 +1,7 @@
 pub mod layout;
-pub mod shader_type;
 pub mod wgpu_buffer;
 pub mod wgpu_state;
+pub mod wgpu_dtype;
 
 use bytemuck::{AnyBitPattern, NoUninit};
 use std::cell::RefCell;
@@ -9,8 +9,8 @@ use std::{borrow::Cow, rc::Rc};
 use wgpu::{Label, util::DeviceExt};
 
 use crate::layout::Layout;
-use crate::shader_type::ShaderType;
 use crate::wgpu_buffer::WgpuBuffer;
+use crate::wgpu_dtype::WgpuDTypeKind;
 use crate::wgpu_state::WGPUState; // バッファ初期化のためのユーティリティ
 
 thread_local!(static WGPU_STATE: Rc<RefCell<Option<WGPUState>>> = Rc::new(RefCell::new(None)));
@@ -84,25 +84,25 @@ async fn buffer_to_vec_async<T: AnyBitPattern>(buffer: &wgpu::Buffer, len: usize
     result
 }
 
-pub fn wgpu_exp(input: &WgpuBuffer, output: &WgpuBuffer, len: u32, shader_type: ShaderType) {
-    wgpu_op1(input, output, len, shader_type, "array_exp");
+pub fn wgpu_exp(input: &WgpuBuffer, output: &WgpuBuffer, len: u32, wgpu_dtype: WgpuDTypeKind) {
+    wgpu_op1(input, output, len, wgpu_dtype, "array_exp");
 }
 
 fn wgpu_op1(
     input: &WgpuBuffer,
     output: &WgpuBuffer,
     len: u32,
-    shader_type: ShaderType,
+    wgpu_dtype: WgpuDTypeKind,
     entry_point: &str,
 ) {
-    pollster::block_on(wgpu_op1_async(input, output, len, shader_type, entry_point))
+    pollster::block_on(wgpu_op1_async(input, output, len, wgpu_dtype, entry_point))
 }
 
 async fn wgpu_op1_async(
     input: &WgpuBuffer,
     output: &WgpuBuffer,
     len: u32,
-    shader_type: ShaderType,
+    wgpu_dtype: WgpuDTypeKind,
     entry_point: &str,
 ) {
     let state = WGPU_STATE.with(|s| Rc::clone(s));
@@ -110,7 +110,7 @@ async fn wgpu_op1_async(
         .borrow_mut()
         .as_mut()
         .unwrap()
-        .op1(input, output, len, shader_type, entry_point)
+        .op1(input, output, len, wgpu_dtype, entry_point)
         .await;
 }
 
@@ -121,7 +121,7 @@ pub fn wgpu_add(
     rhs_layout: Layout,
     output: &WgpuBuffer,
     len: u32,
-    shader_type: ShaderType,
+    wgpu_dtype: WgpuDTypeKind,
 ) {
     wgpu_op2(
         lhs,
@@ -130,7 +130,7 @@ pub fn wgpu_add(
         rhs_layout,
         output,
         len,
-        shader_type,
+        wgpu_dtype,
         "add",
     );
 }
@@ -142,7 +142,7 @@ pub fn wgpu_sub(
     rhs_layout: Layout,
     output: &WgpuBuffer,
     len: u32,
-    shader_type: ShaderType,
+    wgpu_dtype: WgpuDTypeKind,
 ) {
     wgpu_op2(
         lhs,
@@ -151,7 +151,7 @@ pub fn wgpu_sub(
         rhs_layout,
         output,
         len,
-        shader_type,
+        wgpu_dtype,
         "sub",
     );
 }
@@ -163,7 +163,7 @@ pub fn wgpu_mul(
     rhs_layout: Layout,
     output: &WgpuBuffer,
     len: u32,
-    shader_type: ShaderType,
+    wgpu_dtype: WgpuDTypeKind,
 ) {
     wgpu_op2(
         lhs,
@@ -172,7 +172,7 @@ pub fn wgpu_mul(
         rhs_layout,
         output,
         len,
-        shader_type,
+        wgpu_dtype,
         "mul",
     );
 }
@@ -184,7 +184,7 @@ fn wgpu_op2(
     rhs_layout: Layout,
     output: &WgpuBuffer,
     len: u32,
-    shader_type: ShaderType,
+    wgpu_dtype: WgpuDTypeKind,
     entry_point: &str,
 ) {
     pollster::block_on(wgpu_op2_async(
@@ -194,7 +194,7 @@ fn wgpu_op2(
         rhs_layout,
         output,
         len,
-        shader_type,
+        wgpu_dtype,
         entry_point,
     ))
 }
@@ -206,7 +206,7 @@ async fn wgpu_op2_async(
     rhs_layout: Layout,
     output: &WgpuBuffer,
     len: u32,
-    shader_type: ShaderType,
+    wgpu_dtype: WgpuDTypeKind,
     entry_point: &str,
 ) {
     let state = WGPU_STATE.with(|s| Rc::clone(s));
@@ -221,7 +221,7 @@ async fn wgpu_op2_async(
             rhs_layout,
             &output,
             len,
-            shader_type,
+            wgpu_dtype,
             entry_point,
         )
         .await;

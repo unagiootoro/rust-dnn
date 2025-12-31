@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use bytemuck::{AnyBitPattern, NoUninit};
 use wgpu::{Label, util::DeviceExt};
 
-use crate::{Length, layout::Layout, shader_type::ShaderType, wgpu_buffer::WgpuBuffer};
+use crate::{Length, layout::Layout, wgpu_buffer::WgpuBuffer, wgpu_dtype::WgpuDTypeKind};
 
 pub struct WGPUState {
     adapter: wgpu::Adapter,
@@ -186,12 +186,12 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
         input: &WgpuBuffer,
         output: &WgpuBuffer,
         len: u32,
-        shader_type: ShaderType,
+        wgpu_dtype: WgpuDTypeKind,
         entry_point: &str,
     ) {
-        let shader_module = match shader_type {
-            ShaderType::Op2U32 => todo!(),
-            ShaderType::Op2F32 => &self.op1_f32_shader,
+        let shader_module = match wgpu_dtype {
+            WgpuDTypeKind::U32 => todo!(),
+            WgpuDTypeKind::F32 => &self.op1_f32_shader,
         };
 
         let compute_pipeline = self.create_compute_pipeline(shader_module, entry_point);
@@ -259,12 +259,12 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
         rhs_layout: Layout,
         buffer_c: &WgpuBuffer,
         len: u32,
-        shader_type: ShaderType,
+        wgpu_dtype: WgpuDTypeKind,
         entry_point: &str,
     ) {
-        let shader_module = match shader_type {
-            ShaderType::Op2U32 => &self.op2_u32_shader,
-            ShaderType::Op2F32 => &self.op2_f32_shader,
+        let shader_module = match wgpu_dtype {
+            WgpuDTypeKind::U32 => &self.op2_u32_shader,
+            WgpuDTypeKind::F32 => &self.op2_f32_shader,
         };
 
         // パイプラインの作成

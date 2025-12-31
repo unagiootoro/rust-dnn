@@ -2,6 +2,8 @@ use std::{
     f32, fmt::Debug, iter::Sum, ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign}, u32
 };
 
+use rust_dnn_wgpu::wgpu_dtype::WgpuDType;
+
 use crate::dtype::DType;
 
 pub trait Num:
