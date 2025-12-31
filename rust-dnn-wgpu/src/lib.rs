@@ -60,6 +60,26 @@ impl Length {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct SumAxisParams {
+    axis: u32,
+    len: u32,
+    _padding1: u32,
+    _padding2: u32,
+}
+
+impl SumAxisParams {
+    pub fn new(axis: u32, len: u32) -> Self {
+        Self {
+            axis,
+            len,
+            _padding1: 0,
+            _padding2: 0,
+        }
+    }
+}
+
 pub fn init_wgpu_state() {
     async fn create_wgpu_state() -> WGPUState {
         WGPUState::new().await
@@ -416,5 +436,40 @@ async fn wgpu_op2_async(
             op2_shader_kind,
             entry_point,
         )
+        .await;
+}
+
+pub fn wgpu_sum_axis(
+    input: &WgpuBuffer,
+    input_layout: Layout,
+    output: &WgpuBuffer,
+    output_layout: Layout,
+    axis: u32,
+    len: u32,
+) {
+    pollster::block_on(wgpu_sum_axis_async(
+        input,
+        input_layout,
+        output,
+        output_layout,
+        axis,
+        len,
+    ))
+}
+
+async fn wgpu_sum_axis_async(
+    input: &WgpuBuffer,
+    input_layout: Layout,
+    output: &WgpuBuffer,
+    output_layout: Layout,
+    axis: u32,
+    len: u32,
+) {
+    let state = WGPU_STATE.with(|s| Rc::clone(s));
+    state
+        .borrow_mut()
+        .as_mut()
+        .unwrap()
+        .sum_axis(input, input_layout, output, output_layout, axis, len)
         .await;
 }

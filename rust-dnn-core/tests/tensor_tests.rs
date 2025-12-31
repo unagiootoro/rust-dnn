@@ -1526,13 +1526,13 @@ define_test!(
 );
 
 fn test_sum_axis<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
+    let x = ten![[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
     let y = x.sum_axis(0, false);
     assert_tensor(&y, &ten![5.0, 7.0, 9.0]);
     Ok(())
 }
 
-define_test!(test_sum_axis, test_sum_axis_cpu, test_sum_axis_cuda);
+define_test!(test_sum_axis, test_sum_axis_cpu, test_sum_axis_cuda, test_sum_axis_wgpu);
 
 fn test_sum_axis_keepdims_true<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;

@@ -4,7 +4,7 @@ use bytemuck::{AnyBitPattern, NoUninit};
 use wgpu::{Label, util::DeviceExt};
 
 use crate::{
-    Length, Op1Params, Op2ShaderKind, layout::Layout, wgpu_buffer::WgpuBuffer,
+    Length, Op1Params, Op2ShaderKind, SumAxisParams, layout::Layout, wgpu_buffer::WgpuBuffer,
     wgpu_dtype::WgpuDTypeKind,
 };
 
@@ -17,6 +17,7 @@ pub struct WGPUState {
     op2_f32_f32_shader: wgpu::ShaderModule,
     op2_f32_u32_shader: wgpu::ShaderModule,
     op2_float_f32_f32_shader: wgpu::ShaderModule,
+    sum_axis_shader: wgpu::ShaderModule,
 }
 
 impl WGPUState {
@@ -100,12 +101,17 @@ impl WGPUState {
             &op2_float_f32_f32_shader_src,
         );
 
+        let sum_axis_shader_src = include_str!("./sum_axis.wgsl").to_string();
+        let sum_axis_shader =
+            Self::create_shader_module2(&device, Some("sum_axis_shader"), &sum_axis_shader_src);
+
         Self {
             op1_f32_shader,
             op2_u32_u32_shader,
             op2_f32_f32_shader,
             op2_f32_u32_shader,
             op2_float_f32_f32_shader,
+            sum_axis_shader,
             adapter,
             device,
             queue,
@@ -443,6 +449,84 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: len_uniform_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // --- 6. コマンドのエンコードと実行 ---
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+
+        {
+            // コンピュートパスの開始
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&compute_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            // ワークグループの数を計算 (データ数64 / ワークグループサイズ64 = 1)
+            // cpass.dispatch_workgroups(data_a_len as u32 / 64, 1, 1);
+            cpass.dispatch_workgroups(1, 1, 1);
+        }
+
+        // コマンドをキューに送信して実行
+        self.queue.submit(Some(encoder.finish()));
+    }
+
+    pub async fn sum_axis(
+        &self,
+        input: &WgpuBuffer,
+        input_layout: Layout,
+        output: &WgpuBuffer,
+        output_layout: Layout,
+        axis: u32,
+        len: u32,
+    ) {
+        let compute_pipeline = self.create_compute_pipeline(&self.sum_axis_shader, "sum_axis");
+
+        let layouts_storage_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("layouts_storage_buffer"),
+                    contents: bytemuck::cast_slice(&[input_layout, output_layout]),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let params = SumAxisParams::new(axis, len);
+
+        let params_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("params_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[params]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Bind Group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: input.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: output.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: layouts_storage_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: params_uniform_buffer.as_entire_binding(),
                 },
             ],
         });

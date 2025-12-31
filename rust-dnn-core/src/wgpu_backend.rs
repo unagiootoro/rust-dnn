@@ -3,7 +3,7 @@ use rust_dnn_wgpu::wgpu_buffer::WgpuBuffer;
 use rust_dnn_wgpu::wgpu_dtype::WgpuDTypeKind;
 use rust_dnn_wgpu::{
     wgpu_add, wgpu_cos, wgpu_div, wgpu_eq, wgpu_exp, wgpu_ge, wgpu_gt, wgpu_le, wgpu_log, wgpu_lt,
-    wgpu_mul, wgpu_neg, wgpu_pow, wgpu_sin, wgpu_sqrt, wgpu_sub, wgpu_tanh,
+    wgpu_mul, wgpu_neg, wgpu_pow, wgpu_sin, wgpu_sqrt, wgpu_sub, wgpu_sum_axis, wgpu_tanh,
 };
 
 use crate::backend::Backend;
@@ -93,7 +93,22 @@ impl Backend for WgpuBackend {
         output_layout: &Layout,
         axis: usize,
     ) -> Result<Storage<T>> {
-        todo!()
+        let output_data = match T::dtype() {
+            DType::F32 => WgpuBuffer::fill::<f32>(output_layout.len(), 0.0),
+            _ => todo!(),
+        };
+
+        let input_data = input_storage.get_wgpu_storage().unwrap();
+        wgpu_sum_axis(
+            input_data,
+            layout_to_wgpu_layout(input_layout),
+            &output_data,
+            layout_to_wgpu_layout(output_layout),
+            axis as u32,
+            output_layout.len() as u32,
+        );
+
+        Ok(Storage::WgpuStorage(output_data))
     }
 
     fn op_add<T: Num>(
