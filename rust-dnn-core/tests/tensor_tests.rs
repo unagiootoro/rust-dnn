@@ -618,6 +618,81 @@ define_test!(
     test_ln_backward_cuda
 );
 
+fn test_sin<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.5].to_device(device)?;
+    let y = x.sin();
+    assert_tensor(&y, &ten![0.479425538604203]);
+    Ok(())
+}
+
+define_test!(test_sin, test_sin_cpu, test_sin_cuda);
+
+fn test_sin_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.5].to_device(device)?.requires_grad();
+    let y = x.sin() * ten![2.0].to_device(device)?;
+    assert_tensor(&y, &ten![0.958851077208406]);
+    let grads = y.backward();
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![1.7551651237807455]);
+    Ok(())
+}
+
+define_test!(
+    test_sin_backward,
+    test_sin_backward_cpu,
+    test_sin_backward_cuda
+);
+
+fn test_cos<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.5].to_device(device)?;
+    let y = x.cos();
+    assert_tensor(&y, &ten![0.8775825618903728]);
+    Ok(())
+}
+
+define_test!(test_cos, test_cos_cpu, test_cos_cuda);
+
+fn test_cos_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.5].to_device(device)?.requires_grad();
+    let y = x.cos() * ten![2.0].to_device(device)?;
+    assert_tensor(&y, &ten![1.7551651237807455]);
+    let grads = y.backward();
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![-0.958851077208406]);
+    Ok(())
+}
+
+define_test!(
+    test_cos_backward,
+    test_cos_backward_cpu,
+    test_cos_backward_cuda
+);
+
+fn test_tanh<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.5].to_device(device)?;
+    let y = x.tanh();
+    assert_tensor(&y, &ten![0.46211715726000974]);
+    Ok(())
+}
+
+define_test!(test_tanh, test_tanh_cpu, test_tanh_cuda);
+
+fn test_tanh_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![0.5].to_device(device)?.requires_grad();
+    let y = x.tanh() * ten![2.0].to_device(device)?;
+    assert_tensor(&y, &ten![0.9242343145200195]);
+    let grads = y.backward();
+    let gx = grads.get(&x).unwrap();
+    assert_tensor(&gx, &ten![1.5728954659318548]);
+    Ok(())
+}
+
+define_test!(
+    test_tanh_backward,
+    test_tanh_backward_cpu,
+    test_tanh_backward_cuda
+);
+
 fn test_tril<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::fill(vec![3, 3], 2.0, device);
     let y = x.tril();
