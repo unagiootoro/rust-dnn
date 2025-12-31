@@ -110,14 +110,14 @@ define_test!(
 );
 
 fn test_mul<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
+    let x1 = ten![[-1.0f32, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
     let y = x1 * x2;
     assert_tensor(&y, &ten![[-5.0, 0.0, 7.0], [16.0, 27.0, 40.0]]);
     Ok(())
 }
 
-define_test!(test_mul, test_mul_cpu, test_mul_cuda);
+define_test!(test_mul, test_mul_cpu, test_mul_cuda, test_mul_wgpu);
 
 fn test_mul_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]
@@ -146,14 +146,14 @@ define_test!(
 );
 
 fn test_div<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
+    let x1 = ten![[-1.0f32, 0.0, 1.0], [2.0, 3.0, 4.0]].to_device(device)?;
     let x2 = ten![[5.0, 6.0, 7.0], [8.0, 9.0, 10.0]].to_device(device)?;
     let y = x1 / x2;
     assert_tensor(&y, &ten![[-0.2, 0.0, 0.14285715], [0.25, 0.33333334, 0.4]]);
     Ok(())
 }
 
-define_test!(test_div, test_div_cpu, test_div_cuda);
+define_test!(test_div, test_div_cpu, test_div_cuda, test_div_wgpu);
 
 fn test_div_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[-1.0, 0.0, 1.0], [2.0, 3.0, 4.0]]
@@ -188,13 +188,13 @@ define_test!(
 );
 
 fn test_neg<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
+    let x = ten![[0.0f32, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
     let y = -x;
     assert_tensor(&y, &ten![[0.0, 2.0, 4.0], [-1.0, -2.0, -3.0]]);
     Ok(())
 }
 
-define_test!(test_neg, test_neg_cpu, test_neg_cuda);
+define_test!(test_neg, test_neg_cpu, test_neg_cuda, test_neg_wgpu);
 
 fn test_neg_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
@@ -215,54 +215,54 @@ define_test!(
 );
 
 fn test_eq<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let x1 = ten![-1.0f32, 0.0, 1.0].to_device(device)?;
     let x2 = ten![-1.0, 0.0, 2.0].to_device(device)?;
     let y = x1.eq(&x2);
     assert_tensor(&y, &ten![1, 1, 0]);
     Ok(())
 }
 
-define_test!(test_eq, test_eq_cpu, test_eq_cuda);
+define_test!(test_eq, test_eq_cpu, test_eq_cuda, test_eq_wgpu);
 
 fn test_lt<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let x1 = ten![-1.0f32, 0.0, 1.0].to_device(device)?;
     let x2 = ten![0.0, -1.0, 1.0].to_device(device)?;
     let y = x1.lt(&x2);
     assert_tensor(&y, &ten![1, 0, 0]);
     Ok(())
 }
 
-define_test!(test_lt, test_lt_cpu, test_lt_cuda);
+define_test!(test_lt, test_lt_cpu, test_lt_cuda, test_lt_wgpu);
 
 fn test_le<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let x1 = ten![-1.0f32, 0.0, 1.0].to_device(device)?;
     let x2 = ten![0.0, -1.0, 1.0].to_device(device)?;
     let y = x1.le(&x2);
     assert_tensor(&y, &ten![1, 0, 1]);
     Ok(())
 }
 
-define_test!(test_le, test_le_cpu, test_le_cuda);
+define_test!(test_le, test_le_cpu, test_le_cuda, test_le_wgpu);
 
 fn test_gt<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let x1 = ten![0.0f32, -1.0, 1.0].to_device(device)?;
     let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
     let y = x1.gt(&x2);
     assert_tensor(&y, &ten![1, 0, 0]);
     Ok(())
 }
 
-define_test!(test_gt, test_gt_cpu, test_gt_cuda);
+define_test!(test_gt, test_gt_cpu, test_gt_cuda, test_gt_wgpu);
 
 fn test_ge<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let x1 = ten![0.0f32, -1.0, 1.0].to_device(device)?;
     let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
     let y = x1.ge(&x2);
     assert_tensor(&y, &ten![1, 0, 1]);
     Ok(())
 }
 
-define_test!(test_ge, test_ge_cpu, test_ge_cuda);
+define_test!(test_ge, test_ge_cpu, test_ge_cuda, test_ge_wgpu);
 
 static MATMUL_BATCH_FORWARD_EXPECTED_DATA: [f64; 144] = [
     180., 190., 200., 210., 220., 230., 480., 515., 550., 585., 620., 655., 780., 840., 900., 960.,
@@ -487,14 +487,14 @@ define_test!(
 );
 
 fn test_pow<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
+    let x1 = ten![[0.0f32, -2.0, -4.0], [1.0, 2.0, 3.0]].to_device(device)?;
     let x2 = ten![3.0].to_device(device)?;
     let y = x1.pow(&x2);
     assert_tensor(&y, &ten![[0.0, -8.0, -64.0], [1.0, 8.0, 27.0]]);
     Ok(())
 }
 
-define_test!(test_pow, test_pow_cpu, test_pow_cuda);
+define_test!(test_pow, test_pow_cpu, test_pow_cuda, test_pow_wgpu);
 
 fn test_pow_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]

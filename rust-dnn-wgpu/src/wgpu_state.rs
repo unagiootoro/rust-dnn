@@ -3,15 +3,20 @@ use std::borrow::Cow;
 use bytemuck::{AnyBitPattern, NoUninit};
 use wgpu::{Label, util::DeviceExt};
 
-use crate::{Length, layout::Layout, wgpu_buffer::WgpuBuffer, wgpu_dtype::WgpuDTypeKind};
+use crate::{
+    Length, Op1Params, Op2ShaderKind, layout::Layout, wgpu_buffer::WgpuBuffer,
+    wgpu_dtype::WgpuDTypeKind,
+};
 
 pub struct WGPUState {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
     op1_f32_shader: wgpu::ShaderModule,
-    op2_u32_shader: wgpu::ShaderModule,
-    op2_f32_shader: wgpu::ShaderModule,
+    op2_u32_u32_shader: wgpu::ShaderModule,
+    op2_f32_f32_shader: wgpu::ShaderModule,
+    op2_f32_u32_shader: wgpu::ShaderModule,
+    op2_float_f32_f32_shader: wgpu::ShaderModule,
 }
 
 impl WGPUState {
@@ -54,19 +59,53 @@ impl WGPUState {
             Self::create_shader_module2(&device, Some("op1_f32_shader_src"), &op1_f32_shader_src);
 
         let op2_shader_src = Self::generate_op2_shader_src();
-        let op2_u32_shader_src = op2_shader_src.replace("alias T = f32;", "alias T = u32;");
-        let op2_f32_shader_src = op2_shader_src.replace("alias T = f32;", "alias T = f32;");
+        let op2_u32_u32_shader_src = op2_shader_src
+            .replace("alias T1 = f32;", "alias T1 = u32;")
+            .replace("alias T2 = f32;", "alias T2 = u32;");
+        let op2_f32_f32_shader_src = op2_shader_src
+            .replace("alias T1 = f32;", "alias T1 = f32;")
+            .replace("alias T2 = f32;", "alias T2 = f32;");
 
-        let op2_u32_shader =
-            Self::create_shader_module2(&device, Some("op2_u32_shader"), &op2_u32_shader_src);
+        let op2_cmp_shader_src = Self::generate_op2_cmp_shader_src();
+        let op2_f32_u32_shader_src = op2_cmp_shader_src
+            .replace("alias T1 = f32;", "alias T1 = f32;")
+            .replace("alias T2 = f32;", "alias T2 = u32;");
 
-        let op2_f32_shader =
-            Self::create_shader_module2(&device, Some("op2_f32_shader"), &op2_f32_shader_src);
+        let op2_u32_u32_shader = Self::create_shader_module2(
+            &device,
+            Some("op2_u32_u32_shader"),
+            &op2_u32_u32_shader_src,
+        );
+
+        let op2_f32_f32_shader = Self::create_shader_module2(
+            &device,
+            Some("op2_f32_f32_shader"),
+            &op2_f32_f32_shader_src,
+        );
+
+        let op2_f32_u32_shader = Self::create_shader_module2(
+            &device,
+            Some("op2_f32_u32_shader"),
+            &op2_f32_u32_shader_src,
+        );
+
+        let op2_float_shader_src = Self::generate_op2_float_shader_src();
+        let op2_float_f32_f32_shader_src = op2_float_shader_src
+            .replace("alias T1 = f32;", "alias T1 = f32;")
+            .replace("alias T2 = f32;", "alias T2 = f32;");
+
+        let op2_float_f32_f32_shader = Self::create_shader_module2(
+            &device,
+            Some("op2_float_f32_shader"),
+            &op2_float_f32_f32_shader_src,
+        );
 
         Self {
             op1_f32_shader,
-            op2_u32_shader,
-            op2_f32_shader,
+            op2_u32_u32_shader,
+            op2_f32_f32_shader,
+            op2_f32_u32_shader,
+            op2_float_f32_f32_shader,
             adapter,
             device,
             queue,
@@ -77,6 +116,7 @@ impl WGPUState {
         let mut src = include_str!("./op1_shader.wgsl").to_string();
         let mut functions = String::new();
         functions += &Self::op1_shader_func_def("array_exp", "exp");
+        functions += &Self::op1_shader_func_def("neg", "-");
         src = src.replace("/*<FUNCTIONS>*/", &functions);
         src
     }
@@ -87,8 +127,8 @@ impl WGPUState {
 fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let index = global_id.x;
 
-    if (index < u_length.len) {
-        output[index] = <OP>(input[index]);
+    if (index < u_params.len) {
+        output[index] = <OP>(input[index + u_params.storage_offset]);
     }
 }
         "
@@ -101,15 +141,35 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
     fn generate_op2_shader_src() -> String {
         let mut src = include_str!("./op2_shader.wgsl").to_string();
         let mut functions = String::new();
-        functions += &Self::build_func_def("add", "+");
-        functions += &Self::build_func_def("sub", "-");
-        functions += &Self::build_func_def("mul", "*");
-        functions += &Self::build_func_def("div", "/");
+        functions += &Self::build_op2_func_def("add", "+");
+        functions += &Self::build_op2_func_def("sub", "-");
+        functions += &Self::build_op2_func_def("mul", "*");
+        functions += &Self::build_op2_func_def("div", "/");
         src = src.replace("/*<FUNCTIONS>*/", &functions);
         src
     }
 
-    fn build_func_def(function_name: &str, op: &str) -> String {
+    fn generate_op2_cmp_shader_src() -> String {
+        let mut src = include_str!("./op2_shader.wgsl").to_string();
+        let mut functions = String::new();
+        functions += &Self::op2_cmp_shader_func_def("eq", "==");
+        functions += &Self::op2_cmp_shader_func_def("lt", "<");
+        functions += &Self::op2_cmp_shader_func_def("le", "<=");
+        functions += &Self::op2_cmp_shader_func_def("gt", ">");
+        functions += &Self::op2_cmp_shader_func_def("ge", ">=");
+        src = src.replace("/*<FUNCTIONS>*/", &functions);
+        src
+    }
+
+    fn generate_op2_float_shader_src() -> String {
+        let mut src = include_str!("./op2_shader.wgsl").to_string();
+        let mut functions = String::new();
+        functions += &Self::op2_shader_func_def("array_pow", "pow");
+        src = src.replace("/*<FUNCTIONS>*/", &functions);
+        src
+    }
+
+    fn build_op2_func_def(function_name: &str, op: &str) -> String {
         let mut src = "
 @compute @workgroup_size(64)
 fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -118,6 +178,42 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let lhs_index = compute_offset(true, index);
         let rhs_index = compute_offset(false, index);
         output_c[index] = input_a[lhs_index] <OP> input_b[rhs_index];
+    }
+}
+        "
+        .to_string();
+        src = src.replace("<FUNCTION_NAME>", function_name);
+        src = src.replace("<OP>", op);
+        src
+    }
+
+    fn op2_shader_func_def(function_name: &str, op: &str) -> String {
+        let mut src = "
+@compute @workgroup_size(64)
+fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let index = global_id.x;
+    if (index < u_length.len) {
+        let lhs_index = compute_offset(true, index);
+        let rhs_index = compute_offset(false, index);
+        output_c[index] = <OP>(input_a[lhs_index], input_b[rhs_index]);
+    }
+}
+        "
+        .to_string();
+        src = src.replace("<FUNCTION_NAME>", function_name);
+        src = src.replace("<OP>", op);
+        src
+    }
+
+    fn op2_cmp_shader_func_def(function_name: &str, op: &str) -> String {
+        let mut src = "
+@compute @workgroup_size(64)
+fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let index = global_id.x;
+    if (index < u_length.len) {
+        let lhs_index = compute_offset(true, index);
+        let rhs_index = compute_offset(false, index);
+        output_c[index] = select(0u, 1u, input_a[lhs_index] <OP> input_b[rhs_index]);
     }
 }
         "
@@ -184,25 +280,27 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
     pub async fn op1(
         &self,
         input: &WgpuBuffer,
+        storage_offset: u32,
         output: &WgpuBuffer,
         len: u32,
-        wgpu_dtype: WgpuDTypeKind,
         entry_point: &str,
     ) {
-        let shader_module = match wgpu_dtype {
+        assert_eq!(input.dtype(), output.dtype());
+
+        let shader_module = match input.dtype() {
             WgpuDTypeKind::U32 => todo!(),
             WgpuDTypeKind::F32 => &self.op1_f32_shader,
         };
 
         let compute_pipeline = self.create_compute_pipeline(shader_module, entry_point);
 
-        let u_length = Length::new(len);
+        let u_params = Op1Params::new(storage_offset, len);
 
-        let len_uniform_buffer =
+        let params_uniform_buffer =
             self.device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("len_uniform_buffer"),
-                    contents: bytemuck::cast_slice(&[u_length]),
+                    label: Some("params_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[u_params]),
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 });
 
@@ -221,7 +319,7 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: len_uniform_buffer.as_entire_binding(),
+                    resource: params_uniform_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -259,12 +357,25 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
         rhs_layout: Layout,
         buffer_c: &WgpuBuffer,
         len: u32,
-        wgpu_dtype: WgpuDTypeKind,
+        op2_shader_kind: Op2ShaderKind,
         entry_point: &str,
     ) {
-        let shader_module = match wgpu_dtype {
-            WgpuDTypeKind::U32 => &self.op2_u32_shader,
-            WgpuDTypeKind::F32 => &self.op2_f32_shader,
+        assert_eq!(buffer_a.dtype(), buffer_b.dtype());
+
+        let shader_module = match (buffer_a.dtype(), buffer_c.dtype(), op2_shader_kind) {
+            (WgpuDTypeKind::U32, WgpuDTypeKind::U32, Op2ShaderKind::Num) => {
+                &self.op2_u32_u32_shader
+            }
+            (WgpuDTypeKind::F32, WgpuDTypeKind::F32, Op2ShaderKind::Num) => {
+                &self.op2_f32_f32_shader
+            }
+            (WgpuDTypeKind::F32, WgpuDTypeKind::U32, Op2ShaderKind::Num) => {
+                &self.op2_f32_u32_shader
+            }
+            (WgpuDTypeKind::F32, WgpuDTypeKind::F32, Op2ShaderKind::Float) => {
+                &self.op2_float_f32_f32_shader
+            }
+            _ => todo!(),
         };
 
         // パイプラインの作成

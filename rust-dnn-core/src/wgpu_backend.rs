@@ -1,7 +1,10 @@
 use rust_dnn_wgpu::layout::MAX_NDIM;
 use rust_dnn_wgpu::wgpu_buffer::WgpuBuffer;
 use rust_dnn_wgpu::wgpu_dtype::WgpuDTypeKind;
-use rust_dnn_wgpu::{wgpu_add, wgpu_exp, wgpu_sub};
+use rust_dnn_wgpu::{
+    wgpu_add, wgpu_div, wgpu_eq, wgpu_exp, wgpu_ge, wgpu_gt, wgpu_le, wgpu_lt, wgpu_mul, wgpu_neg,
+    wgpu_pow, wgpu_sub,
+};
 
 use crate::backend::Backend;
 use crate::dtype::DType;
@@ -9,6 +12,65 @@ use crate::error::{Error, Result};
 use crate::float::Float;
 use crate::num::Num;
 use crate::{layout::Layout, storage::Storage};
+
+type WgpuOp1Func = fn(input: &WgpuBuffer, storage_offset: u32, output: &WgpuBuffer, len: u32);
+
+type WgpuOp2Func = fn(
+    lhs: &WgpuBuffer,
+    lhs_layout: rust_dnn_wgpu::layout::Layout,
+    rhs: &WgpuBuffer,
+    rhs_layout: rust_dnn_wgpu::layout::Layout,
+    output: &WgpuBuffer,
+    len: u32,
+);
+
+fn wgpu_op1_func_call<T: Float>(
+    storage: &Storage<T>,
+    layout: &Layout,
+    f: WgpuOp1Func,
+) -> Result<Storage<T>> {
+    let output_data = match T::dtype() {
+        DType::F32 => WgpuBuffer::fill::<f32>(layout.len(), 0.0),
+        _ => todo!(),
+    };
+
+    let input_data = storage.get_wgpu_storage().unwrap();
+    f(
+        &input_data,
+        layout.storage_offset() as u32,
+        &output_data,
+        layout.len() as u32,
+    );
+
+    Ok(Storage::WgpuStorage(output_data))
+}
+
+fn wgpu_op2_func_call<T1: Num, T2: Num>(
+    lhs_storage: &Storage<T1>,
+    rhs_storage: &Storage<T1>,
+    lhs_layout: &Layout,
+    rhs_layout: &Layout,
+    f: WgpuOp2Func,
+) -> Result<Storage<T2>> {
+    let output_data = match T2::dtype() {
+        DType::U32 => WgpuBuffer::fill::<u32>(lhs_layout.len(), 0),
+        DType::F32 => WgpuBuffer::fill::<f32>(lhs_layout.len(), 0.0),
+        DType::F64 => todo!(),
+    };
+
+    let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
+    let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
+    f(
+        &lhs_data,
+        layout_to_wgpu_layout(lhs_layout),
+        &rhs_data,
+        layout_to_wgpu_layout(rhs_layout),
+        &output_data,
+        lhs_layout.len() as u32,
+    );
+
+    Ok(Storage::WgpuStorage(output_data))
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct WgpuBackend;
@@ -40,31 +102,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        let output_data = match T::dtype() {
-            DType::U32 => WgpuBuffer::fill::<u32>(lhs_layout.len(), 0),
-            DType::F32 => WgpuBuffer::fill::<f32>(lhs_layout.len(), 0.0),
-            DType::F64 => todo!(),
-        };
-
-        let wgpu_dtype_kind = match T::dtype() {
-            DType::U32 => WgpuDTypeKind::U32,
-            DType::F32 => WgpuDTypeKind::F32,
-            DType::F64 => todo!(),
-        };
-
-        let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
-        let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
-        wgpu_add(
-            &lhs_data,
-            layout_to_wgpu_layout(lhs_layout),
-            &rhs_data,
-            layout_to_wgpu_layout(rhs_layout),
-            &output_data,
-            lhs_layout.len() as u32,
-            wgpu_dtype_kind,
-        );
-
-        Ok(Storage::WgpuStorage(output_data))
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_add)
     }
 
     fn op_sub<T: Num>(
@@ -73,31 +111,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        let output_data = match T::dtype() {
-            DType::U32 => WgpuBuffer::fill::<u32>(lhs_layout.len(), 0),
-            DType::F32 => WgpuBuffer::fill::<f32>(lhs_layout.len(), 0.0),
-            DType::F64 => todo!(),
-        };
-
-        let wgpu_dtype_kind = match T::dtype() {
-            DType::U32 => WgpuDTypeKind::U32,
-            DType::F32 => WgpuDTypeKind::F32,
-            DType::F64 => todo!(),
-        };
-
-        let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
-        let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
-        wgpu_sub(
-            &lhs_data,
-            layout_to_wgpu_layout(lhs_layout),
-            &rhs_data,
-            layout_to_wgpu_layout(rhs_layout),
-            &output_data,
-            lhs_layout.len() as u32,
-            wgpu_dtype_kind,
-        );
-
-        Ok(Storage::WgpuStorage(output_data))
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_sub)
     }
 
     fn op_mul<T: Num>(
@@ -106,7 +120,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_mul)
     }
 
     fn op_div<T: Num>(
@@ -115,7 +129,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_div)
     }
 
     fn eq<T: Num>(
@@ -124,7 +138,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_eq)
     }
 
     fn lt<T: Num>(
@@ -133,7 +147,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_lt)
     }
 
     fn le<T: Num>(
@@ -142,7 +156,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_le)
     }
 
     fn gt<T: Num>(
@@ -151,7 +165,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_gt)
     }
 
     fn ge<T: Num>(
@@ -160,11 +174,11 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>> {
-        todo!()
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_ge)
     }
 
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op1_func_call(storage, layout, wgpu_neg)
     }
 
     fn copy<T: Num>(
@@ -182,7 +196,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        todo!()
+        wgpu_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_pow)
     }
 
     fn sin<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
@@ -360,25 +374,7 @@ impl Backend for WgpuBackend {
     }
 
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        let output_data = match T::dtype() {
-            DType::F32 => WgpuBuffer::fill::<f32>(layout.len(), 0.0),
-            _ => todo!(),
-        };
-
-        let wgpu_dtype_kind = match T::dtype() {
-            DType::F32 => WgpuDTypeKind::F32,
-            _ => todo!(),
-        };
-
-        let input_data = storage.get_wgpu_storage().unwrap();
-        wgpu_exp(
-            &input_data,
-            &output_data,
-            layout.len() as u32,
-            wgpu_dtype_kind,
-        );
-
-        Ok(Storage::WgpuStorage(output_data))
+        wgpu_op1_func_call(storage, layout, wgpu_exp)
     }
 
     fn argmax_axis<T: Num>(
@@ -426,12 +422,6 @@ impl Backend for WgpuBackend {
 }
 
 fn layout_to_wgpu_layout(layout: &Layout) -> rust_dnn_wgpu::layout::Layout {
-    // rust_dnn_wgpu::layout::Layout::new(
-    //     layout.shape().to_vec(),
-    //     layout.stride().to_vec(),
-    //     layout.storage_offset(),
-    // )
-
     if layout.ndim() > MAX_NDIM {
         panic!("Invalid layout ndim({})", layout.ndim());
     }

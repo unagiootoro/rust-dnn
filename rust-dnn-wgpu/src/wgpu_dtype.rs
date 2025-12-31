@@ -1,5 +1,6 @@
 use bytemuck::{AnyBitPattern, NoUninit};
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum WgpuDTypeKind {
     U32,
     F32,
