@@ -1,5 +1,7 @@
 mod test_utils;
 
+use std::f64;
+
 use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor::Tensor};
 
 use crate::test_utils::{arange_with_shape, assert_tensor, assert_tensor_with_eps};
@@ -992,6 +994,28 @@ fn test_squeeze<B: Backend>(device: Device<B>) -> Result<()> {
 }
 
 define_test!(test_squeeze, test_squeeze_cpu, test_squeeze_cuda);
+
+fn test_flatten<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let y = x.flatten(1, 2);
+    assert_eq!(y.shape(), &[2, 3 * 4, 5]);
+    Ok(())
+}
+
+define_test!(test_flatten, test_flatten_cpu, test_flatten_cuda);
+
+fn test_flatten_all<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let y = x.flatten_all();
+    assert_eq!(y.shape(), &[2 * 3 * 4 * 5]);
+    Ok(())
+}
+
+define_test!(
+    test_flatten_all,
+    test_flatten_all_cpu,
+    test_flatten_all_cuda
+);
 
 fn test_squeeze_axes<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[[[1.0], [2.0], [3.0]], [[4.0], [5.0], [6.0]]]].to_device(device)?;

@@ -123,6 +123,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    pub fn from_f64(value: f64, device: Device<B>) -> Self {
+        Self::from_scalar(T::from_f64(value), device)
+    }
+
     pub fn zeros(shape: Vec<usize>, device: Device<B>) -> Self {
         Self::fill(shape, T::zero(), device)
     }
@@ -168,11 +172,38 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    // TODO: rangeではなくbeginとendを使用する。
     pub fn arange(range: Range<isize>, device: Device<B>) -> Self {
         let mut data = Vec::new();
         for i in range {
             data.push(T::from_isize(i));
         }
+        let shape = vec![data.len()];
+        let stride = Self::compute_stride(&shape);
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+        };
+        let layout = Layout::new(shape, stride, 0);
+        Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        )
+    }
+
+    pub fn arange_step(begin: T, end: T, step: T, device: Device<B>) -> Self {
+        let mut data = Vec::new();
+        let mut value = begin;
+        while value < end {
+            data.push(value);
+            value += step;
+        }
+
         let shape = vec![data.len()];
         let stride = Self::compute_stride(&shape);
         let storage = match *device.info() {
@@ -581,7 +612,29 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         );
     }
 
-    pub fn flatten(&self) -> Self {
+    pub fn flatten(&self, start_axis: isize, end_axis: isize) -> Self {
+        let start_axis =
+            Self::axis_isize_to_usize(start_axis, self.ndim()).expect("Failed flatten");
+        let end_axis = Self::axis_isize_to_usize(end_axis, self.ndim()).expect("Failed flatten");
+        assert!(start_axis <= end_axis);
+
+        let mut flatten_size = 1;
+        for axis in start_axis..(end_axis + 1) {
+            flatten_size *= self.shape()[axis];
+        }
+
+        let mut shape = Vec::new();
+        for (axis, size) in self.shape().iter().enumerate() {
+            if !(start_axis <= axis && axis <= end_axis) {
+                shape.push(*size);
+            }
+        }
+        shape.insert(start_axis, flatten_size);
+
+        self.reshape(shape)
+    }
+
+    pub fn flatten_all(&self) -> Self {
         self.reshape(vec![self.len()])
     }
 
@@ -969,7 +1022,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let indices = indices
             .reshape(vec![indices.len(), 1])
             .broadcast_to(vec![indices.len(), repeats])
-            .flatten();
+            .flatten_all();
         let axis2 = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed select");
         self.index_select(axis2, &indices)
     }
@@ -1696,6 +1749,10 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             None
         };
         self.op1_impl(op, B::sqrt)
+    }
+
+    pub fn rsqrt(&self) -> Self {
+        1.0 / self.sqrt()
     }
 
     pub fn exp(&self) -> Self {
