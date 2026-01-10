@@ -1247,7 +1247,7 @@ pub(crate) fn cuda_reduce_cmp_axis_index_func_call<T: Num>(
             output_data.ptr() as *mut u32,
             layout_to_clayout(output_layout)?,
             axis,
-            input_layout.len() as i32,
+            output_layout.len() as i32,
         );
         check_cuda_error();
         output_data

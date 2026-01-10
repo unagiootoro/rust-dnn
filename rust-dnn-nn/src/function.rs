@@ -24,7 +24,8 @@ pub fn scaled_dot_product_attention<B: Backend, T: Float>(
     let scores = q.matmul(&rhs);
 
     let scores = if let Some(attn_mask) = attn_mask {
-        scores.masked_fill(&attn_mask.eq_scalar(0.0), -T::max_value())
+        // scores.masked_fill(&attn_mask.eq_scalar(0.0), -T::max_value())
+        scores + attn_mask
     } else {
         scores
     };

@@ -739,7 +739,51 @@ fn test_tril3<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_tril3, test_tril3_cpu, test_tril3_cuda);
+fn test_triu<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![3, 3], 2.0, device);
+    let y = x.triu();
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 2.0, 2.0],
+        [0.0, 2.0, 2.0],
+        [0.0, 0.0, 2.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_triu, test_triu_cpu, test_triu_cuda);
+
+fn test_triu2<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![4, 3], 2.0, device);
+    let y = x.triu();
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 2.0, 2.0],
+        [0.0, 2.0, 2.0],
+        [0.0, 0.0, 2.0],
+        [0.0, 0.0, 0.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_triu2, test_triu2_cpu, test_triu2_cuda);
+
+fn test_triu3<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![3, 4], 2.0, device);
+    let y = x.triu();
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 2.0, 2.0, 2.0],
+        [0.0, 2.0, 2.0, 2.0],
+        [0.0, 0.0, 2.0, 2.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_triu3, test_triu3_cpu, test_triu3_cuda);
 
 fn test_gather<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![

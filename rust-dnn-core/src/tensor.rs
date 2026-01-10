@@ -13,6 +13,7 @@ use rust_dnn_cuda_kernel::gpu_buffer::GPUBuffer;
 
 use crate::{
     backend::Backend,
+    config::{enable_backprop, set_enable_backprop},
     device::{Device, DeviceInfo},
     dtype::DType,
     error::{Error, Result},
@@ -275,8 +276,28 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         }
     }
 
-    fn validate_axis(axis: isize, ndim: usize) -> Result<()> {
-        Self::axis_isize_to_usize(axis, ndim)?;
+    fn index_isize_to_usize(index: isize, size: usize) -> Result<usize> {
+        if index >= size as isize {
+            return Err(Error::ArgumentsError {
+                msg: format!("Invalud index(index = {}, size = {})", index, size),
+            });
+        }
+
+        if index >= 0 {
+            Ok(index as usize)
+        } else {
+            let usize_index = ((size as isize) + index) as usize;
+            if usize_index >= size {
+                return Err(Error::ArgumentsError {
+                    msg: format!("Invalud index(index = {}, ndim = {})", index, size),
+                });
+            }
+            Ok(usize_index)
+        }
+    }
+
+    fn validate_axis(axis: isize, size: usize) -> Result<()> {
+        Self::axis_isize_to_usize(axis, size)?;
         Ok(())
     }
 
@@ -338,7 +359,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn is_requires_grad(&self) -> bool {
-        self.is_requires_grad
+        self.is_requires_grad && enable_backprop()
     }
 
     pub fn dtype(&self) -> DType {
@@ -785,6 +806,28 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.get_item(ranges).squeeze_axes(&[axis as isize])
     }
 
+    pub fn select2(&self, axis: isize, index: isize) -> Self {
+        let index = Self::index_isize_to_usize(index, self.size(axis)).expect("Failed select");
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed select");
+        let mut ranges = Vec::new();
+        for (i, dim) in self.shape().iter().enumerate() {
+            if i == axis {
+                if index >= *dim {
+                    panic!(
+                        "Invalud index: self.shape = {:?}, axis = {}, index = {}",
+                        self.shape(),
+                        axis,
+                        index,
+                    );
+                }
+                ranges.push((index, index + 1));
+            } else {
+                ranges.push((0, *dim));
+            }
+        }
+        self.get_item(ranges).squeeze_axes(&[axis as isize])
+    }
+
     pub fn narrow(&self, axis: usize, start: usize, length: usize) -> Self {
         if axis >= self.ndim() {
             panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim());
@@ -792,7 +835,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let mut ranges = Vec::new();
         for (i, dim) in self.shape().iter().enumerate() {
             if i == axis {
-                if start + length >= *dim {
+                if start + length > *dim {
                     panic!(
                         "Invalud index: self.shape = {:?}, axis = {}, start = {}, length = {}",
                         self.shape(),
@@ -1080,6 +1123,50 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             let col_end = (i + 1).min(cols);
             mask.set_item(&vec![(i, i + 1), (0, col_end)], &one);
         }
+        self * &mask
+    }
+
+    pub fn triu(&self) -> Self {
+        let mask = Tensor::zeros(self.shape().to_vec(), self.device);
+        let rows = self.shape()[0];
+        let cols = self.shape()[1];
+        let one = Tensor::ones(vec![1], self.device);
+        for i in 0..rows {
+            let col_begin = i.min(cols);
+            if col_begin < cols {
+                mask.set_item(&vec![(i, i + 1), (col_begin, cols)], &one);
+            }
+        }
+        self * &mask
+    }
+
+    pub fn triu2(&self, diagonal: isize) -> Self {
+        let mask = Tensor::zeros(self.shape().to_vec(), self.device);
+        let rows = self.shape()[0] as isize;
+        let cols = self.shape()[1] as isize;
+        let one = Tensor::ones(vec![1], self.device);
+
+        for i in 0..rows {
+            // 開始列 = 行 index + diagonal
+            let mut col_begin = i + diagonal;
+
+            // 範囲をクリップ
+            if col_begin < 0 {
+                col_begin = 0;
+            }
+            if col_begin >= cols {
+                continue;
+            }
+
+            mask.set_item(
+                &vec![
+                    (i as usize, (i + 1) as usize),
+                    (col_begin as usize, cols as usize),
+                ],
+                &one,
+            );
+        }
+
         self * &mask
     }
 
@@ -2290,6 +2377,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn backward(&self) -> Gradients<B, T> {
+        let prev_enable_backprop = enable_backprop();
+        set_enable_backprop(false);
+
         let mut grads = Gradients::new();
         if !self.is_requires_grad {
             return grads;
@@ -2417,6 +2507,8 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             }
             grads.remove(&node);
         }
+
+        set_enable_backprop(prev_enable_backprop);
 
         grads
     }
