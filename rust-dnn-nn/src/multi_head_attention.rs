@@ -69,19 +69,17 @@ impl<B: Backend, T: Float> MultiHeadAttention<B, T> {
 
         let q = q
             .reshape(vec![b, t, self.num_heads, self.head_dim])
-            .permuted_axes(&[0, 2, 1, 3]);
+            .transpose(1, 2);
         let k = k
             .reshape(vec![b, t, self.num_heads, self.head_dim])
-            .permuted_axes(&[0, 2, 1, 3]);
+            .transpose(1, 2);
         let v = v
             .reshape(vec![b, t, self.num_heads, self.head_dim])
-            .permuted_axes(&[0, 2, 1, 3]);
+            .transpose(1, 2);
 
         let attn_output =
             scaled_dot_product_attention(&q, &k, &v, attn_mask, self.dropout_ratio, true, None);
-        let attn_output = attn_output
-            .permuted_axes(&[0, 2, 1, 3])
-            .reshape(vec![b, t, c]);
+        let attn_output = attn_output.transpose(1, 2).reshape(vec![b, t, c]);
 
         let attn_output = attn_output.reshape(vec![b * t, c]);
         let y = self.out_proj.forward(&attn_output);

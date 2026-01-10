@@ -1121,6 +1121,15 @@ fn test_reversed_axes<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
+fn test_transpose<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
+    let y = x.transpose(0, 1);
+    assert_tensor(&y, &ten![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
+    Ok(())
+}
+
+define_test!(test_transpose, test_transpose_cpu, test_transpose_cuda);
+
 define_test!(
     test_reversed_axes,
     test_reversed_axes_cpu,

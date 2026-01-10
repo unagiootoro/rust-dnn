@@ -20,7 +20,7 @@ pub fn scaled_dot_product_attention<B: Backend, T: Float>(
     is_train: bool,
     seed: Option<u64>,
 ) -> Tensor<B, T> {
-    let rhs = k.permuted_axes(&[0, 1, 3, 2]) / (q.shape()[3] as f64).sqrt();
+    let rhs = k.transpose(-1, -2) / (q.shape()[3] as f64).sqrt();
     let scores = q.matmul(&rhs);
 
     let scores = if let Some(attn_mask) = attn_mask {

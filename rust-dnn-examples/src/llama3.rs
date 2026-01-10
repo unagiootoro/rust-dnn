@@ -155,14 +155,12 @@ impl<B: Backend, T: Float> Attention<B, T> {
         let k = k.repeat_interleave(2, self.n_rep);
         let v = v.repeat_interleave(2, self.n_rep);
 
-        let q = q.permuted_axes(&[0, 2, 1, 3]);
-        let k = k.permuted_axes(&[0, 2, 1, 3]);
-        let v = v.permuted_axes(&[0, 2, 1, 3]);
+        let q = q.transpose(1, 2);
+        let k = k.transpose(1, 2);
+        let v = v.transpose(1, 2);
 
         let attn_output = scaled_dot_product_attention(&q, &k, &v, attn_mask, 0.0, true, None);
-        let attn_output = attn_output
-            .permuted_axes(&[0, 2, 1, 3])
-            .reshape(vec![b, t, c]);
+        let attn_output = attn_output.transpose(1, 2).reshape(vec![b, t, c]);
 
         let attn_output = attn_output.reshape(vec![b * t, c]);
         let y = self.out_proj.forward(&attn_output);

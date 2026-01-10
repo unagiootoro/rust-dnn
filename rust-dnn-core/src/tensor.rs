@@ -752,6 +752,19 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.permuted_axes(&axes)
     }
 
+    pub fn transpose(&self, axis0: isize, axis1: isize) -> Self {
+        let axis0 = Self::axis_isize_to_usize(axis0, self.ndim()).expect("Failed transpose");
+        let axis1 = Self::axis_isize_to_usize(axis1, self.ndim()).expect("Failed transpose");
+        let mut axes = Vec::new();
+        for axis in 0..self.ndim() {
+            axes.push(axis as isize);
+        }
+        let w = axes[axis0];
+        axes[axis0] = axes[axis1];
+        axes[axis1] = w;
+        self.permuted_axes(&axes)
+    }
+
     pub fn get_item(&self, ranges: Vec<(usize, usize)>) -> Self {
         for (i, range) in ranges.iter().enumerate() {
             if range.1 > self.shape()[i] {
