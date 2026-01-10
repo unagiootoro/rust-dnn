@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use rust_dnn_core::{backend::Backend, device::Device, float::Float, tensor::Tensor};
 use rust_dnn_nn::{
     embedding::Embedding,
-    function::scaled_dot_product_attention,
+    function::{scaled_dot_product_attention2},
     layer::{Layer, Linear, RMSNorm},
     layer_list::LayerList,
     sequential::SequentialItem,
@@ -159,7 +159,7 @@ impl<B: Backend, T: Float> Attention<B, T> {
         let k = k.transpose(1, 2);
         let v = v.transpose(1, 2);
 
-        let attn_output = scaled_dot_product_attention(&q, &k, &v, attn_mask, 0.0, true, None);
+        let attn_output = scaled_dot_product_attention2(&q, &k, &v, attn_mask, 0.0, true, None);
         let attn_output = attn_output.transpose(1, 2).reshape(vec![b, t, c]);
 
         let attn_output = attn_output.reshape(vec![b * t, c]);
