@@ -5,6 +5,42 @@ use rust_dnn_core::{
 };
 use rust_dnn_nn::layer::{Conv2D, GroupNorm};
 
+use crate::self_attention::SelfAttention;
+
+pub struct VAE_AttentionBlock<B: Backend> {
+    groupnorm: GroupNorm<B, f32>,
+    attention: SelfAttention<B>,
+}
+
+impl<B: Backend> VAE_AttentionBlock<B> {
+    pub fn new(channels: usize, device: Device<B>) -> Self {
+        let groupnorm = GroupNorm::new(32, channels, 1e-7, true, device);
+        let attention = SelfAttention::new(1, channels, true, true, device);
+        Self {
+            groupnorm,
+            attention,
+        }
+    }
+
+    pub fn forward(&self, x: &Tensor<B, f32>) -> Tensor<B, f32> {
+        let residue = x.clone();
+        let x = self.groupnorm.forward(x);
+        let n = x.size(0);
+        let c = x.size(1);
+        let h = x.size(2);
+        let w = x.size(3);
+
+        let x = x.reshape(vec![n, c, h * w]);
+        let x = x.transpose(-1, -2);
+        let x = self.attention.forward(&x, false);
+        let x = x.transpose(-1, -2);
+        let x = x.reshape(vec![n, c, h, w]);
+
+        let x = x + residue;
+        x
+    }
+}
+
 pub struct VAE_ResidualBlock<B: Backend> {
     groupnorm_1: GroupNorm<B, f32>,
     conv_1: Conv2D<B, f32>,
