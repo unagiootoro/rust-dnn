@@ -209,6 +209,12 @@ impl<B: Backend, T: Float> Layer<B, T> for Conv2D<B, T> {
     }
 }
 
+impl<B: Backend, T: Float> SequentialItem<B, T> for Conv2D<B, T> {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
+        Conv2D::forward(&self, &x)
+    }
+}
+
 pub struct Deconv2D<B: Backend, T: Float> {
     in_filters: usize,
     out_filters: usize,
@@ -639,6 +645,12 @@ impl<B: Backend, T: Float> Layer<B, T> for GroupNorm<B, T> {
             map.insert("bias".to_string(), beta.clone());
         };
         map
+    }
+}
+
+impl<B: Backend, T: Float> SequentialItem<B, T> for GroupNorm<B, T> {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
+        GroupNorm::forward(&self, &x)
     }
 }
 
