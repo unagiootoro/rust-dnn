@@ -1,5 +1,7 @@
 mod test_utils;
 
+use std::f64;
+
 use rust_dnn_core::{backend::Backend, device::Device, error::Result, ten, tensor::Tensor};
 
 use crate::test_utils::{arange_with_shape, assert_tensor, assert_tensor_with_eps};
@@ -743,7 +745,51 @@ fn test_tril3<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_tril3, test_tril3_cpu, test_tril3_cuda);
+fn test_triu<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![3, 3], 2.0, device);
+    let y = x.triu();
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 2.0, 2.0],
+        [0.0, 2.0, 2.0],
+        [0.0, 0.0, 2.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_triu, test_triu_cpu, test_triu_cuda);
+
+fn test_triu2<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![4, 3], 2.0, device);
+    let y = x.triu();
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 2.0, 2.0],
+        [0.0, 2.0, 2.0],
+        [0.0, 0.0, 2.0],
+        [0.0, 0.0, 0.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_triu2, test_triu2_cpu, test_triu2_cuda);
+
+fn test_triu3<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::fill(vec![3, 4], 2.0, device);
+    let y = x.triu();
+    #[rustfmt::skip]
+    let y_expected = ten![
+        [2.0, 2.0, 2.0, 2.0],
+        [0.0, 2.0, 2.0, 2.0],
+        [0.0, 0.0, 2.0, 2.0],
+    ].to_device(device)?;
+    assert_tensor(&y, &y_expected);
+    Ok(())
+}
+
+define_test!(test_triu3, test_triu3_cpu, test_triu3_cuda);
 
 fn test_gather<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![
@@ -999,6 +1045,28 @@ fn test_squeeze<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_squeeze, test_squeeze_cpu, test_squeeze_cuda);
 
+fn test_flatten<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let y = x.flatten(1, 2);
+    assert_eq!(y.shape(), &[2, 3 * 4, 5]);
+    Ok(())
+}
+
+define_test!(test_flatten, test_flatten_cpu, test_flatten_cuda);
+
+fn test_flatten_all<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let y = x.flatten_all();
+    assert_eq!(y.shape(), &[2 * 3 * 4 * 5]);
+    Ok(())
+}
+
+define_test!(
+    test_flatten_all,
+    test_flatten_all_cpu,
+    test_flatten_all_cuda
+);
+
 fn test_squeeze_axes<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[[[1.0], [2.0], [3.0]], [[4.0], [5.0], [6.0]]]].to_device(device)?;
     let y = x.squeeze_axes(&[0, 3]);
@@ -1058,6 +1126,15 @@ fn test_reversed_axes<B: Backend>(device: Device<B>) -> Result<()> {
     assert_tensor(&y, &ten![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
     Ok(())
 }
+
+fn test_transpose<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
+    let y = x.transpose(0, 1);
+    assert_tensor(&y, &ten![[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
+    Ok(())
+}
+
+define_test!(test_transpose, test_transpose_cpu, test_transpose_cuda);
 
 define_test!(
     test_reversed_axes,

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use rust_dnn_core::{
-    backend::Backend, error::Result, float::Float, gradients::Gradients, tensor::Tensor,
+    backend::Backend, config::{enable_backprop, set_enable_backprop}, error::Result, float::Float, gradients::Gradients, tensor::Tensor
 };
 
 pub trait Optimizer<B: Backend, T: Float> {
@@ -10,6 +10,9 @@ pub trait Optimizer<B: Backend, T: Float> {
         parameters: &mut HashMap<String, Tensor<B, T>>,
         grads: &Gradients<B, T>,
     ) {
+        let prev_enable_backprop = enable_backprop();
+        set_enable_backprop(false);
+
         self.prepare_update_parameters();
         for (name, parameter) in parameters {
             if let Some(grad) = grads.get(parameter) {
@@ -18,6 +21,8 @@ pub trait Optimizer<B: Backend, T: Float> {
                 panic!("{}: grad is None", name);
             }
         }
+
+        set_enable_backprop(prev_enable_backprop);
     }
 
     fn prepare_update_parameters(&mut self) {}

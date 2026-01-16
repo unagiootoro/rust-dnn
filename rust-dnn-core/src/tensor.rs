@@ -15,6 +15,7 @@ use rust_dnn_wgpu::wgpu_buffer::{self, WgpuBuffer};
 use crate::{
     backend::Backend,
     cpu_backend::CpuBackend,
+    config::{enable_backprop, set_enable_backprop},
     device::{Device, DeviceInfo},
     dtype::DType,
     error::{Error, Result},
@@ -128,6 +129,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    pub fn from_f64(value: f64, device: Device<B>) -> Self {
+        Self::from_scalar(T::from_f64(value), device)
+    }
+
     pub fn zeros(shape: Vec<usize>, device: Device<B>) -> Self {
         Self::fill(shape, T::zero(), device)
     }
@@ -174,6 +179,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    // TODO: rangeではなくbeginとendを使用する。
     pub fn arange(range: Range<isize>, device: Device<B>) -> Self {
         let mut data = Vec::new();
         for i in range {
@@ -193,6 +199,33 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                 // Storage::WgpuStorage(buf)
                 todo!()
             }
+        };
+        let layout = Layout::new(shape, stride, 0);
+        Self::new(
+            Rc::new(RefCell::new(storage)),
+            layout,
+            device,
+            T::dtype(),
+            false,
+            None,
+        )
+    }
+
+    pub fn arange_step(begin: T, end: T, step: T, device: Device<B>) -> Self {
+        let mut data = Vec::new();
+        let mut value = begin;
+        while value < end {
+            data.push(value);
+            value += step;
+        }
+
+        let shape = vec![data.len()];
+        let stride = Self::compute_stride(&shape);
+        let storage = match *device.info() {
+            DeviceInfo::Cpu => Storage::CpuStorage(data),
+            #[cfg(feature = "cuda")]
+            DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
+            DeviceInfo::Wgpu => todo!(),
         };
         let layout = Layout::new(shape, stride, 0);
         Self::new(
@@ -258,8 +291,28 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         }
     }
 
-    fn validate_axis(axis: isize, ndim: usize) -> Result<()> {
-        Self::axis_isize_to_usize(axis, ndim)?;
+    fn index_isize_to_usize(index: isize, size: usize) -> Result<usize> {
+        if index >= size as isize {
+            return Err(Error::ArgumentsError {
+                msg: format!("Invalud index(index = {}, size = {})", index, size),
+            });
+        }
+
+        if index >= 0 {
+            Ok(index as usize)
+        } else {
+            let usize_index = ((size as isize) + index) as usize;
+            if usize_index >= size {
+                return Err(Error::ArgumentsError {
+                    msg: format!("Invalud index(index = {}, ndim = {})", index, size),
+                });
+            }
+            Ok(usize_index)
+        }
+    }
+
+    fn validate_axis(axis: isize, size: usize) -> Result<()> {
+        Self::axis_isize_to_usize(axis, size)?;
         Ok(())
     }
 
@@ -321,7 +374,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
     }
 
     pub fn is_requires_grad(&self) -> bool {
-        self.is_requires_grad
+        self.is_requires_grad && enable_backprop()
     }
 
     pub fn dtype(&self) -> DType {
@@ -595,7 +648,29 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         );
     }
 
-    pub fn flatten(&self) -> Self {
+    pub fn flatten(&self, start_axis: isize, end_axis: isize) -> Self {
+        let start_axis =
+            Self::axis_isize_to_usize(start_axis, self.ndim()).expect("Failed flatten");
+        let end_axis = Self::axis_isize_to_usize(end_axis, self.ndim()).expect("Failed flatten");
+        assert!(start_axis <= end_axis);
+
+        let mut flatten_size = 1;
+        for axis in start_axis..(end_axis + 1) {
+            flatten_size *= self.shape()[axis];
+        }
+
+        let mut shape = Vec::new();
+        for (axis, size) in self.shape().iter().enumerate() {
+            if !(start_axis <= axis && axis <= end_axis) {
+                shape.push(*size);
+            }
+        }
+        shape.insert(start_axis, flatten_size);
+
+        self.reshape(shape)
+    }
+
+    pub fn flatten_all(&self) -> Self {
         self.reshape(vec![self.len()])
     }
 
@@ -692,6 +767,19 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.permuted_axes(&axes)
     }
 
+    pub fn transpose(&self, axis0: isize, axis1: isize) -> Self {
+        let axis0 = Self::axis_isize_to_usize(axis0, self.ndim()).expect("Failed transpose");
+        let axis1 = Self::axis_isize_to_usize(axis1, self.ndim()).expect("Failed transpose");
+        let mut axes = Vec::new();
+        for axis in 0..self.ndim() {
+            axes.push(axis as isize);
+        }
+        let w = axes[axis0];
+        axes[axis0] = axes[axis1];
+        axes[axis1] = w;
+        self.permuted_axes(&axes)
+    }
+
     pub fn get_item(&self, ranges: Vec<(usize, usize)>) -> Self {
         for (i, range) in ranges.iter().enumerate() {
             if range.1 > self.shape()[i] {
@@ -746,6 +834,28 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.get_item(ranges).squeeze_axes(&[axis as isize])
     }
 
+    pub fn select2(&self, axis: isize, index: isize) -> Self {
+        let index = Self::index_isize_to_usize(index, self.size(axis)).expect("Failed select");
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed select");
+        let mut ranges = Vec::new();
+        for (i, dim) in self.shape().iter().enumerate() {
+            if i == axis {
+                if index >= *dim {
+                    panic!(
+                        "Invalud index: self.shape = {:?}, axis = {}, index = {}",
+                        self.shape(),
+                        axis,
+                        index,
+                    );
+                }
+                ranges.push((index, index + 1));
+            } else {
+                ranges.push((0, *dim));
+            }
+        }
+        self.get_item(ranges).squeeze_axes(&[axis as isize])
+    }
+
     pub fn narrow(&self, axis: usize, start: usize, length: usize) -> Self {
         if axis >= self.ndim() {
             panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim());
@@ -753,7 +863,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let mut ranges = Vec::new();
         for (i, dim) in self.shape().iter().enumerate() {
             if i == axis {
-                if start + length >= *dim {
+                if start + length > *dim {
                     panic!(
                         "Invalud index: self.shape = {:?}, axis = {}, start = {}, length = {}",
                         self.shape(),
@@ -983,7 +1093,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         let indices = indices
             .reshape(vec![indices.len(), 1])
             .broadcast_to(vec![indices.len(), repeats])
-            .flatten();
+            .flatten_all();
         let axis2 = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed select");
         self.index_select(axis2, &indices)
     }
@@ -1041,6 +1151,50 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             let col_end = (i + 1).min(cols);
             mask.set_item(&vec![(i, i + 1), (0, col_end)], &one);
         }
+        self * &mask
+    }
+
+    pub fn triu(&self) -> Self {
+        let mask = Tensor::zeros(self.shape().to_vec(), self.device);
+        let rows = self.shape()[0];
+        let cols = self.shape()[1];
+        let one = Tensor::ones(vec![1], self.device);
+        for i in 0..rows {
+            let col_begin = i.min(cols);
+            if col_begin < cols {
+                mask.set_item(&vec![(i, i + 1), (col_begin, cols)], &one);
+            }
+        }
+        self * &mask
+    }
+
+    pub fn triu2(&self, diagonal: isize) -> Self {
+        let mask = Tensor::zeros(self.shape().to_vec(), self.device);
+        let rows = self.shape()[0] as isize;
+        let cols = self.shape()[1] as isize;
+        let one = Tensor::ones(vec![1], self.device);
+
+        for i in 0..rows {
+            // 開始列 = 行 index + diagonal
+            let mut col_begin = i + diagonal;
+
+            // 範囲をクリップ
+            if col_begin < 0 {
+                col_begin = 0;
+            }
+            if col_begin >= cols {
+                continue;
+            }
+
+            mask.set_item(
+                &vec![
+                    (i as usize, (i + 1) as usize),
+                    (col_begin as usize, cols as usize),
+                ],
+                &one,
+            );
+        }
+
         self * &mask
     }
 
@@ -1779,6 +1933,10 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op1_impl(op, B::sqrt)
     }
 
+    pub fn rsqrt(&self) -> Self {
+        1.0 / self.sqrt()
+    }
+
     pub fn exp(&self) -> Self {
         let op = if self.is_requires_grad() {
             Some(Op::Exp(self.clone()))
@@ -2314,6 +2472,9 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     }
 
     pub fn backward(&self) -> Gradients<B, T> {
+        let prev_enable_backprop = enable_backprop();
+        set_enable_backprop(false);
+
         let mut grads = Gradients::new();
         if !self.is_requires_grad {
             return grads;
@@ -2441,6 +2602,8 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             }
             grads.remove(&node);
         }
+
+        set_enable_backprop(prev_enable_backprop);
 
         grads
     }
