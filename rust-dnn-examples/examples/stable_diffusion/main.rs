@@ -9,6 +9,7 @@ mod unet_output_layer;
 mod switch_sequential;
 mod time_embedding;
 mod diffusion;
+mod clip;
 
 fn main() {
 }
