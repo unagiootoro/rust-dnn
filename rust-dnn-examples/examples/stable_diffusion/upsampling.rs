@@ -1,7 +1,8 @@
 use core::f32;
+use std::collections::HashMap;
 
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
-use rust_dnn_nn::layer::Conv2D;
+use rust_dnn_nn::layer::{Conv2D, Layer};
 
 pub struct Upsample<B: Backend> {
     conv: Conv2D<B, f32>,
@@ -30,5 +31,11 @@ impl<B: Backend> Upsample<B> {
         // TODO:
 
         self.conv.forward(&x)
+    }
+}
+
+impl<B: Backend> Layer<B, f32> for Upsample<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        todo!()
     }
 }

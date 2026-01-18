@@ -6,6 +6,9 @@ mod unet_attention_block;
 mod upsampling;
 mod unet;
 mod unet_output_layer;
+mod switch_sequential;
+mod time_embedding;
+mod diffusion;
 
 fn main() {
 }

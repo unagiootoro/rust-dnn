@@ -1,4 +1,5 @@
 use core::f32;
+use std::collections::HashMap;
 
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
 use rust_dnn_nn::layer::*;
@@ -13,7 +14,11 @@ pub struct UNET_ResidualBlock<B: Backend> {
 }
 
 impl<B: Backend> UNET_ResidualBlock<B> {
-    pub fn new(in_channels: usize, out_channels: usize, n_time: usize, device: Device<B>) -> Self {
+    pub fn new(in_channels: usize, out_channels: usize, device: Device<B>) -> Self {
+        Self::new2(in_channels, out_channels, 1280, device)
+    }
+
+    pub fn new2(in_channels: usize, out_channels: usize, n_time: usize, device: Device<B>) -> Self {
         let groupnorm_feature = GroupNorm::new(32, in_channels, 1e-5, true, device);
         let conv_feature = Conv2D::new(in_channels, out_channels, 3, 3, 1, 1, Some((1, 1)), false, true, device);
         let linear_time = Linear::new(n_time, out_channels, true, device);
@@ -85,5 +90,11 @@ impl<B: Backend> UNET_ResidualBlock<B> {
         } else {
             merged
         }
+    }
+}
+
+impl<B: Backend> Layer<B, f32> for UNET_ResidualBlock<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        todo!()
     }
 }

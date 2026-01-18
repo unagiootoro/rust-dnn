@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
-use rust_dnn_nn::layer::{Conv2D, GroupNorm, LayerNorm, Linear};
+use rust_dnn_nn::layer::{Conv2D, GroupNorm, Layer, LayerNorm, Linear};
 
 use crate::{cross_attention::CrossAttention, self_attention::SelfAttention};
 
@@ -17,7 +19,11 @@ pub struct UNET_AttentionBlock<B: Backend> {
 }
 
 impl<B: Backend> UNET_AttentionBlock<B> {
-    pub fn new(n_head: usize, n_embd: usize, d_context: usize, device: Device<B>) -> Self {
+    pub fn new(n_head: usize, n_embd: usize, device: Device<B>) -> Self {
+        Self::new2(n_head, n_embd, 768, device)
+    }
+
+    pub fn new2(n_head: usize, n_embd: usize, d_context: usize, device: Device<B>) -> Self {
         let channels = n_head * n_embd;
         let groupnorm = GroupNorm::new(32, channels, 1e-6, true, device);
         let conv_input = Conv2D::new(channels, channels, 1, 1, 1, 1, None, false, true, device);
@@ -148,5 +154,11 @@ impl<B: Backend> UNET_AttentionBlock<B> {
         //         # (Batch_Size, Features, Height, Width) + (Batch_Size, Features, Height, Width) -> (Batch_Size, Features, Height, Width)
         //         return self.conv_output(x) + residue_long
         self.conv_output.forward(&x) + residue_long
+    }
+}
+
+impl<B: Backend> Layer<B, f32> for UNET_AttentionBlock<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        todo!()
     }
 }

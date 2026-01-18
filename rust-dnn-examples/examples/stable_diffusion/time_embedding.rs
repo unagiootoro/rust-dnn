@@ -18,7 +18,7 @@ impl<B: Backend> TimeEmbedding<B> {
     pub fn forward(&self, x: &Tensor<B, f32>) -> Tensor<B, f32> {
         let x = self.linear_1.forward(x);
         let x = x.silu();
-        let x = self.linear_2.forward(x);
+        let x = self.linear_2.forward(&x);
         x
     }
 }
