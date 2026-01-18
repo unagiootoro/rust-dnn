@@ -247,7 +247,7 @@ fn rescale<B: Backend>(
     x = x * ((new_max - new_min) / (old_max - old_min));
     x = x + new_min;
     if is_clamp {
-        // TODO: clamp
+        x = x.clamp_scalar(new_min, new_max);
     }
     x
 }

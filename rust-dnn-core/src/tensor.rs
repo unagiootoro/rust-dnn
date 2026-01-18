@@ -596,6 +596,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    pub fn maximum_scalar(&self, rhs: f64) -> Self {
+        let rhs = Self::from_f64(rhs, self.device());
+        self.maximum(&rhs)
+    }
+
     pub fn minimum(&self, rhs: &Self) -> Self {
         self.op2_impl(
             rhs,
@@ -604,8 +609,19 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    pub fn minimum_scalar(&self, rhs: f64) -> Self {
+        let rhs = Self::from_f64(rhs, self.device());
+        self.minimum(&rhs)
+    }
+
     pub fn clamp(&self, min: &Self, max: &Self) -> Self {
         self.maximum(min).minimum(max)
+    }
+
+    pub fn clamp_scalar(&self, min: f64, max: f64) -> Self {
+        let min = Self::from_f64(min, self.device());
+        let max = Self::from_f64(max, self.device());
+        self.clamp(&min, &max)
     }
 
     fn op1_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Self

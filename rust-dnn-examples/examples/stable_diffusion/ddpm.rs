@@ -71,9 +71,7 @@ impl<B: Backend> DDPMSampler<B> {
         let alpha_prod_t_prev = self.alphas_cumprod.select2(0, prev_t as isize);
         let current_beta_t = 1.0 - &alpha_prod_t / &alpha_prod_t_prev;
         let variance = (1.0 - alpha_prod_t_prev) / (1.0 - alpha_prod_t) * current_beta_t;
-        // TODO: clamp
-        // variance = torch.clamp(variance, min=1e-20)
-        variance
+        variance.maximum_scalar(1e-20)
     }
 
     pub fn set_strength(&mut self, strength: usize) {
