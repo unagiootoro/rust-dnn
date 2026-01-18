@@ -47,7 +47,14 @@ impl<B: Backend> VAE_AttentionBlock<B> {
     }
 }
 
-impl<B: Backend> Layer<B, f32> for VAE_AttentionBlock<B> {}
+impl<B: Backend> Layer<B, f32> for VAE_AttentionBlock<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("groupnorm".to_string(), &self.groupnorm);
+        map.insert("attention".to_string(), &self.attention);
+        map
+    }
+}
 
 impl<B: Backend> SequentialItem<B, f32> for VAE_AttentionBlock<B> {
     fn forward(&mut self, x: Tensor<B, f32>, _is_train: bool) -> Tensor<B, f32> {
@@ -132,7 +139,19 @@ impl<B: Backend> VAE_ResidualBlock<B> {
     }
 }
 
-impl<B: Backend> Layer<B, f32> for VAE_ResidualBlock<B> {}
+impl<B: Backend> Layer<B, f32> for VAE_ResidualBlock<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("groupnorm_1".to_string(), &self.groupnorm_1);
+        map.insert("conv_1".to_string(), &self.conv_1);
+        map.insert("groupnorm_2".to_string(), &self.groupnorm_2);
+        map.insert("conv_2".to_string(), &self.conv_2);
+        if let Some(ref residual_layer) = self.residual_layer {
+            map.insert("residual_layer".to_string(), residual_layer);
+        }
+        map
+    }
+}
 
 impl<B: Backend> SequentialItem<B, f32> for VAE_ResidualBlock<B> {
     fn forward(&mut self, x: Tensor<B, f32>, is_train: bool) -> Tensor<B, f32> {

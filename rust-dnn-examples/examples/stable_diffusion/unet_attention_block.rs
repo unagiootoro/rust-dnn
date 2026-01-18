@@ -159,6 +159,18 @@ impl<B: Backend> UNET_AttentionBlock<B> {
 
 impl<B: Backend> Layer<B, f32> for UNET_AttentionBlock<B> {
     fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
-        todo!()
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("groupnorm".to_string(), &self.groupnorm);
+        map.insert("conv_input".to_string(), &self.conv_input);
+        map.insert("layernorm_1".to_string(), &self.layernorm_1);
+        map.insert("attention_1".to_string(), &self.attention_1);
+        map.insert("layernorm_2".to_string(), &self.layernorm_2);
+        map.insert("attention_2".to_string(), &self.attention_2);
+        map.insert("groupnorm".to_string(), &self.groupnorm);
+        map.insert("layernorm_3".to_string(), &self.layernorm_3);
+        map.insert("linear_geglu_1".to_string(), &self.linear_geglu_1);
+        map.insert("linear_geglu_2".to_string(), &self.linear_geglu_2);
+        map.insert("conv_output".to_string(), &self.conv_output);
+        map
     }
 }

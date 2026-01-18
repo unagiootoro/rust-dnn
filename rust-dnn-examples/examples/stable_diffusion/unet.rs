@@ -1,8 +1,9 @@
 use core::f32;
+use std::collections::HashMap;
 
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
 use rust_dnn_nn::{
-    layer::Conv2D,
+    layer::{Conv2D, Layer},
     layer_list::{DynLayerList, LayerList},
 };
 
@@ -320,5 +321,15 @@ impl<B: Backend> UNET<B> {
         }
 
         x
+    }
+}
+
+impl<B: Backend> Layer<B, f32> for UNET<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("encoders".to_string(), &self.encoders);
+        map.insert("bottleneck".to_string(), &self.bottleneck);
+        map.insert("decoders".to_string(), &self.decoders);
+        map
     }
 }

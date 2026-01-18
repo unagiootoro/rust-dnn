@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
-use rust_dnn_nn::layer::{Conv2D, GroupNorm};
+use rust_dnn_nn::layer::{Conv2D, GroupNorm, Layer};
 
 pub struct UNET_OutputLayer<B: Backend> {
     groupnorm: GroupNorm<B, f32>,
@@ -42,5 +44,14 @@ impl<B: Backend> UNET_OutputLayer<B> {
         //         # (Batch_Size, 4, Height / 8, Width / 8)
         //         return x
         x
+    }
+}
+
+impl<B: Backend> Layer<B, f32> for UNET_OutputLayer<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("groupnorm".to_string(), &self.groupnorm);
+        map.insert("conv".to_string(), &self.conv);
+        map
     }
 }

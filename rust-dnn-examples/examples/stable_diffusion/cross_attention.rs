@@ -1,7 +1,8 @@
 use core::f32;
+use std::collections::HashMap;
 
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
-use rust_dnn_nn::layer::Linear;
+use rust_dnn_nn::layer::{Layer, Linear};
 
 pub struct CrossAttention<B: Backend> {
     q_proj: Linear<B, f32>,
@@ -106,5 +107,16 @@ impl<B: Backend> CrossAttention<B> {
         //     # (Batch_Size, Seq_Len_Q, Dim_Q)
         //     return output
         output
+    }
+}
+
+impl<B: Backend> Layer<B, f32> for CrossAttention<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("q_proj".to_string(), &self.q_proj);
+        map.insert("k_proj".to_string(), &self.k_proj);
+        map.insert("v_proj".to_string(), &self.v_proj);
+        map.insert("out_proj".to_string(), &self.out_proj);
+        map
     }
 }

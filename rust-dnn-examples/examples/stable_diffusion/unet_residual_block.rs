@@ -20,14 +20,47 @@ impl<B: Backend> UNET_ResidualBlock<B> {
 
     pub fn new2(in_channels: usize, out_channels: usize, n_time: usize, device: Device<B>) -> Self {
         let groupnorm_feature = GroupNorm::new(32, in_channels, 1e-5, true, device);
-        let conv_feature = Conv2D::new(in_channels, out_channels, 3, 3, 1, 1, Some((1, 1)), false, true, device);
+        let conv_feature = Conv2D::new(
+            in_channels,
+            out_channels,
+            3,
+            3,
+            1,
+            1,
+            Some((1, 1)),
+            false,
+            true,
+            device,
+        );
         let linear_time = Linear::new(n_time, out_channels, true, device);
         let groupnorm_merged = GroupNorm::new(32, out_channels, 1e-5, true, device);
-        let conv_merged = Conv2D::new(out_channels, out_channels, 3, 3, 1, 1, Some((1, 1)), false, true, device);
+        let conv_merged = Conv2D::new(
+            out_channels,
+            out_channels,
+            3,
+            3,
+            1,
+            1,
+            Some((1, 1)),
+            false,
+            true,
+            device,
+        );
         let residual_layer = if in_channels == out_channels {
             None
         } else {
-            Some(Conv2D::new(in_channels, out_channels, 1, 1, 1, 1, None, false, true, device))
+            Some(Conv2D::new(
+                in_channels,
+                out_channels,
+                1,
+                1,
+                1,
+                1,
+                None,
+                false,
+                true,
+                device,
+            ))
         };
         Self {
             groupnorm_feature,
@@ -95,6 +128,15 @@ impl<B: Backend> UNET_ResidualBlock<B> {
 
 impl<B: Backend> Layer<B, f32> for UNET_ResidualBlock<B> {
     fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
-        todo!()
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("groupnorm_feature".to_string(), &self.groupnorm_feature);
+        map.insert("conv_feature".to_string(), &self.conv_feature);
+        map.insert("linear_time".to_string(), &self.linear_time);
+        map.insert("groupnorm_merged".to_string(), &self.groupnorm_merged);
+        map.insert("conv_merged".to_string(), &self.conv_merged);
+        if let Some(ref residual_layer) = self.residual_layer {
+            map.insert("residual_layer".to_string(), residual_layer);
+        }
+        map
     }
 }

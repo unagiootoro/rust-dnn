@@ -1,7 +1,8 @@
 use core::f32;
+use std::collections::HashMap;
 
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
-use rust_dnn_nn::layer::Linear;
+use rust_dnn_nn::layer::{Layer, Linear};
 
 pub struct TimeEmbedding<B: Backend> {
     linear_1: Linear<B, f32>,
@@ -20,5 +21,14 @@ impl<B: Backend> TimeEmbedding<B> {
         let x = x.silu();
         let x = self.linear_2.forward(&x);
         x
+    }
+}
+
+impl<B: Backend> Layer<B, f32> for TimeEmbedding<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("linear_1".to_string(), &self.linear_1);
+        map.insert("linear_2".to_string(), &self.linear_2);
+        map
     }
 }

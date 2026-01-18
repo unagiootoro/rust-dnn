@@ -37,7 +37,15 @@ impl<B: Backend> CLIPEmbedding<B> {
 
 impl<B: Backend> Layer<B, f32> for CLIPEmbedding<B> {
     fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
-        todo!()
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("token_embedding".to_string(), &self.token_embedding);
+        map
+    }
+
+    fn parameters_map(&self) -> HashMap<String, Tensor<B, f32>> {
+        let mut map = HashMap::<String, Tensor<B, f32>>::new();
+        map.insert("position_embedding".to_string(), self.position_embedding.clone());
+        map
     }
 }
 
@@ -117,7 +125,13 @@ impl<B: Backend> CLIPLayer<B> {
 
 impl<B: Backend> Layer<B, f32> for CLIPLayer<B> {
     fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
-        todo!()
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("layernorm_1".to_string(), &self.layernorm_1);
+        map.insert("attention".to_string(), &self.attention);
+        map.insert("layernorm_2".to_string(), &self.layernorm_2);
+        map.insert("linear_1".to_string(), &self.linear_1);
+        map.insert("linear_2".to_string(), &self.linear_2);
+        map
     }
 }
 
@@ -154,6 +168,10 @@ impl<B: Backend> CLIP<B> {
 
 impl<B: Backend> Layer<B, f32> for CLIP<B> {
     fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
-        todo!()
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("embedding".to_string(), &self.embedding);
+        map.insert("layers".to_string(), &self.layers);
+        map.insert("layernorm".to_string(), &self.layernorm);
+        map
     }
 }

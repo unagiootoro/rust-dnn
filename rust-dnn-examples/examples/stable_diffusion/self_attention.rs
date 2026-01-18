@@ -1,7 +1,8 @@
 use core::f32;
+use std::collections::HashMap;
 
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
-use rust_dnn_nn::layer::Linear;
+use rust_dnn_nn::layer::{Layer, Linear};
 
 pub struct SelfAttention<B: Backend> {
     in_proj: Linear<B, f32>,
@@ -58,5 +59,14 @@ impl<B: Backend> SelfAttention<B> {
         let output = output.transpose(1, 2);
         let output = output.reshape(input_shape);
         self.out_proj.forward(&output)
+    }
+}
+
+impl<B: Backend> Layer<B, f32> for SelfAttention<B> {
+    fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
+        let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
+        map.insert("in_proj".to_string(), &self.in_proj);
+        map.insert("out_proj".to_string(), &self.out_proj);
+        map
     }
 }
