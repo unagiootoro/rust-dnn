@@ -30,6 +30,75 @@ thread_local! {
     pub static TENSOR_ID_COUNTER: RefCell<usize> = RefCell::new(0);
 }
 
+pub trait ReshapeTarget {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize>;
+}
+
+impl ReshapeTarget for &[isize] {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize> {
+        let mut vec = Vec::new();
+        let mut minus_one_axis = -1;
+        let mut not_minus_one_axis_size = 1;
+        for (i, dim) in self.iter().enumerate() {
+            if *dim == -1 {
+                minus_one_axis = i as isize;
+                vec.push(0);
+            } else if *dim >= 0 {
+                vec.push(*dim as usize);
+                not_minus_one_axis_size *= *dim as usize;
+            } else {
+                panic!("Invalid dim(i = {}, dim = {})", i, *dim);
+            }
+        }
+        if minus_one_axis != -1 {
+            vec[minus_one_axis as usize] = len / not_minus_one_axis_size;
+        }
+        vec
+    }
+}
+
+impl ReshapeTarget for &[usize] {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
+impl ReshapeTarget for &Vec<isize> {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize> {
+        let mut vec = Vec::new();
+        let mut minus_one_axis = -1;
+        let mut not_minus_one_axis_size = 1;
+        for (i, dim) in self.iter().enumerate() {
+            if *dim == -1 {
+                minus_one_axis = i as isize;
+                vec.push(0);
+            } else if *dim >= 0 {
+                vec.push(*dim as usize);
+                not_minus_one_axis_size *= *dim as usize;
+            } else {
+                panic!("Invalid dim(i = {}, dim = {})", i, *dim);
+            }
+        }
+        if minus_one_axis != -1 {
+            vec[minus_one_axis as usize] = len / not_minus_one_axis_size;
+        }
+        vec
+    }
+}
+
+impl ReshapeTarget for &Vec<usize> {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
+// TODO: 移行用のため、あとで削除する。
+impl ReshapeTarget for Vec<usize> {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
 pub struct TensorState<B: Backend, T: Num> {
     id: usize,
     storage: Rc<RefCell<Storage<T>>>,
@@ -602,7 +671,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         f(lhs_storage, rhs_storage, &self.layout, &rhs.layout).expect("Failed op2_inplace_impl")
     }
 
-    pub fn reshape(&self, shape: Vec<usize>) -> Self {
+    pub fn reshape<S: ReshapeTarget>(&self, shape: S) -> Self {
+        let shape = shape.to_shape_vec(self.len());
         assert!(shape.len() > 0);
 
         let output_len = Self::compute_len(&shape);

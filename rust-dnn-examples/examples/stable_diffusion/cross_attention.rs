@@ -36,33 +36,75 @@ impl<B: Backend> CrossAttention<B> {
         }
     }
 
-    pub fn forward(&self, x: &Tensor<B, f32>, causal_mask: bool) -> Tensor<B, f32> {
+    pub fn forward(&self, x: &Tensor<B, f32>, y: &Tensor<B, f32>) -> Tensor<B, f32> {
+        //     # x (latent): # (Batch_Size, Seq_Len_Q, Dim_Q)
+        //     # y (context): # (Batch_Size, Seq_Len_KV, Dim_KV) = (Batch_Size, 77, 768)
+
+        //     input_shape = x.shape
         let input_shape = x.shape().to_vec();
-        let batch_size = input_shape[0];
-        let sequence_length = input_shape[1];
 
-        let interim_shape = vec![batch_size, sequence_length, self.n_heads, self.d_head];
+        //     batch_size, sequence_length, d_embed = input_shape
+        let batch_size = x.size(0);
 
-        let q = self.q_proj.forward(x);
-        let k = self.k_proj.forward(x);
-        let v = self.v_proj.forward(x);
+        //     # Divide each embedding of Q into multiple heads such that d_heads * n_heads = Dim_Q
+        //     interim_shape = (batch_size, -1, self.n_heads, self.d_head)
+        let interim_shape = vec![
+            batch_size as isize,
+            -1,
+            self.n_heads as isize,
+            self.d_head as isize,
+        ];
 
-        let q = q.reshape(interim_shape.clone()).transpose(1, 2);
-        let k = k.reshape(interim_shape.clone()).transpose(1, 2);
-        let v = v.reshape(interim_shape.clone()).transpose(1, 2);
+        //     # (Batch_Size, Seq_Len_Q, Dim_Q) -> (Batch_Size, Seq_Len_Q, Dim_Q)
+        //     q = self.q_proj(x)
+        let q = self.q_proj.forward(&x);
+        //     # (Batch_Size, Seq_Len_KV, Dim_KV) -> (Batch_Size, Seq_Len_KV, Dim_Q)
+        //     k = self.k_proj(y)
+        let k = self.k_proj.forward(&y);
+        //     # (Batch_Size, Seq_Len_KV, Dim_KV) -> (Batch_Size, Seq_Len_KV, Dim_Q)
+        //     v = self.v_proj(y)
+        let v = self.v_proj.forward(&y);
 
-        let weight = q.matmul(&k.transpose(-1, -2));
-        if causal_mask {
-            let mask = Tensor::ones(weight.shape().to_vec(), x.device());
-            weight.masked_fill(&mask, -f32::MAX);
-        }
+        //     # (Batch_Size, Seq_Len_Q, Dim_Q) -> (Batch_Size, Seq_Len_Q, H, Dim_Q / H) -> (Batch_Size, H, Seq_Len_Q, Dim_Q / H)
+        //     q = q.view(interim_shape).transpose(1, 2)
+        let q = q.reshape(&interim_shape).transpose(1, 2);
+        //     # (Batch_Size, Seq_Len_KV, Dim_Q) -> (Batch_Size, Seq_Len_KV, H, Dim_Q / H) -> (Batch_Size, H, Seq_Len_KV, Dim_Q / H)
+        //     k = k.view(interim_shape).transpose(1, 2)
+        let k = k.reshape(&interim_shape).transpose(1, 2);
+        //     # (Batch_Size, Seq_Len_KV, Dim_Q) -> (Batch_Size, Seq_Len_KV, H, Dim_Q / H) -> (Batch_Size, H, Seq_Len_KV, Dim_Q / H)
+        //     v = v.view(interim_shape).transpose(1, 2)
+        let v = v.reshape(&interim_shape).transpose(1, 2);
 
+        //     # (Batch_Size, H, Seq_Len_Q, Dim_Q / H) @ (Batch_Size, H, Dim_Q / H, Seq_Len_KV) -> (Batch_Size, H, Seq_Len_Q, Seq_Len_KV)
+        //     weight = q @ k.transpose(-1, -2)
+        let weight = q.matmul(&k).transpose(-1, -2);
+
+        //     # (Batch_Size, H, Seq_Len_Q, Seq_Len_KV)
+        //     weight /= math.sqrt(self.d_head)
         let weight = weight / (self.d_head as f64).sqrt();
+
+        //     # (Batch_Size, H, Seq_Len_Q, Seq_Len_KV)
+        //     weight = F.softmax(weight, dim=-1)
         let weight = weight.softmax(-1);
 
+        //     # (Batch_Size, H, Seq_Len_Q, Seq_Len_KV) @ (Batch_Size, H, Seq_Len_KV, Dim_Q / H) -> (Batch_Size, H, Seq_Len_Q, Dim_Q / H)
+        //     output = weight @ v
         let output = weight.matmul(&v);
-        let output = output.transpose(1, 2);
+
+        //     # (Batch_Size, H, Seq_Len_Q, Dim_Q / H) -> (Batch_Size, Seq_Len_Q, H, Dim_Q / H)
+        //     output = output.transpose(1, 2).contiguous()
+        let output = output.transpose(1, 2).contiguous();
+
+        //     # (Batch_Size, Seq_Len_Q, H, Dim_Q / H) -> (Batch_Size, Seq_Len_Q, Dim_Q)
+        //     output = output.view(input_shape)
         let output = output.reshape(input_shape);
-        self.out_proj.forward(&output)
+
+        //     # (Batch_Size, Seq_Len_Q, Dim_Q) -> (Batch_Size, Seq_Len_Q, Dim_Q)
+        //     output = self.out_proj(output)
+        let output = self.out_proj.forward(&output);
+
+        //     # (Batch_Size, Seq_Len_Q, Dim_Q)
+        //     return output
+        output
     }
 }
