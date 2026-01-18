@@ -588,6 +588,26 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.op2_impl_scalar(rhs, None, B::ge)
     }
 
+    pub fn maximum(&self, rhs: &Self) -> Self {
+        self.op2_impl(
+            rhs,
+            Some(Op::Maximum(self.clone(), rhs.clone())),
+            B::maximum,
+        )
+    }
+
+    pub fn minimum(&self, rhs: &Self) -> Self {
+        self.op2_impl(
+            rhs,
+            Some(Op::Minimum(self.clone(), rhs.clone())),
+            B::minimum,
+        )
+    }
+
+    pub fn clamp(&self, min: &Self, max: &Self) -> Self {
+        self.maximum(min).minimum(max)
+    }
+
     fn op1_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Self
     where
         F: for<'a> Fn(&'a Storage<T>, &'a Layout) -> Result<Storage<T>>,
@@ -2430,6 +2450,12 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             Op::Neg(x) => {
                 vec![x]
             }
+            Op::Maximum(x1, x2) => {
+                vec![x1, x2]
+            }
+            Op::Minimum(x1, x2) => {
+                vec![x1, x2]
+            }
             Op::Matmul(x1, x2) => {
                 vec![x1, x2]
             }
@@ -2540,6 +2566,12 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 }
                 Op::Neg(x) => {
                     Self::neg_backward(&mut grads, &gy, &x);
+                }
+                Op::Maximum(x1, x2) => {
+                    Self::maximum_backward(&mut grads, &gy, &x1, &x2);
+                }
+                Op::Minimum(x1, x2) => {
+                    Self::minimum_backward(&mut grads, &gy, &x1, &x2);
                 }
                 Op::Matmul(x1, x2) => {
                     Self::matmul_backward(&mut grads, &gy, &x1, &x2);
@@ -2744,6 +2776,34 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     ) {
         let gx1 = (gy / x2).sum_to(x1.shape());
         let gx2 = (gy * (-x1 / x2.pow_scalar(2.0))).sum_to(x2.shape());
+        grads.add(x1, gx1);
+        grads.add(x2, gx2);
+    }
+
+    fn maximum_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x1: &Tensor<B, T>,
+        x2: &Tensor<B, T>,
+    ) {
+        let mask1 = x1.gt(x2).to_dtype::<T>();
+        let mask2 = x2.ge(x1).to_dtype::<T>();
+        let gx1 = (gy * mask1).sum_to(x1.shape());
+        let gx2 = (gy * mask2).sum_to(x2.shape());
+        grads.add(x1, gx1);
+        grads.add(x2, gx2);
+    }
+
+    fn minimum_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x1: &Tensor<B, T>,
+        x2: &Tensor<B, T>,
+    ) {
+        let mask1 = x1.lt(x2).to_dtype::<T>();
+        let mask2 = x2.le(x1).to_dtype::<T>();
+        let gx1 = (gy * mask1).sum_to(x1.shape());
+        let gx2 = (gy * mask2).sum_to(x2.shape());
         grads.add(x1, gx1);
         grads.add(x2, gx2);
     }

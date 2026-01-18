@@ -266,6 +266,37 @@ fn test_ge<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_ge, test_ge_cpu, test_ge_cuda);
 
+fn test_maximum<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let y = x1.maximum(&x2);
+    assert_tensor(&y, &ten![0.0, 0.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_maximum, test_maximum_cpu, test_maximum_cuda);
+
+fn test_minimum<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let y = x1.minimum(&x2);
+    assert_tensor(&y, &ten![-1.0, -1.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_minimum, test_minimum_cpu, test_minimum_cuda);
+
+fn test_clamp<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-2.0, -1.0, 0.0, 1.0, 2.0].to_device(device)?;
+    let min = Tensor::from_f64(-1.0, device);
+    let max = Tensor::from_f64(1.0, device);
+    let y = x.clamp(&min, &max);
+    assert_tensor(&y, &ten![-1.0, -1.0, 0.0, 1.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_clamp, test_clamp_cpu, test_clamp_cuda);
+
 static MATMUL_BATCH_FORWARD_EXPECTED_DATA: [f64; 144] = [
     180., 190., 200., 210., 220., 230., 480., 515., 550., 585., 620., 655., 780., 840., 900., 960.,
     1020., 1080., 1080., 1165., 1250., 1335., 1420., 1505., 4680., 4790., 4900., 5010., 5120.,

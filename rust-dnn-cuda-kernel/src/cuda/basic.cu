@@ -21,6 +21,12 @@ DEFINE_OP2_U32_KERNEL2(cuda_gt, >)
 DEFINE_OP2_U32_KERNEL2(cuda_ge, >=)
 DEFINE_OP2_U32_KERNEL2(cuda_eq, ==)
 
+#define MAXIMUM(a, b) ((a) > (b) ? (a) : (b))
+#define MINIMUM(a, b) ((a) < (b) ? (a) : (b))
+
+DEFINE_OP2_KERNEL3(cuda_maximum, MAXIMUM)
+DEFINE_OP2_KERNEL3(cuda_minimum, MINIMUM)
+
 template <typename T1, typename T2>
 __device__ void cuda_convert_kernel(
     T1* a,

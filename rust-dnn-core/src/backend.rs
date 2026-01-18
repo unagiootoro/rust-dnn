@@ -103,6 +103,18 @@ pub trait Backend: Clone + Copy + 'static {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>>;
+    fn maximum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>>;
+    fn minimum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>>;
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn copy<T: Num>(
         lhs_storage: &mut Storage<T>,
