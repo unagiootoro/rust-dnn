@@ -260,6 +260,9 @@ define_extern_op2_u32_func!(cuda_gt_uint32_t, cuda_gt_float, cuda_gt_double);
 define_extern_op2_u32_func!(cuda_ge_uint32_t, cuda_ge_float, cuda_ge_double);
 define_extern_op2_u32_func!(cuda_eq_uint32_t, cuda_eq_float, cuda_eq_double);
 
+define_extern_op2_func!(cuda_maximum_uint32_t, cuda_maximum_float, cuda_maximum_double);
+define_extern_op2_func!(cuda_minimum_uint32_t, cuda_minimum_float, cuda_minimum_double);
+
 unsafe extern "C" {
     pub fn cuda_convert(
         dtype1: i32,

@@ -186,6 +186,24 @@ impl Backend for CudaBackend {
         cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_ge)
     }
 
+    fn maximum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_maximum)
+    }
+
+    fn minimum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_minimum)
+    }
+
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         cuda_op1_func_call(storage, layout, cuda_neg)
     }
@@ -1100,6 +1118,9 @@ define_cuda_op2_u32_func!(cuda_le, cuda_le_uint32_t, cuda_le_float, cuda_le_doub
 define_cuda_op2_u32_func!(cuda_gt, cuda_gt_uint32_t, cuda_gt_float, cuda_gt_double);
 define_cuda_op2_u32_func!(cuda_ge, cuda_ge_uint32_t, cuda_ge_float, cuda_ge_double);
 define_cuda_op2_u32_func!(cuda_eq, cuda_eq_uint32_t, cuda_eq_float, cuda_eq_double);
+
+define_cuda_op2_func!(cuda_maximum, cuda_maximum_uint32_t, cuda_maximum_float, cuda_maximum_double);
+define_cuda_op2_func!(cuda_minimum, cuda_minimum_uint32_t, cuda_minimum_float, cuda_minimum_double);
 
 define_cuda_float_op2_func!(cuda_pow, cuda_pow_float, cuda_pow_double);
 define_cuda_op1_func!(cuda_exp, cuda_exp_float, cuda_exp_double);
