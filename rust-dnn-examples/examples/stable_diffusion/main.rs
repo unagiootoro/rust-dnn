@@ -10,6 +10,8 @@ mod switch_sequential;
 mod time_embedding;
 mod diffusion;
 mod clip;
+mod ddpm;
+mod pipeline;
 
 fn main() {
 }

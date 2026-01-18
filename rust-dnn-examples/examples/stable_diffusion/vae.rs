@@ -347,7 +347,7 @@ impl<B: Backend> VAE_Decoder<B> {
         Self { sequential }
     }
 
-    pub fn forward(&mut self, x: &Tensor<B, f32>, causal_mask: bool) -> Tensor<B, f32> {
+    pub fn forward(&mut self, x: &Tensor<B, f32>) -> Tensor<B, f32> {
         let x = x / 0.18215;
         self.sequential.forward(x, false)
     }
