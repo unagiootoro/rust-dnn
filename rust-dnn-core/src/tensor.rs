@@ -865,7 +865,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.get_item(ranges)
     }
 
-    pub fn gather(&self, index: &Tensor<B, u32>, axis: usize) -> Self {
+    pub fn gather(&self, index: &Tensor<B, u32>, axis: isize) -> Self {
+        let usize_axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed gather");
         let input_storage = &*self.storage.borrow();
         let index_storage = &*index.storage.borrow();
 
@@ -874,7 +875,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             index_storage,
             &self.layout,
             &index.layout,
-            axis,
+            usize_axis,
         )
         .expect("Failed gather");
 
@@ -891,7 +892,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         );
     }
 
-    pub fn scatter(&self, index: &Tensor<B, u32>, src: &Self, axis: usize) {
+    pub fn scatter(&self, index: &Tensor<B, u32>, src: &Self, axis: isize) {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed scatter");
         let input_storage = &mut *self.storage.borrow_mut();
         let index_storage = &*index.storage.borrow();
         let src_storage = &*src.storage.borrow();
@@ -907,7 +909,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         .expect("Failed scatter")
     }
 
-    pub fn scatter_add(&self, index: &Tensor<B, u32>, src: &Self, axis: usize) {
+    pub fn scatter_add(&self, index: &Tensor<B, u32>, src: &Self, axis: isize) {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed scatter_add");
         let input_storage = &mut *self.storage.borrow_mut();
         let index_storage = &*index.storage.borrow();
         let src_storage = &*src.storage.borrow();
@@ -923,16 +926,14 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         .expect("Failed scatter_add")
     }
 
-    pub fn index_select(&self, axis: usize, index: &Tensor<B, u32>) -> Self {
-        if axis > self.ndim() {
-            panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim());
-        }
+    pub fn index_select(&self, axis: isize, index: &Tensor<B, u32>) -> Self {
+        let usize_axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed index_select");
         let input_storage = &*self.storage.borrow();
         let index_storage = &*index.storage.borrow();
 
         let mut output_shape = Vec::new();
         for (i, dim) in self.shape().iter().enumerate() {
-            if i == axis {
+            if i == usize_axis {
                 output_shape.push(index.len());
             } else {
                 output_shape.push(*dim);
@@ -947,7 +948,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             &self.layout,
             &index.layout,
             &output_layout,
-            axis,
+            usize_axis,
         )
         .expect("Failed index_select");
 
@@ -961,15 +962,15 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
-    pub fn index_copy(&self, axis: usize, index: &Tensor<B, u32>, src: &Tensor<B, T>) {
+    pub fn index_copy(&self, axis: isize, index: &Tensor<B, u32>, src: &Tensor<B, T>) {
         self.index_set_impl(axis, index, src, B::index_copy)
     }
 
-    pub fn index_add(&self, axis: usize, index: &Tensor<B, u32>, src: &Tensor<B, T>) {
+    pub fn index_add(&self, axis: isize, index: &Tensor<B, u32>, src: &Tensor<B, T>) {
         self.index_set_impl(axis, index, src, B::index_add)
     }
 
-    fn index_set_impl<F>(&self, axis: usize, index: &Tensor<B, u32>, src: &Tensor<B, T>, f: F)
+    fn index_set_impl<F>(&self, axis: isize, index: &Tensor<B, u32>, src: &Tensor<B, T>, f: F)
     where
         F: for<'a> Fn(
             &'a mut Storage<T>,
@@ -981,9 +982,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             usize,
         ) -> Result<()>,
     {
-        if axis > self.ndim() {
-            panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim())
-        }
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed index_select");
         let input_storage = &mut *self.storage.borrow_mut();
         let index_storage = &*index.storage.borrow();
         let src_storage = &*src.storage.borrow();
@@ -1079,8 +1078,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             .reshape(vec![indices.len(), 1])
             .broadcast_to(vec![indices.len(), repeats])
             .flatten_all();
-        let axis2 = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed select");
-        self.index_select(axis2, &indices)
+        self.index_select(axis, &indices)
     }
 
     pub fn copy(&self, src: &Self) {
@@ -1114,6 +1112,17 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             self.is_requires_grad,
             op,
         );
+    }
+
+    pub fn flip(&self, axes: &[isize]) -> Self {
+        let mut result = self.clone();
+        for axis in axes {
+            let index_vec: Vec<u32> = (0..self.size(*axis)).rev().map(|i| i as u32).collect();
+            let index_shape = vec![index_vec.len()];
+            let index = Tensor::from_vec(index_vec, index_shape, self.device);
+            result = result.index_select(*axis, &index)
+        }
+        result
     }
 
     pub fn masked_fill(&self, mask: &Tensor<B, u32>, value: T) -> Tensor<B, T> {
@@ -1871,6 +1880,10 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             None
         };
         self.op1_impl(op, B::ln)
+    }
+
+    pub fn round(&self) -> Self {
+        self.op1_impl(None, B::round)
     }
 
     pub fn sigmoid(&self) -> Self {
@@ -2769,7 +2782,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         gy: &Tensor<B, T>,
         x: &Tensor<B, T>,
         index: &Tensor<B, u32>,
-        axis: usize,
+        axis: isize,
     ) {
         let gx = Tensor::zeros(x.shape().to_vec(), gy.device);
         gx.scatter_add(index, gy, axis);
@@ -2781,7 +2794,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         gy: &Tensor<B, T>,
         x: &Tensor<B, T>,
         index: &Tensor<B, u32>,
-        axis: usize,
+        axis: isize,
     ) {
         let gx = Tensor::zeros(x.shape().to_vec(), gy.device);
         gx.index_add(axis, index, gy);

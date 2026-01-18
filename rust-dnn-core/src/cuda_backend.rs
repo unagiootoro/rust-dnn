@@ -228,6 +228,11 @@ impl Backend for CudaBackend {
         cuda_op1_func_call(storage, layout, cuda_ln)
     }
 
+    fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        todo!()
+        // cuda_op1_func_call(storage, layout, cuda_round)
+    }
+
     fn matmul<T: Float>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,

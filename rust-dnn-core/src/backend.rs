@@ -122,6 +122,7 @@ pub trait Backend: Clone + Copy + 'static {
     fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
+    fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn matmul<T: Float>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,
