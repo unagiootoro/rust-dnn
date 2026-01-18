@@ -620,6 +620,15 @@ define_test!(
     test_ln_backward_cuda
 );
 
+fn test_round<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0].to_device(device)?;
+    let y = x.round();
+    assert_tensor(&y, &ten![-1.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_round, test_round_cpu, test_round_cuda);
+
 fn test_sin<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.5].to_device(device)?;
     let y = x.sin();
@@ -1487,6 +1496,19 @@ define_test!(
     test_broadcast_to_backward,
     test_broadcast_to_backward_cpu,
     test_broadcast_to_backward_cuda
+);
+
+fn test_flip<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
+    let y = x.flip(&[0, 1]);
+    assert_tensor(&y, &ten![[6.0, 5.0, 4.0], [3.0, 2.0, 1.0]]);
+    Ok(())
+}
+
+define_test!(
+    test_flip,
+    test_flip_cpu,
+    test_flip_cuda
 );
 
 fn test_masked_fill<B: Backend>(device: Device<B>) -> Result<()> {

@@ -309,6 +309,10 @@ impl Backend for CpuBackend {
         map_arg1::<T, _>(storage, layout, |a| a.ln())
     }
 
+    fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        map_arg1::<T, _>(storage, layout, |a| a.round())
+    }
+
     fn matmul<T: Float>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,

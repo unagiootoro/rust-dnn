@@ -25,8 +25,8 @@ pub enum Op<B: Backend, T: Num> {
     Sqrt(Tensor<B, T>),
     Exp(Tensor<B, T>),
     Ln(Tensor<B, T>),
-    Gather(Tensor<B, T>, Tensor<B, u32>, usize),
-    IndexSelect(Tensor<B, T>, Tensor<B, u32>, usize),
+    Gather(Tensor<B, T>, Tensor<B, u32>, isize),
+    IndexSelect(Tensor<B, T>, Tensor<B, u32>, isize),
     Im2col {
         x: Tensor<B, T>,
         out_h: usize,
