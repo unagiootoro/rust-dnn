@@ -1256,6 +1256,18 @@ fn test_split<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_split, test_split_cpu, test_split_cuda);
 
+fn test_chunk<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]
+        .to_device(device)?
+        .requires_grad();
+    let ys = x.chunk(1, 2);
+    assert_tensor(&ys[0], &ten![[1.0, 2.0], [5.0, 6.0]]);
+    assert_tensor(&ys[1], &ten![[3.0, 4.0], [7.0, 8.0]]);
+    Ok(())
+}
+
+define_test!(test_chunk, test_chunk_cpu, test_chunk_cuda);
+
 fn test_repeat_interleave<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
     let y = x.repeat_interleave(0, 2);

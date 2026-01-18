@@ -1157,7 +1157,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Self::cat(&tensors, axis)
     }
 
-    pub fn split(&self, axis: usize, split_sections: &[usize]) -> Vec<Self> {
+    pub fn split(&self, axis: isize, split_sections: &[usize]) -> Vec<Self> {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed split");
         let mut ys = Vec::new();
         let mut total_axis_ndim = 0;
         for dim in split_sections {
@@ -1175,6 +1176,21 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             ys.push(y);
         }
         ys
+    }
+
+    pub fn chunk(&self, axis: isize, chunks: usize) -> Vec<Self> {
+        let axis_size = self.size(axis);
+        let mut split_sections = Vec::new();
+        let base_chunk_size = axis_size / chunks;
+        let remainder = axis_size % chunks;
+        for i in 0..chunks {
+            if i < remainder {
+                split_sections.push(base_chunk_size + 1);
+            } else {
+                split_sections.push(base_chunk_size);
+            }
+        }
+        self.split(axis, &split_sections)
     }
 
     pub fn repeat_interleave(&self, axis: isize, repeats: usize) -> Self {
@@ -2696,7 +2712,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         axis: usize,
         split_sections: &[usize],
     ) {
-        for (i, t) in gy.split(axis, split_sections).iter().enumerate() {
+        for (i, t) in gy.split(axis as isize, split_sections).iter().enumerate() {
             grads.add(&xs[i], t.clone());
         }
     }
