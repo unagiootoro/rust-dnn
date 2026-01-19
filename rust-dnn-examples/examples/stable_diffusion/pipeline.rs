@@ -204,7 +204,10 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
         //                 output_cond, output_uncond = model_output.chunk(2)
         //                 model_output = cfg_scale * (output_cond - output_uncond) + output_uncond
         if cfg.do_cfg {
-            // TODO: chunk
+            let chunks = model_output.chunk(0, 2);
+            let output_cond = &chunks[0];
+            let output_uncond = &chunks[1];
+            model_output = cfg.cfg_scale * (output_cond - output_uncond) + output_uncond;
         }
 
         //             # (Batch_Size, 4, Latents_Height, Latents_Width) -> (Batch_Size, 4, Latents_Height, Latents_Width)

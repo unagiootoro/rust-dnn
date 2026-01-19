@@ -108,8 +108,7 @@ impl<B: Backend> UNET_AttentionBlock<B> {
 
         //         # (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
         //         x = self.attention_2(x, context)
-        // TODO:
-        // let x = self.attention_2.forward(&x, context);
+        let x = self.attention_2.forward(&x, context);
 
         //         # (Batch_Size, Height * Width, Features) + (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
         //         x += residue_short
@@ -128,11 +127,13 @@ impl<B: Backend> UNET_AttentionBlock<B> {
         //         # GeGLU as implemented in the original code: https://github.com/CompVis/stable-diffusion/blob/21f890f9da3cfbeaba8e2ac3c425ee9e998d5229/ldm/modules/attention.py#L37C10-L37C10
         //         # (Batch_Size, Height * Width, Features) -> two tensors of shape (Batch_Size, Height * Width, Features * 4)
         //         x, gate = self.linear_geglu_1(x).chunk(2, dim=-1)
-        // TODO:
+        let chunks = self.linear_geglu_1.forward(&x).chunk(-1, 2);
+        let x = &chunks[0];
+        let gate = &chunks[1];
 
         //         # Element-wise product: (Batch_Size, Height * Width, Features * 4) * (Batch_Size, Height * Width, Features * 4) -> (Batch_Size, Height * Width, Features * 4)
         //         x = x * F.gelu(gate)
-        // TODO:
+        let x = x * gate.gelu();
 
         //         # (Batch_Size, Height * Width, Features * 4) -> (Batch_Size, Height * Width, Features)
         //         x = self.linear_geglu_2(x)
