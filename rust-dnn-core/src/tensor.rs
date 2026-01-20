@@ -30,6 +30,75 @@ thread_local! {
     pub static TENSOR_ID_COUNTER: RefCell<usize> = RefCell::new(0);
 }
 
+pub trait ReshapeTarget {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize>;
+}
+
+impl ReshapeTarget for &[isize] {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize> {
+        let mut vec = Vec::new();
+        let mut minus_one_axis = -1;
+        let mut not_minus_one_axis_size = 1;
+        for (i, dim) in self.iter().enumerate() {
+            if *dim == -1 {
+                minus_one_axis = i as isize;
+                vec.push(0);
+            } else if *dim >= 0 {
+                vec.push(*dim as usize);
+                not_minus_one_axis_size *= *dim as usize;
+            } else {
+                panic!("Invalid dim(i = {}, dim = {})", i, *dim);
+            }
+        }
+        if minus_one_axis != -1 {
+            vec[minus_one_axis as usize] = len / not_minus_one_axis_size;
+        }
+        vec
+    }
+}
+
+impl ReshapeTarget for &[usize] {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
+impl ReshapeTarget for &Vec<isize> {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize> {
+        let mut vec = Vec::new();
+        let mut minus_one_axis = -1;
+        let mut not_minus_one_axis_size = 1;
+        for (i, dim) in self.iter().enumerate() {
+            if *dim == -1 {
+                minus_one_axis = i as isize;
+                vec.push(0);
+            } else if *dim >= 0 {
+                vec.push(*dim as usize);
+                not_minus_one_axis_size *= *dim as usize;
+            } else {
+                panic!("Invalid dim(i = {}, dim = {})", i, *dim);
+            }
+        }
+        if minus_one_axis != -1 {
+            vec[minus_one_axis as usize] = len / not_minus_one_axis_size;
+        }
+        vec
+    }
+}
+
+impl ReshapeTarget for &Vec<usize> {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
+// TODO: 移行用のため、あとで削除する。
+impl ReshapeTarget for Vec<usize> {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
 pub struct TensorState<B: Backend, T: Num> {
     id: usize,
     storage: Rc<RefCell<Storage<T>>>,
@@ -527,6 +596,11 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    pub fn maximum_scalar(&self, rhs: f64) -> Self {
+        let rhs = Self::from_f64(rhs, self.device());
+        self.maximum(&rhs)
+    }
+
     pub fn minimum(&self, rhs: &Self) -> Self {
         self.op2_impl(
             rhs,
@@ -535,8 +609,19 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
+    pub fn minimum_scalar(&self, rhs: f64) -> Self {
+        let rhs = Self::from_f64(rhs, self.device());
+        self.minimum(&rhs)
+    }
+
     pub fn clamp(&self, min: &Self, max: &Self) -> Self {
         self.maximum(min).minimum(max)
+    }
+
+    pub fn clamp_scalar(&self, min: f64, max: f64) -> Self {
+        let min = Self::from_f64(min, self.device());
+        let max = Self::from_f64(max, self.device());
+        self.clamp(&min, &max)
     }
 
     fn op1_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Self
@@ -622,7 +707,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         f(lhs_storage, rhs_storage, &self.layout, &rhs.layout).expect("Failed op2_inplace_impl")
     }
 
-    pub fn reshape(&self, shape: Vec<usize>) -> Self {
+    pub fn reshape<S: ReshapeTarget>(&self, shape: S) -> Self {
+        let shape = shape.to_shape_vec(self.len());
         assert!(shape.len() > 0);
 
         let output_len = Self::compute_len(&shape);
@@ -1071,7 +1157,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Self::cat(&tensors, axis)
     }
 
-    pub fn split(&self, axis: usize, split_sections: &[usize]) -> Vec<Self> {
+    pub fn split(&self, axis: isize, split_sections: &[usize]) -> Vec<Self> {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed split");
         let mut ys = Vec::new();
         let mut total_axis_ndim = 0;
         for dim in split_sections {
@@ -1089,6 +1176,21 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             ys.push(y);
         }
         ys
+    }
+
+    pub fn chunk(&self, axis: isize, chunks: usize) -> Vec<Self> {
+        let axis_size = self.size(axis);
+        let mut split_sections = Vec::new();
+        let base_chunk_size = axis_size / chunks;
+        let remainder = axis_size % chunks;
+        for i in 0..chunks {
+            if i < remainder {
+                split_sections.push(base_chunk_size + 1);
+            } else {
+                split_sections.push(base_chunk_size);
+            }
+        }
+        self.split(axis, &split_sections)
     }
 
     pub fn repeat(&self, repeats: &[usize]) -> Self {
@@ -2625,7 +2727,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         axis: usize,
         split_sections: &[usize],
     ) {
-        for (i, t) in gy.split(axis, split_sections).iter().enumerate() {
+        for (i, t) in gy.split(axis as isize, split_sections).iter().enumerate() {
             grads.add(&xs[i], t.clone());
         }
     }

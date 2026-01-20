@@ -1034,6 +1034,29 @@ fn test_reshape2<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_reshape2, test_reshape2_cpu, test_reshape2_cuda);
 
+fn test_reshape3<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::arange(0..24, device);
+    let y = x.reshape(&vec![2isize, -1, 4isize]);
+    assert_tensor(
+        &y,
+        &ten![
+            [
+                [0.0, 1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0, 7.0],
+                [8.0, 9.0, 10.0, 11.0]
+            ],
+            [
+                [12.0, 13.0, 14.0, 15.0],
+                [16.0, 17.0, 18.0, 19.0],
+                [20.0, 21.0, 22.0, 23.0]
+            ]
+        ],
+    );
+    Ok(())
+}
+
+define_test!(test_reshape3, test_reshape3_cpu, test_reshape3_cuda);
+
 fn test_reshape_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
@@ -1232,6 +1255,18 @@ fn test_split<B: Backend>(device: Device<B>) -> Result<()> {
 }
 
 define_test!(test_split, test_split_cpu, test_split_cuda);
+
+fn test_chunk<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]
+        .to_device(device)?
+        .requires_grad();
+    let ys = x.chunk(1, 2);
+    assert_tensor(&ys[0], &ten![[1.0, 2.0], [5.0, 6.0]]);
+    assert_tensor(&ys[1], &ten![[3.0, 4.0], [7.0, 8.0]]);
+    Ok(())
+}
+
+define_test!(test_chunk, test_chunk_cpu, test_chunk_cuda);
 
 fn test_repeat<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
