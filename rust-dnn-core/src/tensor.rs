@@ -1091,6 +1091,21 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         ys
     }
 
+    pub fn repeat(&self, repeats: &[usize]) -> Self {
+        let mut result = self.clone();
+        while result.ndim() < repeats.len() {
+            result = result.unsqueeze(0);
+        }
+
+        for (axis, count) in repeats.iter().enumerate() {
+            if *count <= 1 {
+                continue;
+            }
+            result = result.repeat_interleave(axis as isize, *count);
+        }
+        result
+    }
+
     pub fn repeat_interleave(&self, axis: isize, repeats: usize) -> Self {
         let input_size = self.size(axis) as isize;
         let indices = Tensor::arange(0..input_size, self.device());
