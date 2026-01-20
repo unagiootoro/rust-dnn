@@ -190,7 +190,7 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
         //                 # (Batch_Size, 4, Latents_Height, Latents_Width) -> (2 * Batch_Size, 4, Latents_Height, Latents_Width)
         //                 model_input = model_input.repeat(2, 1, 1, 1)
         if cfg.do_cfg {
-            // model_input = model_input.repeat(2, 1, 1, 1) // TODO: repeat
+            model_input = model_input.repeat(&[2, 1, 1, 1]);
         }
 
         //             # model_output is the predicted noise
