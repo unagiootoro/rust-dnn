@@ -1268,6 +1268,21 @@ fn test_chunk<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_chunk, test_chunk_cpu, test_chunk_cuda);
 
+fn test_repeat<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
+    let y = x.repeat(&[2, 3]);
+    assert_tensor(
+        &y,
+        &ten![
+            [1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0],
+            [1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0]
+        ],
+    );
+    Ok(())
+}
+
+define_test!(test_repeat, test_repeat_cpu, test_repeat_cuda);
+
 fn test_repeat_interleave<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
     let y = x.repeat_interleave(0, 2);
