@@ -708,16 +708,16 @@ impl<B: Backend, T: Float> Layer<B, T> for RMSNorm<B, T> {
 }
 
 pub struct UpSample2D {
-    size: (usize, usize),
+    scale: (f64, f64),
 }
 
 impl UpSample2D {
-    pub fn new(size: (usize, usize)) -> Self {
-        Self { size }
+    pub fn new(scale: (f64, f64)) -> Self {
+        Self { scale }
     }
 
     pub fn forward<B: Backend, T: Float>(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
-        nearst_interpolate(x, self.size)
+        nearest_interpolate(x, self.scale)
     }
 }
 
@@ -729,14 +729,14 @@ impl<B: Backend, T: Float> SequentialItem<B, T> for UpSample2D {
     }
 }
 
-pub fn nearst_interpolate<B: Backend, T: Float>(
+pub fn nearest_interpolate<B: Backend, T: Float>(
     input_tensor: &Tensor<B, T>,
-    size: (usize, usize),
+    scale: (f64, f64),
 ) -> Tensor<B, T> {
     let h_in = input_tensor.size(2);
     let w_in = input_tensor.size(3);
-    let h_out = size.0;
-    let w_out = size.1;
+    let h_out = (h_in as f64 * scale.0) as usize;
+    let w_out = (w_in as f64 * scale.1) as usize;
 
     let scale_h = h_in as f64 / h_out as f64;
     let scale_w = w_in as f64 / w_out as f64;
