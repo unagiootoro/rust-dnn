@@ -706,3 +706,55 @@ impl<B: Backend, T: Float> Layer<B, T> for RMSNorm<B, T> {
         map
     }
 }
+
+pub struct UpSample2D {
+    size: (usize, usize),
+}
+
+impl UpSample2D {
+    pub fn new(size: (usize, usize)) -> Self {
+        Self { size }
+    }
+
+    pub fn forward<B: Backend, T: Float>(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
+        nearst_interpolate(x, self.size)
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for UpSample2D {}
+
+impl<B: Backend, T: Float> SequentialItem<B, T> for UpSample2D {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
+        UpSample2D::forward(&self, &x)
+    }
+}
+
+pub fn nearst_interpolate<B: Backend, T: Float>(
+    input_tensor: &Tensor<B, T>,
+    size: (usize, usize),
+) -> Tensor<B, T> {
+    let h_in = input_tensor.size(2);
+    let w_in = input_tensor.size(3);
+    let h_out = size.0;
+    let w_out = size.1;
+
+    let scale_h = h_in as f64 / h_out as f64;
+    let scale_w = w_in as f64 / w_out as f64;
+
+    let device = input_tensor.device();
+    let h_indices = Tensor::<_, T>::arange(0..(h_out as isize), device) * scale_h;
+    let w_indices = Tensor::<_, T>::arange(0..(w_out as isize), device) * scale_w;
+
+    let h_indices = h_indices
+        .clamp_scalar(0.0, h_in as f64 - 1.0)
+        .to_dtype::<u32>();
+    let w_indices = w_indices
+        .clamp_scalar(0.0, w_in as f64 - 1.0)
+        .to_dtype::<u32>();
+
+    let output = input_tensor
+        .index_select(2, &h_indices)
+        .index_select(3, &w_indices);
+
+    output
+}
