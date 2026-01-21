@@ -6,7 +6,7 @@ use rust_dnn_core::{
     tensor::Tensor,
 };
 use rust_dnn_nn::{
-    layer::{Conv2D, GroupNorm, Layer},
+    layer::{Conv2D, GroupNorm, Layer, SiLU, UpSample2D},
     layer_list::LayerList,
     sequential::{DynSequential, SequentialItem},
 };
@@ -232,7 +232,7 @@ impl<B: Backend> VAE_Decoder<B> {
         //             # (Batch_Size, 512, Height / 8, Width / 8) -> (Batch_Size, 512, Height / 4, Width / 4)
         //             nn.Upsample(scale_factor=2),
 
-        // TODO: Upsample
+        sequential.add(UpSample2D::new((2.0, 2.0)));
 
         //             # (Batch_Size, 512, Height / 4, Width / 4) -> (Batch_Size, 512, Height / 4, Width / 4)
         //             nn.Conv2d(512, 512, kernel_size=3, padding=1),
@@ -268,7 +268,7 @@ impl<B: Backend> VAE_Decoder<B> {
         //             # (Batch_Size, 512, Height / 4, Width / 4) -> (Batch_Size, 512, Height / 2, Width / 2)
         //             nn.Upsample(scale_factor=2),
 
-        // TODO: Upsample
+        sequential.add(UpSample2D::new((2.0, 2.0)));
 
         //             # (Batch_Size, 512, Height / 2, Width / 2) -> (Batch_Size, 512, Height / 2, Width / 2)
         //             nn.Conv2d(512, 512, kernel_size=3, padding=1),
@@ -304,7 +304,7 @@ impl<B: Backend> VAE_Decoder<B> {
         //             # (Batch_Size, 256, Height / 2, Width / 2) -> (Batch_Size, 256, Height, Width)
         //             nn.Upsample(scale_factor=2),
 
-        // TODO: Upsample
+        sequential.add(UpSample2D::new((2.0, 2.0)));
 
         //             # (Batch_Size, 256, Height, Width) -> (Batch_Size, 256, Height, Width)
         //             nn.Conv2d(256, 256, kernel_size=3, padding=1),
@@ -345,7 +345,7 @@ impl<B: Backend> VAE_Decoder<B> {
         //             # (Batch_Size, 128, Height, Width) -> (Batch_Size, 128, Height, Width)
         //             nn.SiLU(),
 
-        // TODO: SiLU
+        sequential.add(SiLU::new());
 
         //             # (Batch_Size, 128, Height, Width) -> (Batch_Size, 3, Height, Width)
         //             nn.Conv2d(128, 3, kernel_size=3, padding=1),

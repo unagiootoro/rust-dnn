@@ -758,3 +758,23 @@ pub fn nearest_interpolate<B: Backend, T: Float>(
 
     output
 }
+
+pub struct SiLU;
+
+impl SiLU {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn forward<B: Backend, T: Float>(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
+        x.silu()
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for SiLU {}
+
+impl<B: Backend, T: Float> SequentialItem<B, T> for SiLU {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
+        SiLU::forward(&self, &x)
+    }
+}

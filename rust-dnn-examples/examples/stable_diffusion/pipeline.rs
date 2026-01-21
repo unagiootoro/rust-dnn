@@ -37,20 +37,20 @@ const LATENTS_HEIGHT: usize = HEIGHT / 8;
 // ):
 
 pub struct GenerateConfig<'a, B: Backend> {
-    cond_tokens: Tensor<B, u32>,
-    uncond_tokens: Tensor<B, u32>,
-    input_image: Option<()>, // TODO:
-    strength: f64,
-    do_cfg: bool,
-    cfg_scale: f64,
-    sampler_name: &'a str,
-    n_inference_steps: usize,
-    clip: CLIP<B>,
-    diffusion: Diffusion<B>,
-    decoder: VAE_Decoder<B>,
-    seed: Option<u64>,
-    device: Device<B>,
-    idle_device: Option<Device<CpuBackend>>,
+    pub cond_tokens: Tensor<B, u32>,
+    pub uncond_tokens: Tensor<B, u32>,
+    pub input_image: Option<()>, // TODO:
+    pub strength: f64,
+    pub do_cfg: bool,
+    pub cfg_scale: f64,
+    pub sampler_name: &'a str,
+    pub n_inference_steps: usize,
+    pub clip: CLIP<B>,
+    pub diffusion: Diffusion<B>,
+    pub decoder: VAE_Decoder<B>,
+    pub seed: Option<u64>,
+    pub device: Device<B>,
+    pub idle_device: Option<Device<CpuBackend>>,
 }
 
 pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend, f32> {
@@ -178,6 +178,7 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
 
     //         for i, timestep in enumerate(timesteps):
     for (i, timestep) in timesteps.to_vec().iter().enumerate() {
+        println!("iter = {}", i);
         //             # (1, 320)
         //             time_embedding = get_time_embedding(timestep).to(device)
         let time_embedding = get_time_embedding(*timestep as usize, cfg.device);

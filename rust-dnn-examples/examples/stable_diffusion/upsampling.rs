@@ -2,7 +2,7 @@ use core::f32;
 use std::collections::HashMap;
 
 use rust_dnn_core::{backend::Backend, device::Device, tensor::Tensor};
-use rust_dnn_nn::layer::{Conv2D, Layer};
+use rust_dnn_nn::layer::{Conv2D, Layer, nearest_interpolate};
 
 pub struct Upsample<B: Backend> {
     conv: Conv2D<B, f32>,
@@ -28,8 +28,7 @@ impl<B: Backend> Upsample<B> {
     pub fn forward(&self, x: &Tensor<B, f32>) -> Tensor<B, f32> {
         //         # (Batch_Size, Features, Height, Width) -> (Batch_Size, Features, Height * 2, Width * 2)
         //         x = F.interpolate(x, scale_factor=2, mode='nearest')
-        // TODO:
-
+        let x = nearest_interpolate(x, (2.0, 2.0));
         self.conv.forward(&x)
     }
 }
