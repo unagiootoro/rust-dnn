@@ -1575,7 +1575,7 @@ define_test!(
 
 fn test_up_sample2d<B: Backend>(device: Device<B>) -> Result<()> {
     let x = arange_with_shape(&[2, 3, 4, 5], device);
-    let up_sample2d = UpSample2D::new((8, 10));
+    let up_sample2d = UpSample2D::new((2.0, 2.0));
     let y = up_sample2d.forward(&x);
     let expected_y = Tensor::from_vec(
         vec![
@@ -1630,7 +1630,7 @@ define_test!(
 
 fn test_up_sample2d_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = arange_with_shape(&[2, 3, 4, 5], device).requires_grad();
-    let up_sample2d = UpSample2D::new((8, 10));
+    let up_sample2d = UpSample2D::new((2.0, 2.0));
     let y = up_sample2d.forward(&x);
     let expected_y = Tensor::from_vec(
         vec![
