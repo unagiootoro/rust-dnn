@@ -2210,7 +2210,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         let prev_w = self.shape()[3];
 
         let (pad_h, pad_w) = if let Some(padding) = &padding {
-            (padding.0, padding.1)
+            (padding.0 * 2, padding.1 * 2)
         } else {
             if auto_padding {
                 Self::compute_conv2d_padding_size(prev_h, prev_w, fil_h, fil_w, stride_h, stride_w)

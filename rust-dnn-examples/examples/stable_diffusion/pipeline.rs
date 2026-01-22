@@ -216,6 +216,10 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
         //             # (Batch_Size, 4, Latents_Height, Latents_Width) -> (Batch_Size, 4, Latents_Height, Latents_Width)
         //             latents = sampler.step(timestep, latents, model_output)
         latents = sampler.step(*timestep as usize, latents, model_output);
+
+        if i >= 8 {
+            break;
+        }
     }
 
     //         to_idle(diffusion)

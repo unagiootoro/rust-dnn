@@ -275,7 +275,7 @@ impl<B: Backend> VAE_Decoder<B> {
 
         sequential.add(Conv2D::new(
             512,
-            256,
+            512,
             3,
             3,
             1,
