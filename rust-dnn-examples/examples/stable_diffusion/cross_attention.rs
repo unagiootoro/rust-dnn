@@ -78,7 +78,7 @@ impl<B: Backend> CrossAttention<B> {
 
         //     # (Batch_Size, H, Seq_Len_Q, Dim_Q / H) @ (Batch_Size, H, Dim_Q / H, Seq_Len_KV) -> (Batch_Size, H, Seq_Len_Q, Seq_Len_KV)
         //     weight = q @ k.transpose(-1, -2)
-        let weight = q.matmul(&k).transpose(-1, -2);
+        let weight = q.matmul(&k.transpose(-1, -2));
 
         //     # (Batch_Size, H, Seq_Len_Q, Seq_Len_KV)
         //     weight /= math.sqrt(self.d_head)

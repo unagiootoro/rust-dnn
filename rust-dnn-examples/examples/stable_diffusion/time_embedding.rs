@@ -11,7 +11,7 @@ pub struct TimeEmbedding<B: Backend> {
 
 impl<B: Backend> TimeEmbedding<B> {
     pub fn new(n_embd: usize, device: Device<B>) -> Self {
-        let linear_1 = Linear::new(n_embd * 4, n_embd, true, device);
+        let linear_1 = Linear::new(n_embd, 4 * n_embd, true, device);
         let linear_2 = Linear::new(4 * n_embd, 4 * n_embd, true, device);
         Self { linear_1, linear_2 }
     }

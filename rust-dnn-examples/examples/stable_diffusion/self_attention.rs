@@ -38,9 +38,10 @@ impl<B: Backend> SelfAttention<B> {
         let interim_shape = vec![batch_size, sequence_length, self.n_heads, self.d_head];
 
         let h = self.in_proj.forward(x);
-        let q = h.select(-1, 0);
-        let k = h.select(-1, 1);
-        let v = h.select(-1, 2);
+        let chunks = h.chunk(-1, 3);
+        let q = &chunks[0];
+        let k = &chunks[1];
+        let v = &chunks[2];
 
         let q = q.reshape(interim_shape.clone()).transpose(1, 2);
         let k = k.reshape(interim_shape.clone()).transpose(1, 2);

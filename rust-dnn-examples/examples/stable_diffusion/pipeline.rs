@@ -95,7 +95,8 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
         //             cond_tokens = torch.tensor(cond_tokens, dtype=torch.long, device=device)
         //             # (Batch_Size, Seq_Len) -> (Batch_Size, Seq_Len, Dim)
         //             cond_context = clip(cond_tokens)
-        let cond_context = cfg.clip.forward(&cfg.cond_tokens);
+        let cond_tokens = cfg.cond_tokens.reshape(&vec![1isize, -1isize]);
+        let cond_context = cfg.clip.forward(&cond_tokens);
 
         //             # Convert into a list of length Seq_Len=77
         //             uncond_tokens = tokenizer.batch_encode_plus(
@@ -105,7 +106,8 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
         //             uncond_tokens = torch.tensor(uncond_tokens, dtype=torch.long, device=device)
         //             # (Batch_Size, Seq_Len) -> (Batch_Size, Seq_Len, Dim)
         //             uncond_context = clip(uncond_tokens)
-        let uncond_context = cfg.clip.forward(&cfg.uncond_tokens);
+        let uncond_tokens = cfg.uncond_tokens.reshape(&vec![1isize, -1isize]);
+        let uncond_context = cfg.clip.forward(&uncond_tokens);
 
         //             # (Batch_Size, Seq_Len, Dim) + (Batch_Size, Seq_Len, Dim) -> (2 * Batch_Size, Seq_Len, Dim)
         //             context = torch.cat([cond_context, uncond_context])
@@ -257,12 +259,20 @@ fn rescale<B: Backend>(
 }
 
 fn get_time_embedding<B: Backend>(timestep: usize, device: Device<B>) -> Tensor<B, f32> {
+    //     # Shape: (160,)
+    //     freqs = torch.pow(10000, -torch.arange(start=0, end=160, dtype=torch.float32) / 160)
     let v = ten![10000.0].to_device(device).unwrap();
     let freqs = v.pow(&(-Tensor::arange(0..160, device) / 160.0));
+
+    //     # Shape: (1, 160)
+    //     x = torch.tensor([timestep], dtype=torch.float32)[:, None] * freqs[None]
     let x = ten![timestep as f32]
         .to_device(device)
         .unwrap()
         .unsqueeze(-1)
-        * freqs.unsqueeze(-1);
+        * freqs.unsqueeze(0);
+
+    //     # Shape: (1, 160 * 2)
+    //     return torch.cat([torch.cos(x), torch.sin(x)], dim=-1)
     Tensor::cat(&[x.cos(), x.sin()], -1)
 }

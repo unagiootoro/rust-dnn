@@ -227,6 +227,8 @@ macro_rules! define_extern_reduce_cmp_axis_index_func {
 }
 
 define_extern_op1_func!(cuda_neg_float, cuda_neg_double);
+define_extern_op1_func!(cuda_round_float, cuda_round_double);
+
 define_extern_op2_func!(cuda_add_uint32_t, cuda_add_float, cuda_add_double);
 define_extern_op2_func!(cuda_sub_uint32_t, cuda_sub_float, cuda_sub_double);
 define_extern_op2_func!(cuda_mul_uint32_t, cuda_mul_float, cuda_mul_double);

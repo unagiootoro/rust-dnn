@@ -137,7 +137,7 @@ impl<B: Backend> UNET_AttentionBlock<B> {
 
         //         # (Batch_Size, Height * Width, Features * 4) -> (Batch_Size, Height * Width, Features)
         //         x = self.linear_geglu_2(x)
-        let x = self.linear_geglu_1.forward(&x);
+        let x = self.linear_geglu_2.forward(&x);
 
         //         # (Batch_Size, Height * Width, Features) + (Batch_Size, Height * Width, Features) -> (Batch_Size, Height * Width, Features)
         //         x += residue_short

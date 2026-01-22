@@ -247,7 +247,7 @@ impl<B: Backend> UNET<B> {
         {
             let mut s = SwitchSequential::new();
             s.add(UNET_ResidualBlock::new(1920, 640, device));
-            s.add(UNET_AttentionBlock::new(8, 160, device));
+            s.add(UNET_AttentionBlock::new(8, 80, device));
             decoders.add(s);
         }
 
@@ -274,7 +274,7 @@ impl<B: Backend> UNET<B> {
         //             SwitchSequential(UNET_ResidualBlock(960, 320), UNET_AttentionBlock(8, 40)),
         {
             let mut s = SwitchSequential::new();
-            s.add(UNET_ResidualBlock::new(960, 640, device));
+            s.add(UNET_ResidualBlock::new(960, 320, device));
             s.add(UNET_AttentionBlock::new(8, 40, device));
             decoders.add(s);
         }
