@@ -66,8 +66,8 @@ impl<B: Backend> DDPMSampler<B> {
         self.timesteps = timesteps;
     }
 
-    fn get_previous_timestep(&self, timestep: usize) -> usize {
-        timestep - self.num_train_timesteps / self.num_inference_steps
+    fn get_previous_timestep(&self, timestep: usize) -> isize {
+        timestep as isize - self.num_train_timesteps as isize / self.num_inference_steps as isize
     }
 
     fn get_variance(&self, timestep: usize) -> Tensor<B, f32> {

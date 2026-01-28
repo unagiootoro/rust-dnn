@@ -221,10 +221,6 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
         //             latents = sampler.step(timestep, latents, model_output)
         latents = sampler.step(*timestep as usize, latents, model_output);
         println!("latents = {:?}", &latents.to_vec()[0..8]);
-
-        if i >= 8 {
-            break;
-        }
     }
 
     //         to_idle(diffusion)
