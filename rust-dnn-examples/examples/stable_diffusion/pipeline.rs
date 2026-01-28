@@ -204,6 +204,7 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
         let mut model_output = cfg
             .diffusion
             .forward(&model_input, &context, &time_embedding);
+        println!("model_output = {:?}", &model_output.to_vec()[0..8]);
 
         //             if do_cfg:
         //                 output_cond, output_uncond = model_output.chunk(2)
@@ -213,11 +214,13 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
             let output_cond = &chunks[0];
             let output_uncond = &chunks[1];
             model_output = cfg.cfg_scale * (output_cond - output_uncond) + output_uncond;
+            println!("2: model_output = {:?}", &model_output.to_vec()[0..8]);
         }
 
         //             # (Batch_Size, 4, Latents_Height, Latents_Width) -> (Batch_Size, 4, Latents_Height, Latents_Width)
         //             latents = sampler.step(timestep, latents, model_output)
         latents = sampler.step(*timestep as usize, latents, model_output);
+        println!("latents = {:?}", &latents.to_vec()[0..8]);
 
         if i >= 8 {
             break;
