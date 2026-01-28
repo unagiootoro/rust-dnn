@@ -131,11 +131,12 @@ impl<B: Backend> VAE_ResidualBlock<B> {
         let x = self.groupnorm_2.forward(&x);
         let x = x.silu();
         let x = self.conv_2.forward(&x);
-        if let Some(ref residual_layer) = self.residual_layer {
+        let x = if let Some(ref residual_layer) = self.residual_layer {
             x + residual_layer.forward(&residue)
         } else {
-            x
-        }
+            x + residue
+        };
+        x
     }
 }
 

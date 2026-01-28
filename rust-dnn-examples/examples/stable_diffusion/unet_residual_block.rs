@@ -121,7 +121,7 @@ impl<B: Backend> UNET_ResidualBlock<B> {
         if let Some(ref residual_layer) = self.residual_layer {
             merged + residual_layer.forward(&residue)
         } else {
-            merged
+            merged + residue
         }
     }
 }

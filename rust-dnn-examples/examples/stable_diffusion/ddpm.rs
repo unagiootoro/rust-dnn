@@ -106,9 +106,9 @@ impl<B: Backend> DDPMSampler<B> {
             (&latents - beta_prod_t.pow_scalar(0.5) * &model_output) / alpha_prod_t.pow_scalar(0.5);
 
         let pred_original_sample_coeff =
-            (&alpha_prod_t_prev.pow_scalar(0.5) * current_beta_t) / beta_prod_t.pow_scalar(0.5);
+            (&alpha_prod_t_prev.pow_scalar(0.5) * current_beta_t) / &beta_prod_t;
         let current_sample_coeff =
-            (&current_alpha_t.pow_scalar(0.5) * beta_prod_t_prev) / beta_prod_t.pow_scalar(0.5);
+            (&current_alpha_t.pow_scalar(0.5) * beta_prod_t_prev) / beta_prod_t;
 
         let pred_prev_sample =
             pred_original_sample_coeff * pred_original_sample + current_sample_coeff * latents;
