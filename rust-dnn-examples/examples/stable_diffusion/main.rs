@@ -96,7 +96,7 @@ fn run<B: Backend>(device: Device<B>) -> Result<()> {
         do_cfg: true,
         cfg_scale: 8.0,
         sampler_name: "ddpm",
-        n_inference_steps: 10,
+        n_inference_steps: 50,
         decoder,
         clip,
         diffusion,
