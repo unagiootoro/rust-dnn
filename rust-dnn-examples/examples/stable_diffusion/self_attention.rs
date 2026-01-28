@@ -47,10 +47,10 @@ impl<B: Backend> SelfAttention<B> {
         let k = k.reshape(interim_shape.clone()).transpose(1, 2);
         let v = v.reshape(interim_shape.clone()).transpose(1, 2);
 
-        let weight = q.matmul(&k.transpose(-1, -2));
+        let mut weight = q.matmul(&k.transpose(-1, -2));
         if causal_mask {
-            let mask = Tensor::ones(weight.shape().to_vec(), x.device());
-            weight.masked_fill(&mask, -f32::MAX);
+            let mask = Tensor::ones(weight.shape().to_vec(), x.device()).triu3(1);
+            weight = weight.masked_fill(&mask, -f32::MAX);
         }
 
         let weight = weight / (self.d_head as f64).sqrt();
@@ -59,7 +59,8 @@ impl<B: Backend> SelfAttention<B> {
         let output = weight.matmul(&v);
         let output = output.transpose(1, 2);
         let output = output.reshape(input_shape);
-        self.out_proj.forward(&output)
+        let output = self.out_proj.forward(&output);
+        output
     }
 }
 

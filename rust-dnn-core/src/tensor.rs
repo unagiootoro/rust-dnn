@@ -1329,6 +1329,48 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self * &mask
     }
 
+    pub fn triu3(&self, diagonal: isize) -> Self {
+        assert!(self.ndim() >= 2);
+
+        let mut batch_size = 1;
+        for i in 0..self.ndim() - 2 {
+            batch_size *= self.shape()[i];
+        }
+
+        let rows = self.shape()[self.ndim() - 2] as isize;
+        let cols = self.shape()[self.ndim() - 1] as isize;
+        let mask = Tensor::zeros(vec![batch_size, rows as usize, cols as usize], self.device);
+
+        let one = Tensor::ones(vec![1], self.device);
+        for n in 0..batch_size {
+            for i in 0..rows {
+                // 開始列 = 行 index + diagonal
+                let mut col_begin = i + diagonal;
+
+                // 範囲をクリップ
+                if col_begin < 0 {
+                    col_begin = 0;
+                }
+                if col_begin >= cols {
+                    continue;
+                }
+
+                mask.set_item(
+                    &vec![
+                        (n, n + 1),
+                        (i as usize, (i + 1) as usize),
+                        (col_begin as usize, cols as usize),
+                    ],
+                    &one,
+                );
+            }
+        }
+
+        let mask = mask.reshape(self.shape().to_vec());
+
+        self * &mask
+    }
+
     fn compute_broadcast_stride(
         original_shape: &[usize],
         original_strides: &[usize],
