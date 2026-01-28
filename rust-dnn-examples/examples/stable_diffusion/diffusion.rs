@@ -40,7 +40,7 @@ impl<B: Backend> Layer<B, f32> for Diffusion<B> {
         let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
         map.insert("time_embedding".to_string(), &self.time_embedding);
         map.insert("unet".to_string(), &self.unet);
-        map.insert("final_layer".to_string(), &self.final_layer);
+        map.insert("final".to_string(), &self.final_layer);
         map
     }
 }

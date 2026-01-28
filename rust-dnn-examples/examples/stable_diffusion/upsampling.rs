@@ -36,7 +36,7 @@ impl<B: Backend> Upsample<B> {
 impl<B: Backend> Layer<B, f32> for Upsample<B> {
     fn layers_map(&self) -> HashMap<String, &dyn Layer<B, f32>> {
         let mut map: HashMap<String, &dyn Layer<B, f32>> = HashMap::new();
-        map.insert("encoders".to_string(), &self.conv);
+        map.insert("conv".to_string(), &self.conv);
         map
     }
 }
