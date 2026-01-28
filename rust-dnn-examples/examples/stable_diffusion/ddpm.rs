@@ -107,10 +107,6 @@ impl<B: Backend> DDPMSampler<B> {
         } else {
             self.one.clone()
         };
-        // println!("timestep = {:?}", timestep);
-        // println!("prev_t = {:?}", prev_t);
-        // println!("alpha_prod_t = {:?}", &alpha_prod_t.to_vec());
-        // println!("alpha_prod_t_prev = {:?}", &alpha_prod_t_prev.to_vec());
         //     beta_prod_t = 1 - alpha_prod_t
         let beta_prod_t = 1.0 - &alpha_prod_t;
         //     beta_prod_t_prev = 1 - alpha_prod_t_prev
@@ -159,8 +155,6 @@ impl<B: Backend> DDPMSampler<B> {
         //     # sample from N(mu, sigma) = X can be obtained by X = mu + sigma * N(0, 1)
         //     # the variable "variance" is already multiplied by the noise N(0, 1)
         //     pred_prev_sample = pred_prev_sample + variance
-        println!("pred_prev_sample = {:?}", &pred_prev_sample.to_vec()[0..8]);
-        println!("variance = {:?}", &variance.to_vec());
         let pred_prev_sample = pred_prev_sample + variance;
 
         //     return pred_prev_sample
