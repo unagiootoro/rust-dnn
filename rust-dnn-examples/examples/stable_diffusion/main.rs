@@ -16,7 +16,6 @@ use crate::{
 mod clip;
 mod cross_attention;
 mod ddpm;
-mod debug_latent_data;
 mod diffusion;
 mod pipeline;
 mod self_attention;

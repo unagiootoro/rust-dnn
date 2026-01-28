@@ -11,7 +11,6 @@ use rust_dnn_core::{
 use crate::{
     clip::{self, CLIP},
     ddpm::DDPMSampler,
-    debug_latent_data::DEBUG_LATENT_INPUT,
     diffusion::Diffusion,
     vae::VAE_Decoder,
 };
@@ -171,8 +170,7 @@ pub fn generate<'a, B: Backend>(mut cfg: GenerateConfig<B>) -> Tensor<CpuBackend
     //         else:
     //             # (Batch_Size, 4, Latents_Height, Latents_Width)
     //             latents = torch.randn(latents_shape, generator=generator, device=device)
-    // let mut latents = Tensor::rand_norm(&latents_shape, cfg.seed, cfg.device);
-    let mut latents = Tensor::from_vec(DEBUG_LATENT_INPUT.to_vec(), latents_shape, cfg.device);
+    let mut latents = Tensor::rand_norm(&latents_shape, cfg.seed, cfg.device);
 
     //         diffusion = models["diffusion"]
     //         diffusion.to(device)
