@@ -2462,7 +2462,7 @@ fn test_conv2d_strides_auto_padding<B: Backend>(device: Device<B>) -> Result<()>
         fil_w,
         2,
         3,
-        Some((0, 2)),
+        Some((0, 1)),
         false,
     );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 2]);
@@ -2731,7 +2731,7 @@ fn test_conv2d_backward_strides_auto_padding<B: Backend>(device: Device<B>) -> R
         fil_w,
         2,
         3,
-        Some((0, 2)),
+        Some((0, 1)),
         false,
     );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 2]);
