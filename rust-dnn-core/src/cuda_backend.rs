@@ -186,6 +186,24 @@ impl Backend for CudaBackend {
         cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_ge)
     }
 
+    fn maximum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_maximum)
+    }
+
+    fn minimum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        cuda_op2_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, cuda_minimum)
+    }
+
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         cuda_op1_func_call(storage, layout, cuda_neg)
     }
@@ -226,6 +244,10 @@ impl Backend for CudaBackend {
 
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         cuda_op1_func_call(storage, layout, cuda_ln)
+    }
+
+    fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        cuda_op1_func_call(storage, layout, cuda_round)
     }
 
     fn matmul<T: Float>(
@@ -1096,6 +1118,9 @@ define_cuda_op2_u32_func!(cuda_gt, cuda_gt_uint32_t, cuda_gt_float, cuda_gt_doub
 define_cuda_op2_u32_func!(cuda_ge, cuda_ge_uint32_t, cuda_ge_float, cuda_ge_double);
 define_cuda_op2_u32_func!(cuda_eq, cuda_eq_uint32_t, cuda_eq_float, cuda_eq_double);
 
+define_cuda_op2_func!(cuda_maximum, cuda_maximum_uint32_t, cuda_maximum_float, cuda_maximum_double);
+define_cuda_op2_func!(cuda_minimum, cuda_minimum_uint32_t, cuda_minimum_float, cuda_minimum_double);
+
 define_cuda_float_op2_func!(cuda_pow, cuda_pow_float, cuda_pow_double);
 define_cuda_op1_func!(cuda_exp, cuda_exp_float, cuda_exp_double);
 define_cuda_op1_func!(cuda_ln, cuda_ln_float, cuda_ln_double);
@@ -1103,6 +1128,7 @@ define_cuda_op1_func!(cuda_sqrt, cuda_sqrt_float, cuda_sqrt_double);
 define_cuda_op1_func!(cuda_sin, cuda_sin_float, cuda_sin_double);
 define_cuda_op1_func!(cuda_cos, cuda_cos_float, cuda_cos_double);
 define_cuda_op1_func!(cuda_tanh, cuda_tanh_float, cuda_tanh_double);
+define_cuda_op1_func!(cuda_round, cuda_round_float, cuda_round_double);
 
 define_cuda_reduce_func!(cuda_sum, cuda_sum_float, cuda_sum_double);
 define_cuda_reduce_func!(cuda_max, cuda_max_float, cuda_max_double);

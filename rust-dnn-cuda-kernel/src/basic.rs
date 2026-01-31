@@ -227,6 +227,8 @@ macro_rules! define_extern_reduce_cmp_axis_index_func {
 }
 
 define_extern_op1_func!(cuda_neg_float, cuda_neg_double);
+define_extern_op1_func!(cuda_round_float, cuda_round_double);
+
 define_extern_op2_func!(cuda_add_uint32_t, cuda_add_float, cuda_add_double);
 define_extern_op2_func!(cuda_sub_uint32_t, cuda_sub_float, cuda_sub_double);
 define_extern_op2_func!(cuda_mul_uint32_t, cuda_mul_float, cuda_mul_double);
@@ -259,6 +261,9 @@ define_extern_op2_u32_func!(cuda_le_uint32_t, cuda_le_float, cuda_le_double);
 define_extern_op2_u32_func!(cuda_gt_uint32_t, cuda_gt_float, cuda_gt_double);
 define_extern_op2_u32_func!(cuda_ge_uint32_t, cuda_ge_float, cuda_ge_double);
 define_extern_op2_u32_func!(cuda_eq_uint32_t, cuda_eq_float, cuda_eq_double);
+
+define_extern_op2_func!(cuda_maximum_uint32_t, cuda_maximum_float, cuda_maximum_double);
+define_extern_op2_func!(cuda_minimum_uint32_t, cuda_minimum_float, cuda_minimum_double);
 
 unsafe extern "C" {
     pub fn cuda_convert(

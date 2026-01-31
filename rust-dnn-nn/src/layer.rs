@@ -209,6 +209,12 @@ impl<B: Backend, T: Float> Layer<B, T> for Conv2D<B, T> {
     }
 }
 
+impl<B: Backend, T: Float> SequentialItem<B, T> for Conv2D<B, T> {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
+        Conv2D::forward(&self, &x)
+    }
+}
+
 pub struct Deconv2D<B: Backend, T: Float> {
     in_filters: usize,
     out_filters: usize,
@@ -642,6 +648,12 @@ impl<B: Backend, T: Float> Layer<B, T> for GroupNorm<B, T> {
     }
 }
 
+impl<B: Backend, T: Float> SequentialItem<B, T> for GroupNorm<B, T> {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
+        GroupNorm::forward(&self, &x)
+    }
+}
+
 pub fn group_norm<B: Backend, T: Float>(
     x: &Tensor<B, T>,
     gamma: &Tensor<B, T>,
@@ -692,5 +704,77 @@ impl<B: Backend, T: Float> Layer<B, T> for RMSNorm<B, T> {
         let mut map = HashMap::new();
         map.insert("weight".to_string(), self.gamma.clone());
         map
+    }
+}
+
+pub struct UpSample2D {
+    scale: (f64, f64),
+}
+
+impl UpSample2D {
+    pub fn new(scale: (f64, f64)) -> Self {
+        Self { scale }
+    }
+
+    pub fn forward<B: Backend, T: Float>(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
+        nearest_interpolate(x, self.scale)
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for UpSample2D {}
+
+impl<B: Backend, T: Float> SequentialItem<B, T> for UpSample2D {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
+        UpSample2D::forward(&self, &x)
+    }
+}
+
+pub fn nearest_interpolate<B: Backend, T: Float>(
+    input_tensor: &Tensor<B, T>,
+    scale: (f64, f64),
+) -> Tensor<B, T> {
+    let h_in = input_tensor.size(2);
+    let w_in = input_tensor.size(3);
+    let h_out = (h_in as f64 * scale.0) as usize;
+    let w_out = (w_in as f64 * scale.1) as usize;
+
+    let scale_h = h_in as f64 / h_out as f64;
+    let scale_w = w_in as f64 / w_out as f64;
+
+    let device = input_tensor.device();
+    let h_indices = Tensor::<_, T>::arange(0..(h_out as isize), device) * scale_h;
+    let w_indices = Tensor::<_, T>::arange(0..(w_out as isize), device) * scale_w;
+
+    let h_indices = h_indices
+        .clamp_scalar(0.0, h_in as f64 - 1.0)
+        .to_dtype::<u32>();
+    let w_indices = w_indices
+        .clamp_scalar(0.0, w_in as f64 - 1.0)
+        .to_dtype::<u32>();
+
+    let output = input_tensor
+        .index_select(2, &h_indices)
+        .index_select(3, &w_indices);
+
+    output
+}
+
+pub struct SiLU;
+
+impl SiLU {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn forward<B: Backend, T: Float>(&self, x: &Tensor<B, T>) -> Tensor<B, T> {
+        x.silu()
+    }
+}
+
+impl<B: Backend, T: Float> Layer<B, T> for SiLU {}
+
+impl<B: Backend, T: Float> SequentialItem<B, T> for SiLU {
+    fn forward(&mut self, x: Tensor<B, T>, _is_train: bool) -> Tensor<B, T> {
+        SiLU::forward(&self, &x)
     }
 }

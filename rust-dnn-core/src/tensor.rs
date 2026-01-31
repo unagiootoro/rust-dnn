@@ -33,6 +33,75 @@ thread_local! {
     pub static TENSOR_ID_COUNTER: RefCell<usize> = RefCell::new(0);
 }
 
+pub trait ReshapeTarget {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize>;
+}
+
+impl ReshapeTarget for &[isize] {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize> {
+        let mut vec = Vec::new();
+        let mut minus_one_axis = -1;
+        let mut not_minus_one_axis_size = 1;
+        for (i, dim) in self.iter().enumerate() {
+            if *dim == -1 {
+                minus_one_axis = i as isize;
+                vec.push(0);
+            } else if *dim >= 0 {
+                vec.push(*dim as usize);
+                not_minus_one_axis_size *= *dim as usize;
+            } else {
+                panic!("Invalid dim(i = {}, dim = {})", i, *dim);
+            }
+        }
+        if minus_one_axis != -1 {
+            vec[minus_one_axis as usize] = len / not_minus_one_axis_size;
+        }
+        vec
+    }
+}
+
+impl ReshapeTarget for &[usize] {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
+impl ReshapeTarget for &Vec<isize> {
+    fn to_shape_vec(&self, len: usize) -> Vec<usize> {
+        let mut vec = Vec::new();
+        let mut minus_one_axis = -1;
+        let mut not_minus_one_axis_size = 1;
+        for (i, dim) in self.iter().enumerate() {
+            if *dim == -1 {
+                minus_one_axis = i as isize;
+                vec.push(0);
+            } else if *dim >= 0 {
+                vec.push(*dim as usize);
+                not_minus_one_axis_size *= *dim as usize;
+            } else {
+                panic!("Invalid dim(i = {}, dim = {})", i, *dim);
+            }
+        }
+        if minus_one_axis != -1 {
+            vec[minus_one_axis as usize] = len / not_minus_one_axis_size;
+        }
+        vec
+    }
+}
+
+impl ReshapeTarget for &Vec<usize> {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
+// TODO: 移行用のため、あとで削除する。
+impl ReshapeTarget for Vec<usize> {
+    fn to_shape_vec(&self, _len: usize) -> Vec<usize> {
+        self.to_vec()
+    }
+}
+
 pub struct TensorState<B: Backend, T: Num> {
     id: usize,
     storage: Rc<RefCell<Storage<T>>>,
@@ -534,6 +603,42 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.op2_impl_scalar(rhs, None, B::ge)
     }
 
+    pub fn maximum(&self, rhs: &Self) -> Self {
+        self.op2_impl(
+            rhs,
+            Some(Op::Maximum(self.clone(), rhs.clone())),
+            B::maximum,
+        )
+    }
+
+    pub fn maximum_scalar(&self, rhs: f64) -> Self {
+        let rhs = Self::from_f64(rhs, self.device());
+        self.maximum(&rhs)
+    }
+
+    pub fn minimum(&self, rhs: &Self) -> Self {
+        self.op2_impl(
+            rhs,
+            Some(Op::Minimum(self.clone(), rhs.clone())),
+            B::minimum,
+        )
+    }
+
+    pub fn minimum_scalar(&self, rhs: f64) -> Self {
+        let rhs = Self::from_f64(rhs, self.device());
+        self.minimum(&rhs)
+    }
+
+    pub fn clamp(&self, min: &Self, max: &Self) -> Self {
+        self.maximum(min).minimum(max)
+    }
+
+    pub fn clamp_scalar(&self, min: f64, max: f64) -> Self {
+        let min = Self::from_f64(min, self.device());
+        let max = Self::from_f64(max, self.device());
+        self.clamp(&min, &max)
+    }
+
     fn op1_impl<F>(&self, op: Option<Op<B, T>>, f: F) -> Self
     where
         F: for<'a> Fn(&'a Storage<T>, &'a Layout) -> Result<Storage<T>>,
@@ -617,7 +722,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         f(lhs_storage, rhs_storage, &self.layout, &rhs.layout).expect("Failed op2_inplace_impl")
     }
 
-    pub fn reshape(&self, shape: Vec<usize>) -> Self {
+    pub fn reshape<S: ReshapeTarget>(&self, shape: S) -> Self {
+        let shape = shape.to_shape_vec(self.len());
         assert!(shape.len() > 0);
 
         let output_len = Self::compute_len(&shape);
@@ -880,7 +986,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         self.get_item(ranges)
     }
 
-    pub fn gather(&self, index: &Tensor<B, u32>, axis: usize) -> Self {
+    pub fn gather(&self, index: &Tensor<B, u32>, axis: isize) -> Self {
+        let usize_axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed gather");
         let input_storage = &*self.storage.borrow();
         let index_storage = &*index.storage.borrow();
 
@@ -889,7 +996,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             index_storage,
             &self.layout,
             &index.layout,
-            axis,
+            usize_axis,
         )
         .expect("Failed gather");
 
@@ -906,7 +1013,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         );
     }
 
-    pub fn scatter(&self, index: &Tensor<B, u32>, src: &Self, axis: usize) {
+    pub fn scatter(&self, index: &Tensor<B, u32>, src: &Self, axis: isize) {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed scatter");
         let input_storage = &mut *self.storage.borrow_mut();
         let index_storage = &*index.storage.borrow();
         let src_storage = &*src.storage.borrow();
@@ -922,7 +1030,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         .expect("Failed scatter")
     }
 
-    pub fn scatter_add(&self, index: &Tensor<B, u32>, src: &Self, axis: usize) {
+    pub fn scatter_add(&self, index: &Tensor<B, u32>, src: &Self, axis: isize) {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed scatter_add");
         let input_storage = &mut *self.storage.borrow_mut();
         let index_storage = &*index.storage.borrow();
         let src_storage = &*src.storage.borrow();
@@ -938,16 +1047,14 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         .expect("Failed scatter_add")
     }
 
-    pub fn index_select(&self, axis: usize, index: &Tensor<B, u32>) -> Self {
-        if axis > self.ndim() {
-            panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim());
-        }
+    pub fn index_select(&self, axis: isize, index: &Tensor<B, u32>) -> Self {
+        let usize_axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed index_select");
         let input_storage = &*self.storage.borrow();
         let index_storage = &*index.storage.borrow();
 
         let mut output_shape = Vec::new();
         for (i, dim) in self.shape().iter().enumerate() {
-            if i == axis {
+            if i == usize_axis {
                 output_shape.push(index.len());
             } else {
                 output_shape.push(*dim);
@@ -962,7 +1069,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             &self.layout,
             &index.layout,
             &output_layout,
-            axis,
+            usize_axis,
         )
         .expect("Failed index_select");
 
@@ -976,15 +1083,15 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
-    pub fn index_copy(&self, axis: usize, index: &Tensor<B, u32>, src: &Tensor<B, T>) {
+    pub fn index_copy(&self, axis: isize, index: &Tensor<B, u32>, src: &Tensor<B, T>) {
         self.index_set_impl(axis, index, src, B::index_copy)
     }
 
-    pub fn index_add(&self, axis: usize, index: &Tensor<B, u32>, src: &Tensor<B, T>) {
+    pub fn index_add(&self, axis: isize, index: &Tensor<B, u32>, src: &Tensor<B, T>) {
         self.index_set_impl(axis, index, src, B::index_add)
     }
 
-    fn index_set_impl<F>(&self, axis: usize, index: &Tensor<B, u32>, src: &Tensor<B, T>, f: F)
+    fn index_set_impl<F>(&self, axis: isize, index: &Tensor<B, u32>, src: &Tensor<B, T>, f: F)
     where
         F: for<'a> Fn(
             &'a mut Storage<T>,
@@ -996,9 +1103,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             usize,
         ) -> Result<()>,
     {
-        if axis > self.ndim() {
-            panic!("Invalid axis(axis = {}, ndim = {})", axis, self.ndim())
-        }
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed index_select");
         let input_storage = &mut *self.storage.borrow_mut();
         let index_storage = &*index.storage.borrow();
         let src_storage = &*src.storage.borrow();
@@ -1067,7 +1172,8 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         Self::cat(&tensors, axis)
     }
 
-    pub fn split(&self, axis: usize, split_sections: &[usize]) -> Vec<Self> {
+    pub fn split(&self, axis: isize, split_sections: &[usize]) -> Vec<Self> {
+        let axis = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed split");
         let mut ys = Vec::new();
         let mut total_axis_ndim = 0;
         for dim in split_sections {
@@ -1087,6 +1193,36 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         ys
     }
 
+    pub fn chunk(&self, axis: isize, chunks: usize) -> Vec<Self> {
+        let axis_size = self.size(axis);
+        let mut split_sections = Vec::new();
+        let base_chunk_size = axis_size / chunks;
+        let remainder = axis_size % chunks;
+        for i in 0..chunks {
+            if i < remainder {
+                split_sections.push(base_chunk_size + 1);
+            } else {
+                split_sections.push(base_chunk_size);
+            }
+        }
+        self.split(axis, &split_sections)
+    }
+
+    pub fn repeat(&self, repeats: &[usize]) -> Self {
+        let mut result = self.clone();
+        while result.ndim() < repeats.len() {
+            result = result.unsqueeze(0);
+        }
+
+        for (axis, count) in repeats.iter().enumerate() {
+            if *count <= 1 {
+                continue;
+            }
+            result = result.repeat_interleave(axis as isize, *count);
+        }
+        result
+    }
+
     pub fn repeat_interleave(&self, axis: isize, repeats: usize) -> Self {
         let input_size = self.size(axis) as isize;
         let indices = Tensor::arange(0..input_size, self.device());
@@ -1094,8 +1230,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             .reshape(vec![indices.len(), 1])
             .broadcast_to(vec![indices.len(), repeats])
             .flatten_all();
-        let axis2 = Self::axis_isize_to_usize(axis, self.ndim()).expect("Failed select");
-        self.index_select(axis2, &indices)
+        self.index_select(axis, &indices)
     }
 
     pub fn copy(&self, src: &Self) {
@@ -1129,6 +1264,17 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             self.is_requires_grad,
             op,
         );
+    }
+
+    pub fn flip(&self, axes: &[isize]) -> Self {
+        let mut result = self.clone();
+        for axis in axes {
+            let index_vec: Vec<u32> = (0..self.size(*axis)).rev().map(|i| i as u32).collect();
+            let index_shape = vec![index_vec.len()];
+            let index = Tensor::from_vec(index_vec, index_shape, self.device);
+            result = result.index_select(*axis, &index)
+        }
+        result
     }
 
     pub fn masked_fill(&self, mask: &Tensor<B, u32>, value: T) -> Tensor<B, T> {
@@ -1194,6 +1340,48 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                 &one,
             );
         }
+
+        self * &mask
+    }
+
+    pub fn triu3(&self, diagonal: isize) -> Self {
+        assert!(self.ndim() >= 2);
+
+        let mut batch_size = 1;
+        for i in 0..self.ndim() - 2 {
+            batch_size *= self.shape()[i];
+        }
+
+        let rows = self.shape()[self.ndim() - 2] as isize;
+        let cols = self.shape()[self.ndim() - 1] as isize;
+        let mask = Tensor::zeros(vec![batch_size, rows as usize, cols as usize], self.device);
+
+        let one = Tensor::ones(vec![1], self.device);
+        for n in 0..batch_size {
+            for i in 0..rows {
+                // 開始列 = 行 index + diagonal
+                let mut col_begin = i + diagonal;
+
+                // 範囲をクリップ
+                if col_begin < 0 {
+                    col_begin = 0;
+                }
+                if col_begin >= cols {
+                    continue;
+                }
+
+                mask.set_item(
+                    &vec![
+                        (n, n + 1),
+                        (i as usize, (i + 1) as usize),
+                        (col_begin as usize, cols as usize),
+                    ],
+                    &one,
+                );
+            }
+        }
+
+        let mask = mask.reshape(self.shape().to_vec());
 
         self * &mask
     }
@@ -1955,6 +2143,10 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         self.op1_impl(op, B::ln)
     }
 
+    pub fn round(&self) -> Self {
+        self.op1_impl(None, B::round)
+    }
+
     pub fn sigmoid(&self) -> Self {
         1.0 / (1.0 + (-self).exp())
     }
@@ -2142,7 +2334,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         let prev_w = self.shape()[3];
 
         let (pad_h, pad_w) = if let Some(padding) = &padding {
-            (padding.0, padding.1)
+            (padding.0 * 2, padding.1 * 2)
         } else {
             if auto_padding {
                 Self::compute_conv2d_padding_size(prev_h, prev_w, fil_h, fil_w, stride_h, stride_w)
@@ -2429,6 +2621,12 @@ impl<B: Backend, T: Float> Tensor<B, T> {
             Op::Neg(x) => {
                 vec![x]
             }
+            Op::Maximum(x1, x2) => {
+                vec![x1, x2]
+            }
+            Op::Minimum(x1, x2) => {
+                vec![x1, x2]
+            }
             Op::Matmul(x1, x2) => {
                 vec![x1, x2]
             }
@@ -2540,6 +2738,12 @@ impl<B: Backend, T: Float> Tensor<B, T> {
                 Op::Neg(x) => {
                     Self::neg_backward(&mut grads, &gy, &x);
                 }
+                Op::Maximum(x1, x2) => {
+                    Self::maximum_backward(&mut grads, &gy, &x1, &x2);
+                }
+                Op::Minimum(x1, x2) => {
+                    Self::minimum_backward(&mut grads, &gy, &x1, &x2);
+                }
                 Op::Matmul(x1, x2) => {
                     Self::matmul_backward(&mut grads, &gy, &x1, &x2);
                 }
@@ -2647,7 +2851,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         axis: usize,
         split_sections: &[usize],
     ) {
-        for (i, t) in gy.split(axis, split_sections).iter().enumerate() {
+        for (i, t) in gy.split(axis as isize, split_sections).iter().enumerate() {
             grads.add(&xs[i], t.clone());
         }
     }
@@ -2743,6 +2947,34 @@ impl<B: Backend, T: Float> Tensor<B, T> {
     ) {
         let gx1 = (gy / x2).sum_to(x1.shape());
         let gx2 = (gy * (-x1 / x2.pow_scalar(2.0))).sum_to(x2.shape());
+        grads.add(x1, gx1);
+        grads.add(x2, gx2);
+    }
+
+    fn maximum_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x1: &Tensor<B, T>,
+        x2: &Tensor<B, T>,
+    ) {
+        let mask1 = x1.gt(x2).to_dtype::<T>();
+        let mask2 = x2.ge(x1).to_dtype::<T>();
+        let gx1 = (gy * mask1).sum_to(x1.shape());
+        let gx2 = (gy * mask2).sum_to(x2.shape());
+        grads.add(x1, gx1);
+        grads.add(x2, gx2);
+    }
+
+    fn minimum_backward(
+        grads: &mut Gradients<B, T>,
+        gy: &Tensor<B, T>,
+        x1: &Tensor<B, T>,
+        x2: &Tensor<B, T>,
+    ) {
+        let mask1 = x1.lt(x2).to_dtype::<T>();
+        let mask2 = x2.le(x1).to_dtype::<T>();
+        let gx1 = (gy * mask1).sum_to(x1.shape());
+        let gx2 = (gy * mask2).sum_to(x2.shape());
         grads.add(x1, gx1);
         grads.add(x2, gx2);
     }
@@ -2851,7 +3083,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         gy: &Tensor<B, T>,
         x: &Tensor<B, T>,
         index: &Tensor<B, u32>,
-        axis: usize,
+        axis: isize,
     ) {
         let gx = Tensor::zeros(x.shape().to_vec(), gy.device);
         gx.scatter_add(index, gy, axis);
@@ -2863,7 +3095,7 @@ impl<B: Backend, T: Float> Tensor<B, T> {
         gy: &Tensor<B, T>,
         x: &Tensor<B, T>,
         index: &Tensor<B, u32>,
-        axis: usize,
+        axis: isize,
     ) {
         let gx = Tensor::zeros(x.shape().to_vec(), gy.device);
         gx.index_add(axis, index, gy);

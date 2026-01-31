@@ -2,7 +2,7 @@ use crate::error::Result;
 use crate::float::Float;
 use crate::{layout::Layout, num::Num, storage::Storage};
 
-pub trait Backend: Clone + Copy {
+pub trait Backend: Clone + Copy + 'static {
     fn convert_dtype<T1: Num, T2: Num>(storage: &Storage<T1>, layout: &Layout) -> Result<Storage<T2>>;
     fn contiguous<T: Num>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn sum<T: Num>(input_storage: &Storage<T>, input_layout: &Layout) -> Result<Storage<T>>;
@@ -103,6 +103,18 @@ pub trait Backend: Clone + Copy {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<u32>>;
+    fn maximum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>>;
+    fn minimum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>>;
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn copy<T: Num>(
         lhs_storage: &mut Storage<T>,
@@ -122,6 +134,7 @@ pub trait Backend: Clone + Copy {
     fn sqrt<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn exp<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
+    fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>>;
     fn matmul<T: Float>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,

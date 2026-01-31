@@ -259,6 +259,28 @@ impl Backend for CpuBackend {
         })
     }
 
+    fn maximum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        map_arg2::<T, _, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
+            if a > b { a } else { b }
+        })
+    }
+
+    fn minimum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        map_arg2::<T, _, _>(lhs_storage, rhs_storage, lhs_layout, rhs_layout, |a, b| {
+            if a < b { a } else { b }
+        })
+    }
+
     fn op_neg<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         map_arg1::<T, _>(storage, layout, |a| -a)
     }
@@ -307,6 +329,10 @@ impl Backend for CpuBackend {
 
     fn ln<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         map_arg1::<T, _>(storage, layout, |a| a.ln())
+    }
+
+    fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        map_arg1::<T, _>(storage, layout, |a| a.round())
     }
 
     fn matmul<T: Float>(

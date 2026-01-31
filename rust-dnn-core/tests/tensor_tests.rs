@@ -271,6 +271,37 @@ fn test_ge<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_ge, test_ge_cpu, test_ge_cuda, test_ge_wgpu);
 
+fn test_maximum<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let y = x1.maximum(&x2);
+    assert_tensor(&y, &ten![0.0, 0.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_maximum, test_maximum_cpu, test_maximum_cuda);
+
+fn test_minimum<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
+    let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
+    let y = x1.minimum(&x2);
+    assert_tensor(&y, &ten![-1.0, -1.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_minimum, test_minimum_cpu, test_minimum_cuda);
+
+fn test_clamp<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-2.0, -1.0, 0.0, 1.0, 2.0].to_device(device)?;
+    let min = Tensor::from_f64(-1.0, device);
+    let max = Tensor::from_f64(1.0, device);
+    let y = x.clamp(&min, &max);
+    assert_tensor(&y, &ten![-1.0, -1.0, 0.0, 1.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_clamp, test_clamp_cpu, test_clamp_cuda);
+
 static MATMUL_BATCH_FORWARD_EXPECTED_DATA: [f64; 144] = [
     180., 190., 200., 210., 220., 230., 480., 515., 550., 585., 620., 655., 780., 840., 900., 960.,
     1020., 1080., 1080., 1165., 1250., 1335., 1420., 1505., 4680., 4790., 4900., 5010., 5120.,
@@ -625,6 +656,15 @@ define_test!(
     test_ln_backward_cpu,
     test_ln_backward_cuda
 );
+
+fn test_round<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0].to_device(device)?;
+    let y = x.round();
+    assert_tensor(&y, &ten![-1.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+    Ok(())
+}
+
+define_test!(test_round, test_round_cpu, test_round_cuda);
 
 fn test_sin<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![0.5f32].to_device(device)?;
@@ -1000,6 +1040,29 @@ fn test_reshape2<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_reshape2, test_reshape2_cpu, test_reshape2_cuda);
 
+fn test_reshape3<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = Tensor::arange(0..24, device);
+    let y = x.reshape(&vec![2isize, -1, 4isize]);
+    assert_tensor(
+        &y,
+        &ten![
+            [
+                [0.0, 1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0, 7.0],
+                [8.0, 9.0, 10.0, 11.0]
+            ],
+            [
+                [12.0, 13.0, 14.0, 15.0],
+                [16.0, 17.0, 18.0, 19.0],
+                [20.0, 21.0, 22.0, 23.0]
+            ]
+        ],
+    );
+    Ok(())
+}
+
+define_test!(test_reshape3, test_reshape3_cpu, test_reshape3_cuda);
+
 fn test_reshape_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
         .to_device(device)?
@@ -1198,6 +1261,33 @@ fn test_split<B: Backend>(device: Device<B>) -> Result<()> {
 }
 
 define_test!(test_split, test_split_cpu, test_split_cuda);
+
+fn test_chunk<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]
+        .to_device(device)?
+        .requires_grad();
+    let ys = x.chunk(1, 2);
+    assert_tensor(&ys[0], &ten![[1.0, 2.0], [5.0, 6.0]]);
+    assert_tensor(&ys[1], &ten![[3.0, 4.0], [7.0, 8.0]]);
+    Ok(())
+}
+
+define_test!(test_chunk, test_chunk_cpu, test_chunk_cuda);
+
+fn test_repeat<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
+    let y = x.repeat(&[2, 3]);
+    assert_tensor(
+        &y,
+        &ten![
+            [1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0],
+            [1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0]
+        ],
+    );
+    Ok(())
+}
+
+define_test!(test_repeat, test_repeat_cpu, test_repeat_cuda);
 
 fn test_repeat_interleave<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
@@ -1494,6 +1584,15 @@ define_test!(
     test_broadcast_to_backward_cpu,
     test_broadcast_to_backward_cuda
 );
+
+fn test_flip<B: Backend>(device: Device<B>) -> Result<()> {
+    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
+    let y = x.flip(&[0, 1]);
+    assert_tensor(&y, &ten![[6.0, 5.0, 4.0], [3.0, 2.0, 1.0]]);
+    Ok(())
+}
+
+define_test!(test_flip, test_flip_cpu, test_flip_cuda);
 
 fn test_masked_fill<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::fill(vec![4], 1.0, device);
@@ -2369,7 +2468,7 @@ fn test_conv2d_strides_auto_padding<B: Backend>(device: Device<B>) -> Result<()>
         fil_w,
         2,
         3,
-        Some((0, 2)),
+        Some((0, 1)),
         false,
     );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 2]);
@@ -2638,7 +2737,7 @@ fn test_conv2d_backward_strides_auto_padding<B: Backend>(device: Device<B>) -> R
         fil_w,
         2,
         3,
-        Some((0, 2)),
+        Some((0, 1)),
         false,
     );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 2]);

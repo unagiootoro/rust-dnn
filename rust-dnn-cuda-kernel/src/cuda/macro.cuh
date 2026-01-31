@@ -182,6 +182,11 @@ DEFINE_OP2_ASSIGN_KERNEL2_TYPE(func_name, uint32_t, op) \
 DEFINE_OP2_ASSIGN_KERNEL2_TYPE(func_name, float, op) \
 DEFINE_OP2_ASSIGN_KERNEL2_TYPE(func_name, double, op)
 
+#define DEFINE_OP2_KERNEL3(func_name, op) \
+DEFINE_OP2_KERNEL2_TYPE(func_name, uint32_t, op) \
+DEFINE_OP2_KERNEL2_TYPE(func_name, float, op) \
+DEFINE_OP2_KERNEL2_TYPE(func_name, double, op)
+
 #define DEFINE_OP2_KERNEL3_FLOAT(func_name, op) \
 DEFINE_OP2_KERNEL2_TYPE(func_name, float, op) \
 DEFINE_OP2_KERNEL2_TYPE(func_name, double, op)
