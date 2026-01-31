@@ -434,6 +434,28 @@ impl Backend for WgpuBackend {
     ) -> Result<()> {
         todo!()
     }
+    
+    fn maximum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        todo!()
+    }
+    
+    fn minimum<T: Num>(
+        lhs_storage: &Storage<T>,
+        rhs_storage: &Storage<T>,
+        lhs_layout: &Layout,
+        rhs_layout: &Layout,
+    ) -> Result<Storage<T>> {
+        todo!()
+    }
+    
+    fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
+        todo!()
+    }
 }
 
 fn layout_to_wgpu_layout(layout: &Layout) -> rust_dnn_wgpu::layout::Layout {
