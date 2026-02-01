@@ -369,6 +369,24 @@ pub fn wgpu_ge(
     );
 }
 
+pub fn wgpu_copy(
+    lhs: &WgpuBuffer,
+    lhs_layout: Layout,
+    rhs: &WgpuBuffer,
+    rhs_layout: Layout,
+    len: u32,
+) {
+    wgpu_op2_assign(
+        lhs,
+        lhs_layout,
+        rhs,
+        rhs_layout,
+        len,
+        Op2ShaderKind::Num,
+        "array_copy",
+    );
+}
+
 pub fn wgpu_pow(
     lhs: &WgpuBuffer,
     lhs_layout: Layout,
@@ -436,6 +454,102 @@ async fn wgpu_op2_async(
             op2_shader_kind,
             entry_point,
         )
+        .await;
+}
+
+fn wgpu_op2_assign(
+    lhs: &WgpuBuffer,
+    lhs_layout: Layout,
+    rhs: &WgpuBuffer,
+    rhs_layout: Layout,
+    len: u32,
+    op2_shader_kind: Op2ShaderKind,
+    entry_point: &str,
+) {
+    pollster::block_on(wgpu_op2_assign_async(
+        lhs,
+        lhs_layout,
+        rhs,
+        rhs_layout,
+        len,
+        op2_shader_kind,
+        entry_point,
+    ))
+}
+
+async fn wgpu_op2_assign_async(
+    lhs: &WgpuBuffer,
+    lhs_layout: Layout,
+    rhs: &WgpuBuffer,
+    rhs_layout: Layout,
+    len: u32,
+    op2_shader_kind: Op2ShaderKind,
+    entry_point: &str,
+) {
+    let state = WGPU_STATE.with(|s| Rc::clone(s));
+    state
+        .borrow_mut()
+        .as_mut()
+        .unwrap()
+        .op2_assign(
+            lhs,
+            lhs_layout,
+            rhs,
+            rhs_layout,
+            len,
+            op2_shader_kind,
+            entry_point,
+        )
+        .await;
+}
+
+pub fn wgpu_matmul(
+    lhs: &WgpuBuffer,
+    lhs_layout: Layout,
+    rhs: &WgpuBuffer,
+    rhs_layout: Layout,
+    output: &WgpuBuffer,
+    len: u32,
+) {
+    pollster::block_on(wgpu_matmul_async(
+        lhs, lhs_layout, rhs, rhs_layout, output, len, "matmul",
+    ))
+}
+
+async fn wgpu_matmul_async(
+    lhs: &WgpuBuffer,
+    lhs_layout: Layout,
+    rhs: &WgpuBuffer,
+    rhs_layout: Layout,
+    output: &WgpuBuffer,
+    len: u32,
+    entry_point: &str,
+) {
+    let state = WGPU_STATE.with(|s| Rc::clone(s));
+    state
+        .borrow_mut()
+        .as_mut()
+        .unwrap()
+        .matmul(lhs, lhs_layout, rhs, rhs_layout, &output, len, entry_point)
+        .await;
+}
+
+pub fn wgpu_contiguous(input: &WgpuBuffer, input_layout: Layout, output: &WgpuBuffer, len: u32) {
+    pollster::block_on(wgpu_contiguous_async(input, input_layout, output, len))
+}
+
+async fn wgpu_contiguous_async(
+    input: &WgpuBuffer,
+    input_layout: Layout,
+    output: &WgpuBuffer,
+    len: u32,
+) {
+    let state = WGPU_STATE.with(|s| Rc::clone(s));
+    state
+        .borrow_mut()
+        .as_mut()
+        .unwrap()
+        .contiguous(input, input_layout, output, len)
         .await;
 }
 

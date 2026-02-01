@@ -302,7 +302,7 @@ fn test_clamp<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_clamp, test_clamp_cpu, test_clamp_cuda);
 
-static MATMUL_BATCH_FORWARD_EXPECTED_DATA: [f64; 144] = [
+static MATMUL_BATCH_FORWARD_EXPECTED_DATA: [f32; 144] = [
     180., 190., 200., 210., 220., 230., 480., 515., 550., 585., 620., 655., 780., 840., 900., 960.,
     1020., 1080., 1080., 1165., 1250., 1335., 1420., 1505., 4680., 4790., 4900., 5010., 5120.,
     5230., 5730., 5865., 6000., 6135., 6270., 6405., 6780., 6940., 7100., 7260., 7420., 7580.,
@@ -317,7 +317,7 @@ static MATMUL_BATCH_FORWARD_EXPECTED_DATA: [f64; 144] = [
     94830., 95415., 96000., 96585., 97170., 97755.,
 ];
 
-static MATMUL_BATCH_FORWARD2_EXPECTED_DATA: [f64; 144] = [
+static MATMUL_BATCH_FORWARD2_EXPECTED_DATA: [f32; 144] = [
     180.0, 190.0, 200.0, 210.0, 220.0, 230.0, 480.0, 515.0, 550.0, 585.0, 620.0, 655.0, 780.0,
     840.0, 900.0, 960.0, 1020.0, 1080.0, 1080.0, 1165.0, 1250.0, 1335.0, 1420.0, 1505.0, 1380.0,
     1490.0, 1600.0, 1710.0, 1820.0, 1930.0, 1680.0, 1815.0, 1950.0, 2085.0, 2220.0, 2355.0, 1980.0,
@@ -332,7 +332,7 @@ static MATMUL_BATCH_FORWARD2_EXPECTED_DATA: [f64; 144] = [
     7340.0, 7900.0, 8460.0, 9020.0, 9580.0, 7080.0, 7665.0, 8250.0, 8835.0, 9420.0, 10005.0,
 ];
 
-static MATMUL_BATCH_BACKWARD_X1_EXPECTED_DATA: [f64; 120] = [
+static MATMUL_BATCH_BACKWARD_X1_EXPECTED_DATA: [f32; 120] = [
     15., 51., 87., 123., 159., 15., 51., 87., 123., 159., 15., 51., 87., 123., 159., 15., 51., 87.,
     123., 159., 195., 231., 267., 303., 339., 195., 231., 267., 303., 339., 195., 231., 267., 303.,
     339., 195., 231., 267., 303., 339., 375., 411., 447., 483., 519., 375., 411., 447., 483., 519.,
@@ -343,7 +343,7 @@ static MATMUL_BATCH_BACKWARD_X1_EXPECTED_DATA: [f64; 120] = [
     1023., 1059., 915., 951., 987., 1023., 1059.,
 ];
 
-static MATMUL_BATCH_BACKWARD_X2_EXPECTED_DATA: [f64; 180] = [
+static MATMUL_BATCH_BACKWARD_X2_EXPECTED_DATA: [f32; 180] = [
     30., 30., 30., 30., 30., 30., 34., 34., 34., 34., 34., 34., 38., 38., 38., 38., 38., 38., 42.,
     42., 42., 42., 42., 42., 46., 46., 46., 46., 46., 46., 110., 110., 110., 110., 110., 110.,
     114., 114., 114., 114., 114., 114., 118., 118., 118., 118., 118., 118., 122., 122., 122., 122.,
@@ -358,7 +358,7 @@ static MATMUL_BATCH_BACKWARD_X2_EXPECTED_DATA: [f64; 180] = [
 ];
 
 fn test_matmul<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[0.0, -2.0, -4.0], [1.0, 2.0, 3.0]]
+    let x1 = ten![[0.0f32, -2.0, -4.0], [1.0, 2.0, 3.0]]
         .to_device(device)?
         .requires_grad();
     let x2 = ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
@@ -369,11 +369,11 @@ fn test_matmul<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_matmul, test_matmul_cpu, test_matmul_cuda);
+define_test!(test_matmul, test_matmul_cpu, test_matmul_cuda, test_matmul_wgpu);
 
 fn test_matmul_batch<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
-    let x2 = Tensor::<_, f64>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6]);
+    let x1 = Tensor::<_, f32>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let x2 = Tensor::<_, f32>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6]);
     let y = x1.matmul(&x2);
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
     assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD_EXPECTED_DATA);
@@ -387,8 +387,8 @@ define_test!(
 );
 
 fn test_matmul_batch2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
-    let x2 = Tensor::<_, f64>::arange(0..(5 * 6), device).reshape(vec![5, 6]);
+    let x1 = Tensor::<_, f32>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let x2 = Tensor::<_, f32>::arange(0..(5 * 6), device).reshape(vec![5, 6]);
     let y = x1.matmul(&x2);
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
     assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD2_EXPECTED_DATA);
@@ -443,8 +443,8 @@ define_test!(
 );
 
 fn test_matmul_batch_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = Tensor::<_, f64>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
-    let x2 = Tensor::<_, f64>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6]);
+    let x1 = Tensor::<_, f32>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
+    let x2 = Tensor::<_, f32>::arange(0..(2 * 3 * 5 * 6), device).reshape(vec![2, 3, 5, 6]);
     let y = x1.matmul(&x2);
     assert_eq!(y.shape(), &vec![2, 3, 4, 6]);
     assert_eq!(y.to_vec(), MATMUL_BATCH_FORWARD_EXPECTED_DATA);
@@ -1455,26 +1455,26 @@ define_test!(test_narrow, test_narrow_cpu, test_narrow_cuda);
 
 fn test_copy<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![2, 3], device);
-    x.copy(&ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]].to_device(device)?);
+    x.copy(&ten![[1.0f32, 2.0, 3.0], [1.0, 2.0, 3.0]].to_device(device)?);
     assert_tensor(&x, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     Ok(())
 }
 
-define_test!(test_copy, test_copy_cpu, test_copy_cuda);
+define_test!(test_copy, test_copy_cpu, test_copy_cuda, test_copy_wgpu);
 
 fn test_copy2<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![2, 3], device);
-    x.copy(&ten![1.0, 2.0, 3.0].to_device(device)?);
+    x.copy(&ten![1.0f32, 2.0, 3.0].to_device(device)?);
     assert_tensor(&x, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     Ok(())
 }
 
-define_test!(test_copy2, test_copy2_cpu, test_copy2_cuda);
+define_test!(test_copy2, test_copy2_cpu, test_copy2_cuda, test_copy2_wgpu);
 
 fn test_copy3<B: Backend>(device: Device<B>) -> Result<()> {
     let x = Tensor::zeros(vec![3, 4], device);
     let x2 = x.get_item(vec![(1, 3), (1, 4)]);
-    x2.copy(&ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?);
+    x2.copy(&ten![[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?);
     assert_tensor(
         &x,
         &ten![
@@ -1486,10 +1486,10 @@ fn test_copy3<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_copy3, test_copy3_cpu, test_copy3_cuda);
+define_test!(test_copy3, test_copy3_cpu, test_copy3_cuda, test_copy3_wgpu);
 
 fn test_broadcast_to<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![1.0, 2.0, 3.0].to_device(device)?;
+    let x = ten![1.0f32, 2.0, 3.0].to_device(device)?;
     let y = x.broadcast_to(vec![2, 3]);
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
     Ok(())
@@ -1502,7 +1502,7 @@ define_test!(
 );
 
 fn test_broadcast_to2<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
+    let x = ten![[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
     let y = x.broadcast_to(vec![2, 3]);
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
     Ok(())
@@ -1511,11 +1511,12 @@ fn test_broadcast_to2<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_broadcast_to2,
     test_broadcast_to2_cpu,
-    test_broadcast_to2_cuda
+    test_broadcast_to2_cuda,
+    test_broadcast_to2_wgpu
 );
 
 fn test_broadcast_to3<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![1.0, 2.0, 3.0].to_device(device)?;
+    let x = ten![1.0f32, 2.0, 3.0].to_device(device)?;
     let x = x.broadcast_to(vec![2, 3]);
     let y = x.broadcast_to(vec![2, 3]);
     assert_tensor(&y, &ten![[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
@@ -1525,11 +1526,12 @@ fn test_broadcast_to3<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_broadcast_to3,
     test_broadcast_to3_cpu,
-    test_broadcast_to3_cuda
+    test_broadcast_to3_cuda,
+    test_broadcast_to3_wgpu
 );
 
 fn test_broadcast_to4<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0], [2.0], [3.0]].to_device(device)?;
+    let x = ten![[1.0f32], [2.0], [3.0]].to_device(device)?;
     let y = x.broadcast_to(vec![3, 2]);
     assert_tensor(&y, &ten![[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]);
     Ok(())
@@ -1538,11 +1540,12 @@ fn test_broadcast_to4<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_broadcast_to4,
     test_broadcast_to4_cpu,
-    test_broadcast_to4_cuda
+    test_broadcast_to4_cuda,
+    test_broadcast_to4_wgpu
 );
 
 fn test_broadcast_to5<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![[1.0], [2.0], [3.0]].to_device(device)?;
+    let x = ten![[1.0f32], [2.0], [3.0]].to_device(device)?;
     let y = x.broadcast_to(vec![2, 3, 4]);
     assert_tensor(
         &y,
@@ -1565,11 +1568,12 @@ fn test_broadcast_to5<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_broadcast_to5,
     test_broadcast_to5_cpu,
-    test_broadcast_to5_cuda
+    test_broadcast_to5_cuda,
+    test_broadcast_to5_wgpu
 );
 
 fn test_broadcast_to_backward<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();
+    let x1 = ten![1.0f32, 2.0, 3.0].to_device(device)?.requires_grad();
     let x2 = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
     let y = x1.broadcast_to(vec![2, 3]) * x2;
     assert_tensor(&y, &ten![[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]);
@@ -1582,7 +1586,8 @@ fn test_broadcast_to_backward<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_broadcast_to_backward,
     test_broadcast_to_backward_cpu,
-    test_broadcast_to_backward_cuda
+    test_broadcast_to_backward_cuda,
+    test_broadcast_to_backward_wgpu
 );
 
 fn test_flip<B: Backend>(device: Device<B>) -> Result<()> {
@@ -1884,7 +1889,7 @@ define_test!(
 );
 
 fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
-    let x = ten![1.0, 2.0, 3.0].to_device(device)?;
+    let x = ten![1.0f32, 2.0, 3.0].to_device(device)?;
     let x = x.broadcast_to(vec![2, 3]);
     assert!(!x.is_contiguous());
     let y = x.contiguous();
@@ -1893,7 +1898,7 @@ fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_contiguous, test_contiguous_cpu, test_contiguous_cuda);
+define_test!(test_contiguous, test_contiguous_cpu, test_contiguous_cuda, test_contiguous_wgpu);
 
 fn test_contiguous_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();

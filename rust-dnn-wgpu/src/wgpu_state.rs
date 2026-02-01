@@ -17,6 +17,10 @@ pub struct WGPUState {
     op2_f32_f32_shader: wgpu::ShaderModule,
     op2_f32_u32_shader: wgpu::ShaderModule,
     op2_float_f32_f32_shader: wgpu::ShaderModule,
+    op2_assign_u32_shader: wgpu::ShaderModule,
+    op2_assign_f32_shader: wgpu::ShaderModule,
+    matmul_shader: wgpu::ShaderModule,
+    contiguous_shader: wgpu::ShaderModule,
     sum_axis_shader: wgpu::ShaderModule,
 }
 
@@ -101,6 +105,34 @@ impl WGPUState {
             &op2_float_f32_f32_shader_src,
         );
 
+        let op2_assign_shader_src = Self::generate_op2_assign_shader_src();
+        let op2_u32_assign_shader_src = op2_assign_shader_src
+            .replace("alias T1 = f32;", "alias T1 = u32;")
+            .replace("alias T2 = f32;", "alias T2 = u32;");
+        let op2_f32_assign_shader_src = op2_assign_shader_src
+            .replace("alias T1 = f32;", "alias T1 = f32;")
+            .replace("alias T2 = f32;", "alias T2 = f32;");
+
+        let op2_assign_u32_shader = Self::create_shader_module2(
+            &device,
+            Some("op2_assign_u32_shader"),
+            &op2_u32_assign_shader_src,
+        );
+
+        let op2_assign_f32_shader = Self::create_shader_module2(
+            &device,
+            Some("op2_assign_f32_shader"),
+            &op2_f32_assign_shader_src,
+        );
+
+        let matmul_shader_src = Self::generate_matmul_shader_src();
+        let matmul_shader =
+            Self::create_shader_module2(&device, Some("matmul_shader"), &matmul_shader_src);
+
+        let contiguous_shader_src = include_str!("./contiguous.wgsl").to_string();
+        let contiguous_shader =
+            Self::create_shader_module2(&device, Some("contiguous_shader"), &contiguous_shader_src);
+
         let sum_axis_shader_src = include_str!("./sum_axis.wgsl").to_string();
         let sum_axis_shader =
             Self::create_shader_module2(&device, Some("sum_axis_shader"), &sum_axis_shader_src);
@@ -111,6 +143,10 @@ impl WGPUState {
             op2_f32_f32_shader,
             op2_f32_u32_shader,
             op2_float_f32_f32_shader,
+            op2_assign_u32_shader,
+            op2_assign_f32_shader,
+            matmul_shader,
+            contiguous_shader,
             sum_axis_shader,
             adapter,
             device,
@@ -231,6 +267,46 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
         .to_string();
         src = src.replace("<FUNCTION_NAME>", function_name);
         src = src.replace("<OP>", op);
+        src
+    }
+
+    fn generate_op2_assign_shader_src() -> String {
+        let mut src = include_str!("./op2_assign_shader.wgsl").to_string();
+        let mut functions = String::new();
+        functions += &Self::op2_assign_shader_func_def("array_copy", "=");
+        src = src.replace("/*<FUNCTIONS>*/", &functions);
+        src
+    }
+
+    fn op2_assign_shader_func_def(function_name: &str, op: &str) -> String {
+        let mut src = "
+@compute @workgroup_size(64)
+fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let index = global_id.x;
+    if (index < u_length.len) {
+        let lhs_index = compute_offset(true, index);
+        let rhs_index = compute_offset(false, index);
+        input_a[lhs_index] <OP> input_b[rhs_index];
+    }
+}
+        "
+        .to_string();
+        src = src.replace("<FUNCTION_NAME>", function_name);
+        src = src.replace("<OP>", op);
+        src
+    }
+
+    fn generate_matmul_shader_src() -> String {
+        let mut src = include_str!("./matmul_shader.wgsl").to_string();
+        // let mut functions = String::new();
+        // functions += &Self::op1_shader_func_def("array_exp", "exp");
+        // functions += &Self::op1_shader_func_def("array_sqrt", "sqrt");
+        // functions += &Self::op1_shader_func_def("array_log", "log");
+        // functions += &Self::op1_shader_func_def("array_sin", "sin");
+        // functions += &Self::op1_shader_func_def("array_cos", "cos");
+        // functions += &Self::op1_shader_func_def("array_tanh", "tanh");
+        // functions += &Self::op1_shader_func_def("neg", "-");
+        // src = src.replace("/*<FUNCTIONS>*/", &functions);
         src
     }
 
@@ -449,6 +525,289 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: len_uniform_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // --- 6. コマンドのエンコードと実行 ---
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+
+        {
+            // コンピュートパスの開始
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&compute_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            // ワークグループの数を計算 (データ数64 / ワークグループサイズ64 = 1)
+            // cpass.dispatch_workgroups(data_a_len as u32 / 64, 1, 1);
+            cpass.dispatch_workgroups(1, 1, 1);
+        }
+
+        // コマンドをキューに送信して実行
+        self.queue.submit(Some(encoder.finish()));
+    }
+
+    pub async fn op2_assign(
+        &self,
+        buffer_a: &WgpuBuffer,
+        lhs_layout: Layout,
+        buffer_b: &WgpuBuffer,
+        rhs_layout: Layout,
+        len: u32,
+        op2_shader_kind: Op2ShaderKind,
+        entry_point: &str,
+    ) {
+        assert_eq!(buffer_a.dtype(), buffer_b.dtype());
+
+        let shader_module = match (buffer_a.dtype(), op2_shader_kind) {
+            (WgpuDTypeKind::U32, Op2ShaderKind::Num) => &self.op2_assign_u32_shader,
+            (WgpuDTypeKind::F32, Op2ShaderKind::Num) => &self.op2_assign_f32_shader,
+            _ => todo!(),
+        };
+
+        // パイプラインの作成
+        let compute_pipeline = self.create_compute_pipeline(shader_module, entry_point);
+
+        // --- 5. バインドグループの作成 ---
+        // バッファとシェーダー内の変数(binding)を紐付ける
+
+        let lhs_layout_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("lhs_layout_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[lhs_layout]),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let rhs_layout_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("rhs_layout_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[rhs_layout]),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let u_length = Length::new(len);
+
+        let len_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("len_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[u_length]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Bind Group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: buffer_a.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: lhs_layout_uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: buffer_b.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: rhs_layout_uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: len_uniform_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // --- 6. コマンドのエンコードと実行 ---
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+
+        {
+            // コンピュートパスの開始
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&compute_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            // ワークグループの数を計算 (データ数64 / ワークグループサイズ64 = 1)
+            // cpass.dispatch_workgroups(data_a_len as u32 / 64, 1, 1);
+            cpass.dispatch_workgroups(1, 1, 1);
+        }
+
+        // コマンドをキューに送信して実行
+        self.queue.submit(Some(encoder.finish()));
+    }
+
+    pub async fn matmul(
+        &self,
+        buffer_a: &WgpuBuffer,
+        lhs_layout: Layout,
+        buffer_b: &WgpuBuffer,
+        rhs_layout: Layout,
+        buffer_c: &WgpuBuffer,
+        len: u32,
+        entry_point: &str,
+    ) {
+        assert_eq!(buffer_a.dtype(), buffer_b.dtype());
+
+        let shader_module = &self.matmul_shader;
+
+        // パイプラインの作成
+        let compute_pipeline = self.create_compute_pipeline(shader_module, entry_point);
+
+        // --- 5. バインドグループの作成 ---
+        // バッファとシェーダー内の変数(binding)を紐付ける
+
+        let lhs_layout_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("lhs_layout_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[lhs_layout]),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let rhs_layout_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("rhs_layout_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[rhs_layout]),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let u_length = Length::new(len);
+
+        let len_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("len_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[u_length]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Bind Group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: buffer_a.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: lhs_layout_uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: buffer_b.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: rhs_layout_uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: buffer_c.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: len_uniform_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // --- 6. コマンドのエンコードと実行 ---
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Command Encoder"),
+            });
+
+        {
+            // コンピュートパスの開始
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&compute_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            // ワークグループの数を計算 (データ数64 / ワークグループサイズ64 = 1)
+            // cpass.dispatch_workgroups(data_a_len as u32 / 64, 1, 1);
+            cpass.dispatch_workgroups(1, 1, 1);
+        }
+
+        // コマンドをキューに送信して実行
+        self.queue.submit(Some(encoder.finish()));
+    }
+
+    pub async fn contiguous(
+        &self,
+        input: &WgpuBuffer,
+        input_layout: Layout,
+        output: &WgpuBuffer,
+        len: u32,
+    ) {
+        let compute_pipeline =
+            self.create_compute_pipeline(&self.contiguous_shader, "array_contiguous");
+
+        let input_layout_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("input_layout_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[input_layout]),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let params = Length::new(len);
+
+        let params_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("params_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[params]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Bind Group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: input.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: output.raw.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: input_layout_uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: params_uniform_buffer.as_entire_binding(),
                 },
             ],
         });

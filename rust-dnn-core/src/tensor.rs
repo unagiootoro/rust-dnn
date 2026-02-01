@@ -14,8 +14,8 @@ use rust_dnn_wgpu::wgpu_buffer::{self, WgpuBuffer};
 
 use crate::{
     backend::Backend,
-    cpu_backend::CpuBackend,
     config::{enable_backprop, set_enable_backprop},
+    cpu_backend::CpuBackend,
     device::{Device, DeviceInfo},
     dtype::DType,
     error::{Error, Result},
@@ -163,7 +163,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             DeviceInfo::Cpu => Storage::CpuStorage(data),
             #[cfg(feature = "cuda")]
             DeviceInfo::Cuda => Storage::CudaStorage(GPUBuffer::from_vec(&data)),
-            DeviceInfo::Wgpu => todo!(),
+            DeviceInfo::Wgpu => Storage::WgpuStorage(Self::create_wgpu_buffer_from_data(data)),
         };
         let stride = Self::compute_stride(&shape);
         let layout = Layout::new(shape, stride, 0);
@@ -175,6 +175,20 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             false,
             None,
         )
+    }
+
+    fn create_wgpu_buffer_from_data(data: Vec<T>) -> WgpuBuffer {
+        match T::dtype() {
+            DType::U32 => {
+                let vec = unsafe { std::mem::transmute::<Vec<T>, Vec<u32>>(data) };
+                WgpuBuffer::from_vec(vec)
+            }
+            DType::F32 => {
+                let vec = unsafe { std::mem::transmute::<Vec<T>, Vec<f32>>(data) };
+                WgpuBuffer::from_vec(vec)
+            }
+            _ => todo!(),
+        }
     }
 
     pub fn from_scalar(value: T, device: Device<B>) -> Self {
@@ -235,7 +249,10 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                     }
                 }
             }
-            DeviceInfo::Wgpu => todo!(),
+            DeviceInfo::Wgpu => {
+                let len = Self::compute_len(&shape);
+                Storage::WgpuStorage(Self::create_wgpu_buffer_from_fill_value(len, value))
+            }
         };
         let layout = Layout::new(shape, stride, 0);
         Self::new(
@@ -246,6 +263,14 @@ impl<B: Backend, T: Num> Tensor<B, T> {
             false,
             None,
         )
+    }
+
+    fn create_wgpu_buffer_from_fill_value(len: usize, fill_value: T) -> WgpuBuffer {
+        match T::dtype() {
+            DType::U32 => WgpuBuffer::fill(len, fill_value.as_u32()),
+            DType::F32 => WgpuBuffer::fill(len, fill_value.as_f32()),
+            _ => todo!(),
+        }
     }
 
     // TODO: rangeではなくbeginとendを使用する。
@@ -1528,19 +1553,31 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         } else if *self.device.info() == DeviceInfo::Cpu && *device.info() == DeviceInfo::Wgpu {
             let device = unsafe { device.reinterpret_cast() };
             return Ok(unsafe {
-                Self::cpu_to_wgpu(self.clone().reinterpret_cast_backend::<CpuBackend>(), device)
-                    .reinterpret_cast_backend::<B2>()
+                Self::cpu_to_wgpu(
+                    self.clone().reinterpret_cast_backend::<CpuBackend>(),
+                    device,
+                )
+                .reinterpret_cast_backend::<B2>()
             });
         } else if *self.device.info() == DeviceInfo::Wgpu && *device.info() == DeviceInfo::Cpu {
             let device = unsafe { device.reinterpret_cast() };
-            return Ok(unsafe { Self::wgpu_to_cpu(self.clone().reinterpret_cast_backend::<WgpuBackend>(), device).reinterpret_cast_backend::<B2>() });
+            return Ok(unsafe {
+                Self::wgpu_to_cpu(
+                    self.clone().reinterpret_cast_backend::<WgpuBackend>(),
+                    device,
+                )
+                .reinterpret_cast_backend::<B2>()
+            });
         }
         Err(Error::ArgumentsError {
             msg: format!("Invalid device(device = {:?}", device.info()).to_string(),
         })
     }
 
-    fn cpu_to_wgpu(tensor: Tensor<CpuBackend, T>, device: Device<WgpuBackend>) -> Tensor<WgpuBackend, T> {
+    fn cpu_to_wgpu(
+        tensor: Tensor<CpuBackend, T>,
+        device: Device<WgpuBackend>,
+    ) -> Tensor<WgpuBackend, T> {
         let wgpu_buffer = match T::dtype() {
             DType::U32 => {
                 let vec = unsafe { std::mem::transmute::<Vec<T>, Vec<u32>>(tensor.to_vec()) };
@@ -1550,7 +1587,7 @@ impl<B: Backend, T: Num> Tensor<B, T> {
                 let vec = unsafe { std::mem::transmute::<Vec<T>, Vec<f32>>(tensor.to_vec()) };
                 WgpuBuffer::from_vec(vec)
             }
-            _ => todo!()
+            _ => todo!(),
         };
         let storage = Storage::WgpuStorage(wgpu_buffer);
         Tensor::new(
@@ -1563,17 +1600,16 @@ impl<B: Backend, T: Num> Tensor<B, T> {
         )
     }
 
-    fn wgpu_to_cpu(tensor: Tensor<WgpuBackend, T>, device: Device<CpuBackend>) -> Tensor<CpuBackend, T> {
+    fn wgpu_to_cpu(
+        tensor: Tensor<WgpuBackend, T>,
+        device: Device<CpuBackend>,
+    ) -> Tensor<CpuBackend, T> {
         let storage = tensor.storage.borrow();
         let wgpu_buffer = storage.get_wgpu_storage().unwrap();
         let vec = match T::dtype() {
-            DType::U32 => {
-                unsafe { std::mem::transmute::<Vec<u32>, Vec<T>>(wgpu_buffer.to_vec()) }
-            }
-            DType::F32 => {
-                unsafe { std::mem::transmute::<Vec<f32>, Vec<T>>(wgpu_buffer.to_vec()) }
-            }
-            _ => todo!()
+            DType::U32 => unsafe { std::mem::transmute::<Vec<u32>, Vec<T>>(wgpu_buffer.to_vec()) },
+            DType::F32 => unsafe { std::mem::transmute::<Vec<f32>, Vec<T>>(wgpu_buffer.to_vec()) },
+            _ => todo!(),
         };
         let storage = Storage::CpuStorage(vec);
         Tensor::new(

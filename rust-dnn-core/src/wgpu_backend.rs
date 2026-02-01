@@ -2,8 +2,9 @@ use rust_dnn_wgpu::layout::MAX_NDIM;
 use rust_dnn_wgpu::wgpu_buffer::WgpuBuffer;
 use rust_dnn_wgpu::wgpu_dtype::WgpuDTypeKind;
 use rust_dnn_wgpu::{
-    wgpu_add, wgpu_cos, wgpu_div, wgpu_eq, wgpu_exp, wgpu_ge, wgpu_gt, wgpu_le, wgpu_log, wgpu_lt,
-    wgpu_mul, wgpu_neg, wgpu_pow, wgpu_sin, wgpu_sqrt, wgpu_sub, wgpu_sum_axis, wgpu_tanh,
+    wgpu_add, wgpu_contiguous, wgpu_copy, wgpu_cos, wgpu_div, wgpu_eq, wgpu_exp, wgpu_ge, wgpu_gt,
+    wgpu_le, wgpu_log, wgpu_lt, wgpu_matmul, wgpu_mul, wgpu_neg, wgpu_pow, wgpu_sin, wgpu_sqrt,
+    wgpu_sub, wgpu_sum_axis, wgpu_tanh,
 };
 
 use crate::backend::Backend;
@@ -21,6 +22,14 @@ type WgpuOp2Func = fn(
     rhs: &WgpuBuffer,
     rhs_layout: rust_dnn_wgpu::layout::Layout,
     output: &WgpuBuffer,
+    len: u32,
+);
+
+type WgpuOp2AssignFunc = fn(
+    lhs: &WgpuBuffer,
+    lhs_layout: rust_dnn_wgpu::layout::Layout,
+    rhs: &WgpuBuffer,
+    rhs_layout: rust_dnn_wgpu::layout::Layout,
     len: u32,
 );
 
@@ -72,6 +81,25 @@ fn wgpu_op2_func_call<T1: Num, T2: Num>(
     Ok(Storage::WgpuStorage(output_data))
 }
 
+fn wgpu_op2_assign_func_call<T: Num>(
+    lhs_storage: &Storage<T>,
+    rhs_storage: &Storage<T>,
+    lhs_layout: &Layout,
+    rhs_layout: &Layout,
+    f: WgpuOp2AssignFunc,
+) -> Result<()> {
+    let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
+    let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
+    f(
+        &lhs_data,
+        layout_to_wgpu_layout(lhs_layout),
+        &rhs_data,
+        layout_to_wgpu_layout(rhs_layout),
+        lhs_layout.len() as u32,
+    );
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct WgpuBackend;
 
@@ -84,7 +112,20 @@ impl Backend for WgpuBackend {
     }
 
     fn contiguous<T: Num>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
+        let output_data = match T::dtype() {
+            DType::F32 => WgpuBuffer::fill::<f32>(layout.len(), 0.0),
+            _ => todo!(),
+        };
+
+        let input_data = storage.get_wgpu_storage().unwrap();
+        wgpu_contiguous(
+            input_data,
+            layout_to_wgpu_layout(layout),
+            &output_data,
+            layout.len() as u32,
+        );
+
+        Ok(Storage::WgpuStorage(output_data))
     }
 
     fn sum_axis<T: Num>(
@@ -202,7 +243,7 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<()> {
-        todo!()
+        wgpu_op2_assign_func_call(lhs_storage, rhs_storage, lhs_layout, rhs_layout, wgpu_copy)
     }
 
     fn pow<T: Float>(
@@ -240,7 +281,45 @@ impl Backend for WgpuBackend {
         lhs_layout: &Layout,
         rhs_layout: &Layout,
     ) -> Result<Storage<T>> {
-        todo!()
+        // let lhs_rows = lhs_layout.shape()[0];
+        // let rhs_cols = rhs_layout.shape()[1];
+
+        // let lhs_data = lhs_storage.get_cuda_storage()?;
+        // let rhs_data = rhs_storage.get_cuda_storage()?;
+        // let output_data = unsafe {
+        //     let output_data = GPUBuffer::<T>::new(lhs_rows * rhs_cols);
+        //     cuda_matmul(
+        //         T::dtype() as i32,
+        //         lhs_data.ptr(),
+        //         layout_to_clayout(lhs_layout)?,
+        //         rhs_data.ptr(),
+        //         layout_to_clayout(rhs_layout)?,
+        //         output_data.ptr(),
+        //         (lhs_rows * rhs_cols) as i32,
+        //     );
+        //     check_cuda_error();
+        //     output_data
+        // };
+        // Ok(Storage::CudaStorage(output_data))
+
+        let output_data = match T::dtype() {
+            DType::F32 => WgpuBuffer::fill::<f32>(lhs_layout.len(), 0.0),
+            DType::F64 => todo!(),
+            _ => todo!(),
+        };
+
+        let lhs_data = lhs_storage.get_wgpu_storage().unwrap();
+        let rhs_data = rhs_storage.get_wgpu_storage().unwrap();
+        wgpu_matmul(
+            &lhs_data,
+            layout_to_wgpu_layout(lhs_layout),
+            &rhs_data,
+            layout_to_wgpu_layout(rhs_layout),
+            &output_data,
+            lhs_layout.len() as u32,
+        );
+
+        Ok(Storage::WgpuStorage(output_data))
     }
 
     fn is_cublas_supported() -> bool {
@@ -434,7 +513,7 @@ impl Backend for WgpuBackend {
     ) -> Result<()> {
         todo!()
     }
-    
+
     fn maximum<T: Num>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,
@@ -443,7 +522,7 @@ impl Backend for WgpuBackend {
     ) -> Result<Storage<T>> {
         todo!()
     }
-    
+
     fn minimum<T: Num>(
         lhs_storage: &Storage<T>,
         rhs_storage: &Storage<T>,
@@ -452,7 +531,7 @@ impl Backend for WgpuBackend {
     ) -> Result<Storage<T>> {
         todo!()
     }
-    
+
     fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
         todo!()
     }
