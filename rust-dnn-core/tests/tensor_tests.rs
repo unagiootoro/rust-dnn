@@ -276,6 +276,26 @@ fn test_maximum<B: Backend>(device: Device<B>) -> Result<()> {
 
 define_test!(test_maximum, test_maximum_cpu, test_maximum_cuda);
 
+fn test_maximum_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?.requires_grad();
+    let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?.requires_grad();
+    let y = x1.maximum(&x2);
+    assert_tensor(&y, &ten![0.0, 0.0, 1.0]);
+
+    let grads = y.backward();
+    let gx1 = grads.get(&x1).unwrap();
+    assert_tensor(&gx1, &ten![1.0, 0.0, 0.0]);
+    let gx2 = grads.get(&x2).unwrap();
+    assert_tensor(&gx2, &ten![0.0, 1.0, 1.0]);
+    Ok(())
+}
+
+define_test!(
+    test_maximum_backward,
+    test_maximum_backward_cpu,
+    test_maximum_backward_cuda
+);
+
 fn test_minimum<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = ten![0.0, -1.0, 1.0].to_device(device)?;
     let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?;
@@ -285,6 +305,26 @@ fn test_minimum<B: Backend>(device: Device<B>) -> Result<()> {
 }
 
 define_test!(test_minimum, test_minimum_cpu, test_minimum_cuda);
+
+fn test_minimum_backward<B: Backend>(device: Device<B>) -> Result<()> {
+    let x1 = ten![0.0, -1.0, 1.0].to_device(device)?.requires_grad();
+    let x2 = ten![-1.0, 0.0, 1.0].to_device(device)?.requires_grad();
+    let y = x1.minimum(&x2);
+    assert_tensor(&y, &ten![-1.0, -1.0, 1.0]);
+
+    let grads = y.backward();
+    let gx1 = grads.get(&x1).unwrap();
+    assert_tensor(&gx1, &ten![0.0, 1.0, 0.0]);
+    let gx2 = grads.get(&x2).unwrap();
+    assert_tensor(&gx2, &ten![1.0, 0.0, 1.0]);
+    Ok(())
+}
+
+define_test!(
+    test_minimum_backward,
+    test_minimum_backward_cpu,
+    test_minimum_backward_cuda
+);
 
 fn test_clamp<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![-2.0, -1.0, 0.0, 1.0, 2.0].to_device(device)?;
@@ -2462,7 +2502,7 @@ fn test_conv2d_strides_auto_padding<B: Backend>(device: Device<B>) -> Result<()>
         fil_w,
         2,
         3,
-        Some((0, 2)),
+        Some((0, 1)),
         false,
     );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 2]);
@@ -2731,7 +2771,7 @@ fn test_conv2d_backward_strides_auto_padding<B: Backend>(device: Device<B>) -> R
         fil_w,
         2,
         3,
-        Some((0, 2)),
+        Some((0, 1)),
         false,
     );
     assert_eq!(y.shape(), &vec![batch_size, out_filters, 2, 2]);

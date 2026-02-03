@@ -21,6 +21,8 @@ DEFINE_OP2_U32_KERNEL2(cuda_gt, >)
 DEFINE_OP2_U32_KERNEL2(cuda_ge, >=)
 DEFINE_OP2_U32_KERNEL2(cuda_eq, ==)
 
+DEFINE_OP1_KERNEL_FLOAT(cuda_round, roundf)
+
 #define MAXIMUM(a, b) ((a) > (b) ? (a) : (b))
 #define MINIMUM(a, b) ((a) < (b) ? (a) : (b))
 
@@ -200,7 +202,8 @@ __device__ void cuda_index_add_kernel(
             size_t index_offset = compute_offset2(&index_layout, output_axis_index);
             size_t index = index_data[index_offset];
             size_t input_offset = compute_offset_by_axis_index(input_layout.storage_offset, &src_layout.shape[0], &input_layout.stride[0], src_layout.ndim, idx, axis, index);
-            input_data[input_offset] += src_data[idx];
+            // input_data[input_offset] += src_data[idx];
+            atomicAdd(&input_data[input_offset], src_data[idx]);
         }
     }
 }

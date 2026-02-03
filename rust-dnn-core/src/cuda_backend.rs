@@ -247,8 +247,7 @@ impl Backend for CudaBackend {
     }
 
     fn round<T: Float>(storage: &Storage<T>, layout: &Layout) -> Result<Storage<T>> {
-        todo!()
-        // cuda_op1_func_call(storage, layout, cuda_round)
+        cuda_op1_func_call(storage, layout, cuda_round)
     }
 
     fn matmul<T: Float>(
@@ -1129,6 +1128,7 @@ define_cuda_op1_func!(cuda_sqrt, cuda_sqrt_float, cuda_sqrt_double);
 define_cuda_op1_func!(cuda_sin, cuda_sin_float, cuda_sin_double);
 define_cuda_op1_func!(cuda_cos, cuda_cos_float, cuda_cos_double);
 define_cuda_op1_func!(cuda_tanh, cuda_tanh_float, cuda_tanh_double);
+define_cuda_op1_func!(cuda_round, cuda_round_float, cuda_round_double);
 
 define_cuda_reduce_func!(cuda_sum, cuda_sum_float, cuda_sum_double);
 define_cuda_reduce_func!(cuda_max, cuda_max_float, cuda_max_double);
