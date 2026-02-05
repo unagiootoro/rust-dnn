@@ -71,6 +71,7 @@ impl<T: Num> Storage<T> {
             Self::CpuStorage(_) => Err(Error::DeviceError {
                 msg: "Failed to get CudaStorage due to CpuStorage.".to_string(),
             }),
+            Self::WgpuStorage(_) => todo!()
         }
     }
 

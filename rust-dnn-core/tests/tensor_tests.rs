@@ -409,7 +409,12 @@ fn test_matmul<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_matmul, test_matmul_cpu, test_matmul_cuda, test_matmul_wgpu);
+define_test!(
+    test_matmul,
+    test_matmul_cpu,
+    test_matmul_cuda,
+    test_matmul_wgpu
+);
 
 fn test_matmul_batch<B: Backend>(device: Device<B>) -> Result<()> {
     let x1 = Tensor::<_, f32>::arange(0..(2 * 3 * 4 * 5), device).reshape(vec![2, 3, 4, 5]);
@@ -423,7 +428,8 @@ fn test_matmul_batch<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_matmul_batch,
     test_matmul_batch_cpu,
-    test_matmul_batch_cuda
+    test_matmul_batch_cuda,
+    test_matmul_batch_wgpu
 );
 
 fn test_matmul_batch2<B: Backend>(device: Device<B>) -> Result<()> {
@@ -438,11 +444,12 @@ fn test_matmul_batch2<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_matmul_batch2,
     test_matmul_batch2_cpu,
-    test_matmul_batch2_cuda
+    test_matmul_batch2_cuda,
+    test_matmul_batch2_wgpu
 );
 
 fn test_matmul_transpose<B: Backend>(device: Device<B>) -> Result<()> {
-    let x1 = ten![[0.0, -2.0], [-4.0, 1.0], [2.0, 3.0]]
+    let x1 = ten![[0.0f32, -2.0], [-4.0, 1.0], [2.0, 3.0]]
         .to_device(device)?
         .requires_grad();
     let x2 = ten![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
@@ -456,7 +463,8 @@ fn test_matmul_transpose<B: Backend>(device: Device<B>) -> Result<()> {
 define_test!(
     test_matmul_transpose,
     test_matmul_transpose_cpu,
-    test_matmul_transpose_cuda
+    test_matmul_transpose_cuda,
+    test_matmul_transpose_wgpu
 );
 
 fn test_matmul_backward<B: Backend>(device: Device<B>) -> Result<()> {
@@ -1753,7 +1761,12 @@ fn test_sum_axis<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_sum_axis, test_sum_axis_cpu, test_sum_axis_cuda, test_sum_axis_wgpu);
+define_test!(
+    test_sum_axis,
+    test_sum_axis_cpu,
+    test_sum_axis_cuda,
+    test_sum_axis_wgpu
+);
 
 fn test_sum_axis_keepdims_true<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]].to_device(device)?;
@@ -1938,7 +1951,12 @@ fn test_contiguous<B: Backend>(device: Device<B>) -> Result<()> {
     Ok(())
 }
 
-define_test!(test_contiguous, test_contiguous_cpu, test_contiguous_cuda, test_contiguous_wgpu);
+define_test!(
+    test_contiguous,
+    test_contiguous_cpu,
+    test_contiguous_cuda,
+    test_contiguous_wgpu
+);
 
 fn test_contiguous_backward<B: Backend>(device: Device<B>) -> Result<()> {
     let x = ten![1.0, 2.0, 3.0].to_device(device)?.requires_grad();

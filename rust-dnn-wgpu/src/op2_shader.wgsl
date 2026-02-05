@@ -40,6 +40,53 @@ var<storage, read_write> output_c: array<T2>;
 @group(0) @binding(5)
 var<uniform> u_length: Length;
 
+fn is_nan_f32(x: f32) -> bool {
+    return x != x;
+}
+
+fn make_nan() -> f32 {
+    return bitcast<f32>(0x7fc00000u);
+}
+
+fn make_inf() -> f32 {
+    return bitcast<f32>(0x7f800000u);
+}
+
+fn pow_general(x: f32, y: f32) -> f32 {
+    // NaN 伝播（最優先）
+    if (is_nan_f32(x) || is_nan_f32(y)) {
+        return make_nan();
+    }
+
+    // x == 0
+    if (x == 0.0) {
+        if (y > 0.0) {
+            return 0.0;
+        }
+        if (y == 0.0) {
+            return 1.0;
+        }
+        return make_inf(); // 0^負数
+    }
+
+    // x < 0
+    if (x < 0.0) {
+        let yi = round(y);
+        if (abs(y - yi) > 1e-6) {
+            // 負数 + 非整数指数 → NaN
+            return make_nan();
+        }
+
+        // 整数指数
+        let p = exp(y * log(-x));
+        // 奇数なら符号反転
+        return select(p, -p, (i32(yi) & 1) != 0);
+    }
+
+    // x > 0（最頻出パス）
+    return exp(y * log(x));
+}
+
 fn compute_offset(is_lhs: bool, linear_index_in: u32) -> u32 {
     var offset: u32 = 0u;
     var linear_index = linear_index_in;

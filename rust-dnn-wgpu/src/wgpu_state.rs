@@ -211,7 +211,7 @@ fn <FUNCTION_NAME>(@builtin(global_invocation_id) global_id: vec3<u32>) {
     fn generate_op2_float_shader_src() -> String {
         let mut src = include_str!("./op2_shader.wgsl").to_string();
         let mut functions = String::new();
-        functions += &Self::op2_shader_func_def("array_pow", "pow");
+        functions += &Self::op2_shader_func_def("array_pow", "pow_general");
         src = src.replace("/*<FUNCTIONS>*/", &functions);
         src
     }

@@ -16,7 +16,9 @@ macro_rules! define_test {
 
         #[test]
         fn $test_wgpu() -> Result<()> {
-            $fn_name(Device::get_wgpu_device())
+            let result = $fn_name(Device::get_wgpu_device());
+            rust_dnn_wgpu::dispose_wgpu_state(); // TODO: できれば不要にしたい
+            result
         }
     };
 
